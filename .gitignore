@@ -1,0 +1,11 @@
+﻿# Secrets : ne jamais les commiter
+.env
+.env.*
+!.env.example
+credentials.json
+token.json
+
+node_modules/
+dist/
+*.log
+.DS_Store
