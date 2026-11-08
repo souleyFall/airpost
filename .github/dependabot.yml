@@ -1,0 +1,20 @@
+version: 2
+
+updates:
+  # Dépendances npm (pnpm), à la racine et dans chaque application.
+  - package-ecosystem: npm
+    directories:
+      - /
+      - /apps/*
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-et-patch:
+        update-types: [minor, patch]
+
+  # Les actions GitHub utilisées par la CI.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
