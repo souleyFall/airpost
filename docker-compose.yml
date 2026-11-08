@@ -1,0 +1,18 @@
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      # Les valeurs viennent du fichier .env. Le « :? » arrête tout avec un message clair si une variable manque.
+      POSTGRES_USER: ${POSTGRES_USER:?Ajoute POSTGRES_USER dans .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Ajoute POSTGRES_PASSWORD dans .env}
+      POSTGRES_DB: ${POSTGRES_DB:?Ajoute POSTGRES_DB dans .env}
+    ports:
+      # 127.0.0.1 : la base n'est joignable que depuis ton ordinateur, jamais depuis le réseau.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      # Les données survivent à l'arrêt du conteneur.
+      - airpost-db:/var/lib/postgresql/data
+
+volumes:
+  airpost-db:

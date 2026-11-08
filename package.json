@@ -1,0 +1,13 @@
+{
+  "name": "airpost",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "dev:api": "pnpm --filter @airpost/api start:dev"
+  }
+}
