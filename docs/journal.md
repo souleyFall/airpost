@@ -5,6 +5,10 @@
 - PR n°1 : champ `version` et route `/health/ping` (exercices de l'étape 1).
 - PR n°2 : outillage qualité. ESLint (règles typées), Prettier, Vitest avec SWC, tests de la route de santé, CI GitHub Actions (qualité, audit des dépendances, recherche de secrets), Dependabot, modèle de pull request.
 - Constat : `pnpm audit` signale une faille modérée dans `minimatch`, uniquement via ESLint (outil de développement). Risque accepté, suivi par Dependabot.
+- Corrections après revue de la PR n°2 :
+  - BOM supprimé dans `.gitignore` et `apps/api/tsconfig.json`.
+  - Actions GitHub figées par empreinte, jeton non conservé après le `checkout`, audit hebdomadaire, annulation de la CI limitée aux PR.
+  - Audit sans réinstallation, Dependabot réduit à la racine, tests rendus plus robustes.
 
 ## 2026-11-08
 

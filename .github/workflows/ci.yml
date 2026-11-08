@@ -4,25 +4,34 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Exécution hebdomadaire : seul l'audit tourne (voir `if` des autres jobs), pour détecter
+  # une faille publiée après la dernière PR.
+  schedule:
+    - cron: '17 5 * * 1'
 
 # Principe du moindre privilège : le jeton du workflow ne peut que lire le dépôt.
 permissions:
   contents: read
 
-# Une nouvelle exécution annule la précédente pour la même branche.
+# Une nouvelle exécution annule la précédente pour la même PR, mais jamais celle de `main`.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Les actions sont figées par empreinte de commit (le commentaire donne la version lisible).
+# Dependabot propose leur mise à jour.
 jobs:
   quality:
     name: Qualité (lint, formatage, types, tests, build)
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           cache: pnpm
@@ -38,23 +47,26 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      # Pas d'installation : l'audit ne lit que le fichier de verrouillage.
       - run: pnpm audit --prod --audit-level=high
 
   secrets:
     name: Recherche de secrets dans l'historique
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
+          persist-credentials: false
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

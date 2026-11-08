@@ -6,9 +6,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../app.module';
 
 describe('Santé de l’API (e2e)', () => {
-  let app: INestApplication;
+  let app: INestApplication | undefined;
+
   // getHttpServer() est typé `any` par Nest : on le type ici une fois pour toutes.
-  const http = () => request(app.getHttpServer() as Server);
+  const http = () => {
+    if (!app) throw new Error('Application de test non initialisée');
+    return request(app.getHttpServer() as Server);
+  };
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -16,8 +20,9 @@ describe('Santé de l’API (e2e)', () => {
     await app.init();
   });
 
+  // `?.` : si beforeAll a échoué, on ne masque pas l'erreur d'origine par un second plantage.
   afterAll(async () => {
-    await app.close();
+    await app?.close();
   });
 
   it('GET /health répond 200 avec le statut du service', async () => {
