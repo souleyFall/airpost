@@ -25,10 +25,11 @@ export class ApplicationsService {
   constructor(private readonly prisma: PrismaService) {}
 
   /** Candidatures, les plus récemment modifiées d'abord, avec un résumé de l'offre (sans la description). */
-  list(status?: ApplicationStatus) {
+  list(status?: ApplicationStatus, limit = 200) {
     return this.prisma.application.findMany({
       where: status ? { status } : {},
       orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
+      take: limit,
       select: {
         id: true,
         status: true,
@@ -129,6 +130,8 @@ export class ApplicationsService {
    * Supprime la candidature (RGPD : effacement) et retire de l'offre le contact du recruteur, qui n'avait de
    * raison d'être conservé que pour cette candidature. L'offre elle-même reste (donnée publique) jusqu'à sa purge.
    */
+  // À faire avec le module Gmail (PR n°20) : supprimer aussi le brouillon Gmail associé (`gmailDraftId`), sinon il
+  // resterait dans la boîte avec la lettre et l'adresse du recruteur.
   async remove(id: string): Promise<void> {
     const application = await this.prisma.application.findUnique({
       where: { id },

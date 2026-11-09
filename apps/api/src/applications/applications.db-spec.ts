@@ -109,6 +109,27 @@ describe('Candidatures (e2e, base réelle)', () => {
       await get('/applications?status=INCONNU').expect(400);
     });
 
+    it('borne la liste (limit) et refuse une limite absurde', async () => {
+      for (let i = 0; i < 3; i++) {
+        const o = await prisma.offer.create({
+          data: {
+            source: 'LBA',
+            externalId: `extra-${i}`,
+            dedupKey: `extra-${i}`,
+            title: 'T',
+            company: 'C',
+            channel: 'SITE',
+          },
+        });
+        await prisma.application.create({ data: { offerId: o.id, subject: 's', body: 'b' } });
+      }
+
+      expect(((await get('/applications?limit=2').expect(200)).body as unknown[]).length).toBe(2);
+      expect(((await get('/applications').expect(200)).body as unknown[]).length).toBe(4);
+      await get('/applications?limit=0').expect(400);
+      await get('/applications?limit=501').expect(400);
+    });
+
     it('détaille une candidature : lettre, offre complète, réponses reçues', async () => {
       await prisma.reply.create({
         data: {

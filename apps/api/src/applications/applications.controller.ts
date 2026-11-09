@@ -19,7 +19,11 @@ const statusEnum = z.enum(
   Object.values(ApplicationStatus) as [ApplicationStatus, ...ApplicationStatus[]],
 );
 
-const listQuery = z.object({ status: statusEnum.optional() });
+const listQuery = z.object({
+  status: statusEnum.optional(),
+  // Borné : la liste ne grossit pas sans limite avec les mois d'utilisation.
+  limit: z.coerce.number().int().min(1).max(500).default(200),
+});
 type ListQuery = z.infer<typeof listQuery>;
 
 // Champs inconnus refusés ; au moins un champ ; tailles bornées (le texte part ensuite dans un e-mail).
@@ -43,7 +47,7 @@ export class ApplicationsController {
 
   @Get()
   list(@Query(new ZodValidationPipe(listQuery)) query: ListQuery) {
-    return this.applications.list(query.status);
+    return this.applications.list(query.status, query.limit);
   }
 
   @Get(':id')

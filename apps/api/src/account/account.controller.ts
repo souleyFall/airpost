@@ -1,11 +1,10 @@
-import { Body, Controller, Get, Header, HttpCode, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, Header, HttpCode, Inject, Post, Req, Res } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { z } from 'zod';
 import type { AuthenticatedRequest } from '../auth/auth.guard';
 import { isSecureCookie, sessionCookieName } from '../auth/cookies';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
-import { Inject } from '@nestjs/common';
 import { ENV } from '../config/config.module';
 import type { Env } from '../config/env';
 import { AccountService } from './account.service';
