@@ -74,6 +74,14 @@ describe('Authentification (e2e, base réelle)', () => {
     expect(JSON.stringify(res.body)).not.toMatch(/hash|argon2|password/i);
   });
 
+  it('refuse une connexion qui n’est pas du JSON (formulaire posté depuis un autre site)', async () => {
+    await http
+      .post('/auth/login')
+      .type('form')
+      .send({ login: LOGIN, password: PASSWORD })
+      .expect(415);
+  });
+
   it('en production, le cookie est Secure avec le préfixe __Host-', async () => {
     await app.close();
     await start({ NODE_ENV: 'production' });
