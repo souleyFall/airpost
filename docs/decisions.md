@@ -75,6 +75,14 @@ En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans N
 - Vérifié : image de ~246 Mo, uid 1000, healthcheck vert, aucun fichier secret, valeur invalide jamais affichée.
 - Reste à faire : épingler l'image de base par empreinte (digest) avec Dependabot (PR n°24), et le proxy de confiance avec le déploiement (R8).
 
+## D19. Profil du candidat
+
+- **Schéma Zod strict** (profile.schema.ts) : identité, titre, résumé, formations, expériences avec réalisations (méthode XYZ), compétences, critères de recherche (rythmes, démarrage « asap » ou date, trajet maximal, mots-clés, codes ROME, entreprises exclues). Un champ inconnu est refusé, toutes les tailles sont bornées : le profil part vers un modèle de langage, on ne laisse pas grossir sans limite ce qui y est envoyé.
+- **Minimisation** : ni adresse complète ni date de naissance. Ville et code postal suffisent ; le géocodage pour le trajet se fera à partir du code postal (PR du scoring). E-mail, téléphone et site sont facultatifs et n'apparaissent dans une lettre que s'ils sont renseignés. Le site doit être en https.
+- **Une ligne Profile par utilisateur**, colonne JSON ; GET /profile (404 tant que vide) et PUT /profile (remplace tout : idempotent, pas de fusion partielle ; CSRF exigé). L'identifiant vient de la session, jamais du corps (un userId envoyé est refusé comme champ inconnu). Le profil est relu à travers le schéma à la lecture.
+- **Le schéma reste dans pps/api** pour l'instant. Il sera extrait dans packages/shared quand l'interface web (PR n°15) devra le réutiliser pour valider ses formulaires.
+- **Règle pour la génération des lettres (PR n°13)** : elle ne cite que ce qui figure dans ce profil (réalisations comprises), rien d'inventé.
+
 ## D18. Authentification mono-utilisateur
 
 - **Privée par défaut** : un garde global (`AuthGuard`) exige une session sur toute route ; seules celles marquées `@Public()` (santé, connexion) y échappent. Oublier le décorateur ferme une porte, ne l'ouvre pas.
