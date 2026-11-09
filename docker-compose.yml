@@ -46,6 +46,9 @@ services:
       FT_CLIENT_SECRET: ${FT_CLIENT_SECRET:-}
       ADZUNA_APP_ID: ${ADZUNA_APP_ID:-}
       ADZUNA_APP_KEY: ${ADZUNA_APP_KEY:-}
+      # Collecte automatique : 0 = désactivée (aucun appel externe sans demande). Exemple : 6 pour toutes les 6 heures.
+      COLLECT_EVERY_HOURS: ${COLLECT_EVERY_HOURS:-0}
+      OFFER_RETENTION_DAYS: ${OFFER_RETENTION_DAYS:-90}
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-100}
       RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
     ports:

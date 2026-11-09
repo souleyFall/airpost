@@ -45,7 +45,7 @@ Règle de conception (appliquée en PR n°14) : le prompt ne contient **ni adres
 | Sessions de connexion           | 7 jours au plus, supprimées à la déconnexion et à chaque nouvelle connexion (si expirées) | Seule l'empreinte du jeton est conservée ; aucune adresse IP ni agent navigateur n'est stocké. |
 | Journaux techniques             | 30 jours, sans contenu de lettre ni coordonnées                                           | Diagnostic uniquement.                                                                         |
 
-La purge automatique de ces durées est une tâche planifiée à écrire (PR n°12 pour les offres, PR n°16 pour les candidatures).
+La purge des offres est en place (PR n°12) : après chaque collecte, les offres sans candidature vues pour la première fois il y a plus de 90 jours (OFFER_RETENTION_DAYS) sont supprimées ; une offre suivie n'est jamais purgée. La purge des candidatures reste à écrire (PR n°16).
 
 ## Droits des personnes
 

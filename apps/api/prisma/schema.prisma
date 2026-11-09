@@ -114,8 +114,8 @@ model Offer {
   @@unique([source, externalId])
   @@index([dedupKey])
   @@index([score])
-  /// Sert à la purge des offres anciennes (durée de conservation).
-  @@index([firstSeenAt])
+  /// Sert à la purge des offres qui ne sont plus publiées (durée de conservation).
+  @@index([lastSeenAt])
 }
 
 model Application {

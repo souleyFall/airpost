@@ -8,6 +8,7 @@ import {
   MAX_COMPANY,
   MAX_DESCRIPTION,
   MAX_TITLE,
+  UNKNOWN_COMPANY,
   cleanText,
   isValidGeoQuery,
   safeUrl,
@@ -77,7 +78,7 @@ export function normalizeJob(job: Job): NormalizedOffer | null {
     title: job.offer.title.trim().slice(0, MAX_TITLE),
     company: (
       (job.workplace.name ?? job.workplace.brand ?? job.workplace.legal_name)?.trim() ||
-      'Entreprise non indiquée'
+      UNKNOWN_COMPANY
     ).slice(0, MAX_COMPANY),
     city,
     postcode,

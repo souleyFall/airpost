@@ -73,6 +73,83 @@ describe('OffersService (intégration, base réelle)', () => {
     expect((await prisma.offer.findFirstOrThrow()).title).toBe('Dernière version');
   });
 
+  it('indique, pour chaque empreinte, quelles sources la possèdent', async () => {
+    await offers.saveMany([
+      offer('1'),
+      offer('1', { source: 'ADZUNA' }),
+      offer('2', { city: 'Lyon' }),
+    ]);
+
+    const result = await offers.sourcesByDedupKey([
+      'exemple-sa|alternance-developpeur|paris',
+      'exemple-sa|alternance-developpeur|lyon',
+      'inconnue',
+    ]);
+
+    expect(result.get('exemple-sa|alternance-developpeur|paris')).toEqual(
+      new Set(['LBA', 'ADZUNA']),
+    );
+    expect(result.get('exemple-sa|alternance-developpeur|lyon')).toEqual(new Set(['LBA']));
+    expect(result.has('inconnue')).toBe(false);
+    expect((await offers.sourcesByDedupKey([])).size).toBe(0);
+  });
+
+  describe('purgeStale (durée de conservation)', () => {
+    const daysAgo = (days: number) => new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const seed = (id: string, lastSeenAt: Date, firstSeenAt = lastSeenAt) =>
+      prisma.offer.create({
+        data: {
+          source: 'LBA',
+          externalId: id,
+          dedupKey: id,
+          title: 'T',
+          company: 'C',
+          channel: 'SITE',
+          firstSeenAt,
+          lastSeenAt,
+        },
+      });
+
+    it('supprime les offres plus revues depuis la durée, garde les autres', async () => {
+      await seed('ancienne', daysAgo(91));
+      await seed('limite', daysAgo(89));
+      await seed('recente', daysAgo(1));
+
+      const purged = await offers.purgeStale(90);
+
+      expect(purged).toBe(1);
+      expect(
+        (await prisma.offer.findMany({ orderBy: { externalId: 'asc' } })).map((o) => o.externalId),
+      ).toEqual(['limite', 'recente']);
+    });
+
+    it('garde une offre toujours publiée même si elle est connue depuis longtemps', async () => {
+      await seed('active', daysAgo(1), daysAgo(300));
+      await seed('disparue', daysAgo(120), daysAgo(300));
+
+      expect(await offers.purgeStale(90)).toBe(1);
+
+      expect((await prisma.offer.findMany()).map((o) => o.externalId)).toEqual(['active']);
+    });
+
+    it('ne supprime jamais une offre qui a une candidature, même très ancienne', async () => {
+      const old = await seed('suivie', daysAgo(400));
+      await prisma.application.create({ data: { offerId: old.id } });
+      await seed('libre', daysAgo(400));
+
+      expect(await offers.purgeStale(90)).toBe(1);
+
+      expect((await prisma.offer.findMany()).map((o) => o.externalId)).toEqual(['suivie']);
+      expect(await prisma.application.count()).toBe(1);
+    });
+
+    it('ne supprime rien quand tout est récent', async () => {
+      await seed('a', daysAgo(2));
+
+      expect(await offers.purgeStale(90)).toBe(0);
+    });
+  });
+
   it('accepte un lot vide', async () => {
     expect(await offers.saveMany([])).toEqual({ created: 0, updated: 0 });
   });

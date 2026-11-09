@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
+import { CollectionModule } from './collection/collection.module';
 import { ConfigModule, ENV } from './config/config.module';
 import type { Env } from './config/env';
 import { HealthModule } from './health/health.module';
@@ -22,6 +23,7 @@ import { SourcesModule } from './sources/sources.module';
     AuthModule,
     ProfileModule,
     SourcesModule,
+    CollectionModule,
     HealthModule,
   ],
   // Le garde est global : il s'applique à toutes les routes, y compris celles des futurs modules.
