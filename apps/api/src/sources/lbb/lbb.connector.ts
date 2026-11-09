@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { ENV } from '../../config/config.module';
 import type { Env } from '../../config/env';
 import { HTTP_FETCH, type HttpFetch } from '../http-fetch';
+import { assertOk } from '../http-errors';
 import { MAX_COMPANY, MAX_DESCRIPTION, MAX_TITLE, cleanText, isValidGeoQuery } from '../normalize';
 import {
   type NormalizedOffer,
@@ -102,11 +103,12 @@ export class LbbConnector {
       throw new SourceError('LBB', 'invalid', 'La Bonne Boîte : au moins un code ROME est requis.');
     }
 
-    const token = await this.getToken();
     const byId = new Map<string, NormalizedOffer>();
     let skipped = 0;
     // Un appel par code ROME, l'un après l'autre : l'API répond 429 dès que l'on enchaîne trop vite.
     for (const rome of query.romeCodes) {
+      // Jeton relu à chaque tour : en cache tant qu'il est valide, renouvelé s'il a expiré en route.
+      const token = await this.getToken();
       const params = new URLSearchParams({
         rome,
         latitude: String(query.latitude),
@@ -188,28 +190,11 @@ export class LbbConnector {
     } catch {
       throw new SourceError('LBB', 'unavailable', 'La Bonne Boîte : service injoignable.');
     }
+    // Un accès refusé vient peut-être d'un jeton périmé : on l'oublie pour en redemander un au prochain appel.
     if (response.status === 401 || response.status === 403) {
-      // Le jeton est peut-être périmé : on l'oublie pour en redemander un au prochain appel.
       this.token = undefined;
-      throw new SourceError('LBB', 'unauthorized', 'La Bonne Boîte : accès refusé.');
     }
-    if (response.status === 429) {
-      throw new SourceError(
-        'LBB',
-        'rate_limited',
-        'La Bonne Boîte : trop d’appels, réessayer plus tard.',
-      );
-    }
-    if (response.status === 400 || response.status === 422) {
-      throw new SourceError(
-        'LBB',
-        'invalid',
-        `La Bonne Boîte : requête refusée (${response.status}).`,
-      );
-    }
-    if (!response.ok) {
-      throw new SourceError('LBB', 'unavailable', `La Bonne Boîte : réponse ${response.status}.`);
-    }
+    assertOk(response, 'LBB', 'La Bonne Boîte');
     return response.json().catch(() => null);
   }
 }

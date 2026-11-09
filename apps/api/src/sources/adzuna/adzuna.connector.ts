@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { ENV } from '../../config/config.module';
 import type { Env } from '../../config/env';
 import { HTTP_FETCH, type HttpFetch } from '../http-fetch';
+import { assertOk } from '../http-errors';
 import { MAX_COMPANY, MAX_DESCRIPTION, MAX_TITLE, cleanText, safeUrl, toDate } from '../normalize';
 import {
   type NormalizedOffer,
@@ -17,7 +18,8 @@ const TIMEOUT_MS = 10_000;
 const RESULTS_PER_PAGE = 50;
 
 const jobSchema = z.object({
-  id: z.string().min(1),
+  // Une chaîne chez Adzuna ; un nombre est toléré et converti.
+  id: z.union([z.string().min(1), z.number()]).transform(String),
   title: z.string().min(1),
   description: z.string().nullish(),
   created: z.string().nullish(),
@@ -116,18 +118,7 @@ export class AdzunaConnector {
       throw new SourceError('ADZUNA', 'unavailable', 'Adzuna : service injoignable.');
     }
 
-    if (response.status === 401 || response.status === 403) {
-      throw new SourceError('ADZUNA', 'unauthorized', 'Adzuna : clés refusées.');
-    }
-    if (response.status === 429) {
-      throw new SourceError('ADZUNA', 'rate_limited', 'Adzuna : limite d’appels atteinte.');
-    }
-    if (response.status === 400) {
-      throw new SourceError('ADZUNA', 'invalid', 'Adzuna : requête refusée (400).');
-    }
-    if (!response.ok) {
-      throw new SourceError('ADZUNA', 'unavailable', `Adzuna : réponse ${response.status}.`);
-    }
+    assertOk(response, 'ADZUNA', 'Adzuna');
 
     const body = responseSchema.safeParse(await response.json().catch(() => null));
     if (!body.success) {
@@ -137,12 +128,7 @@ export class AdzunaConnector {
     const offers: NormalizedOffer[] = [];
     let skipped = 0;
     for (const raw of body.data.results) {
-      // L'identifiant est une chaîne chez Adzuna ; on tolère un nombre.
-      const candidate =
-        raw && typeof raw === 'object' && typeof (raw as { id?: unknown }).id === 'number'
-          ? { ...raw, id: String((raw as { id: number }).id) }
-          : raw;
-      const job = jobSchema.safeParse(candidate);
+      const job = jobSchema.safeParse(raw);
       if (job.success) {
         offers.push(normalizeAdzunaJob(job.data));
       } else {

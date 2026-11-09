@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { ENV } from '../../config/config.module';
 import type { Env } from '../../config/env';
 import { HTTP_FETCH, type HttpFetch } from '../http-fetch';
+import { assertOk } from '../http-errors';
 import {
   MAX_COMPANY,
   MAX_DESCRIPTION,
@@ -141,27 +142,7 @@ export class LbaConnector {
       throw new SourceError('LBA', 'unavailable', 'La Bonne Alternance : service injoignable.');
     }
 
-    if (response.status === 401 || response.status === 403) {
-      throw new SourceError('LBA', 'unauthorized', 'La Bonne Alternance : clé API refusée.');
-    }
-    if (response.status === 429) {
-      throw new SourceError(
-        'LBA',
-        'rate_limited',
-        'La Bonne Alternance : limite de 60 appels par minute atteinte.',
-      );
-    }
-    if (response.status === 400) {
-      // Notre requête est mauvaise : inutile de la réessayer telle quelle.
-      throw new SourceError('LBA', 'invalid', 'La Bonne Alternance : requête refusée (400).');
-    }
-    if (!response.ok) {
-      throw new SourceError(
-        'LBA',
-        'unavailable',
-        `La Bonne Alternance : réponse ${response.status}.`,
-      );
-    }
+    assertOk(response, 'LBA', 'La Bonne Alternance');
 
     const body = responseSchema.safeParse(await response.json().catch(() => null));
     if (!body.success) {
