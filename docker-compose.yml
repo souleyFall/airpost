@@ -56,9 +56,17 @@ services:
       # L'API est derrière le serveur web (un proxy) : l'adresse du client vient de son en-tête X-Forwarded-For.
       # Attention : tant que le port 3000 ci-dessous est publié, ne jamais l'ouvrir au réseau (en-tête falsifiable).
       TRUST_PROXY: ${TRUST_PROXY:-1}
+      # Autorisation Gmail (brouillons) : fichiers montes en lecture seule ci-dessous.
+      GMAIL_CREDENTIALS_FILE: /run/gmail/credentials.json
+      GMAIL_TOKEN_FILE: /run/gmail/token.json
     ports:
       # Même règle que la base : joignable depuis cet ordinateur seulement.
       - '127.0.0.1:3000:3000'
+    # Fichiers d'autorisation Gmail, en lecture seule (jamais copies dans l'image). Ils doivent exister a la racine :
+    # sinon Docker cree un dossier a leur place. Sans eux, le module Gmail reste simplement desactive.
+    volumes:
+      - ./credentials.json:/run/gmail/credentials.json:ro
+      - ./token.json:/run/gmail/token.json:ro
     # Système de fichiers en lecture seule, aucune capacité Linux superflue, pas d'élévation de droits.
     read_only: true
     cap_drop: [ALL]

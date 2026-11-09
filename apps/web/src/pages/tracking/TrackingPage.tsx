@@ -103,6 +103,9 @@ export function TrackingPage() {
   const [filter, setFilter] = useState<Filter>('ALL');
   const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [gmailReady, setGmailReady] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [creatingDraft, setCreatingDraft] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -117,6 +120,12 @@ export function TrackingPage() {
   useEffect(() => {
     void load();
   }, [load, version]);
+
+  useEffect(() => {
+    api<{ configured: boolean }>('GET', '/gmail/status')
+      .then((status) => setGmailReady(status.configured))
+      .catch(() => setGmailReady(false));
+  }, []);
 
   useEffect(() => {
     setCount('tracking', rows ? rows.length : null);
@@ -138,11 +147,40 @@ export function TrackingPage() {
     }
   }
 
+  async function createDraft(row: ApplicationRow) {
+    setRowError(null);
+    setCreatingDraft(row.id);
+    try {
+      await api('POST', `/applications/${row.id}/draft`);
+      await load();
+    } catch (caught) {
+      setRowError({
+        id: row.id,
+        message:
+          caught instanceof ApiError && caught.status === 503
+            ? 'Gmail n’est pas disponible : reconnecte Gmail puis réessaie.'
+            : caught instanceof ApiError && caught.status === 429
+              ? 'Trop de demandes : réessaie dans une minute.'
+              : 'Le brouillon n’a pas pu être créé.',
+      });
+    } finally {
+      setCreatingDraft(null);
+    }
+  }
+
   async function remove(row: ApplicationRow) {
     setRowError(null);
     setConfirmDelete(null);
     try {
-      await api('DELETE', `/applications/${row.id}`);
+      const result = await api<{ gmailDraftDeleted: boolean | null }>(
+        'DELETE',
+        `/applications/${row.id}`,
+      );
+      setNotice(
+        result.gmailDraftDeleted === false
+          ? 'La candidature est supprimée, mais son brouillon n’a pas pu être retiré de Gmail : supprime-le toi-même dans Gmail.'
+          : null,
+      );
       await load();
     } catch {
       setRowError({ id: row.id, message: 'La suppression a échoué.' });
@@ -195,6 +233,15 @@ export function TrackingPage() {
           </button>
         ))}
       </div>
+
+      {notice ? (
+        <p
+          role="alert"
+          className="m-0 rounded-md border border-warn-line bg-warn-bg px-4 py-3 text-warn-ink"
+        >
+          {notice}
+        </p>
+      ) : null}
 
       {error ? (
         <p role="alert" className="m-0 text-danger">
@@ -265,10 +312,38 @@ export function TrackingPage() {
                     </td>
                     <td className="border-b border-line px-3 py-3">
                       <div className="flex flex-col items-start gap-2">
-                        {row.status === 'VALIDATED' || row.status === 'DRAFT_CREATED' ? (
+                        {row.status === 'VALIDATED' &&
+                        gmailReady &&
+                        row.offer.channel === 'EMAIL' ? (
                           <button
                             type="button"
                             className="btn btn-primary !h-8 !text-[13px]"
+                            disabled={creatingDraft === row.id}
+                            onClick={() => void createDraft(row)}
+                          >
+                            {creatingDraft === row.id ? 'Création…' : 'Créer le brouillon Gmail'}
+                          </button>
+                        ) : null}
+                        {row.status === 'DRAFT_CREATED' ? (
+                          <a
+                            href="https://mail.google.com/mail/#drafts"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[13px]"
+                          >
+                            Ouvrir le brouillon dans Gmail
+                          </a>
+                        ) : null}
+                        {row.status === 'VALIDATED' || row.status === 'DRAFT_CREATED' ? (
+                          <button
+                            type="button"
+                            className={`btn !h-8 !text-[13px] ${
+                              row.status === 'DRAFT_CREATED' ||
+                              !gmailReady ||
+                              row.offer.channel !== 'EMAIL'
+                                ? 'btn-primary'
+                                : ''
+                            }`}
                             onClick={() => void changeStatus(row, 'APPLIED')}
                           >
                             Marquer envoyée
@@ -346,9 +421,10 @@ export function TrackingPage() {
       )}
 
       <p className="m-0 text-[13px] text-muted">
-        Tu mets à jour le statut toi-même pour l’instant : la lecture automatique des réponses dans
-        Gmail arrive plus tard. Supprimer une candidature efface aussi le contact du recruteur
-        enregistré.
+        Le brouillon Gmail n’est jamais envoyé par airpost : tu l’envoies toi-même depuis Gmail,
+        puis tu marques la candidature « envoyée ». Les réponses se mettent à jour à la main pour
+        l’instant. Supprimer une candidature efface aussi son brouillon Gmail et le contact du
+        recruteur enregistré.
       </p>
     </div>
   );

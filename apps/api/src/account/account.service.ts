@@ -1,5 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PasswordService } from '../auth/password.service';
+import { GmailService } from '../gmail/gmail.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -7,6 +8,7 @@ export class AccountService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly passwords: PasswordService,
+    private readonly gmail: GmailService,
   ) {}
 
   /**
@@ -71,6 +73,15 @@ export class AccountService {
     }
     if (!(await this.passwords.verify(user.passwordHash, password))) {
       throw new ForbiddenException('Mot de passe incorrect');
+    }
+    // Les brouillons Gmail contiennent les lettres : retirés d'abord, au mieux (Gmail injoignable n'empêche pas
+    // l'effacement local, qui est la garantie principale ; l'utilisateur peut vider ses brouillons dans Gmail).
+    const drafts = await this.prisma.application.findMany({
+      where: { gmailDraftId: { not: null } },
+      select: { gmailDraftId: true },
+    });
+    for (const { gmailDraftId } of drafts) {
+      if (gmailDraftId) await this.gmail.deleteDraftQuietly(gmailDraftId);
     }
     // Les offres emportent leurs candidatures et leurs réponses (cascade) ; l'utilisateur, son profil et ses sessions.
     await this.prisma.$transaction([

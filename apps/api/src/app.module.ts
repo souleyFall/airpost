@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { CollectionModule } from './collection/collection.module';
 import { ConfigModule, ENV } from './config/config.module';
 import type { Env } from './config/env';
+import { GmailModule } from './gmail/gmail.module';
 import { HealthModule } from './health/health.module';
 import { OffersModule } from './offers/offers.module';
 import { HttpModule } from './http/http.module';
@@ -36,6 +37,7 @@ import { SourcesModule } from './sources/sources.module';
     OffersModule,
     LlmModule,
     LettersModule,
+    GmailModule,
     HealthModule,
   ],
   // Le garde est global : il s'applique à toutes les routes, y compris celles des futurs modules.
