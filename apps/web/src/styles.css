@@ -78,6 +78,16 @@
 }
 
 @layer components {
+  kbd {
+    font: inherit;
+    font-size: 12px;
+    padding: 1px 6px;
+    border: 1px solid var(--color-line-strong);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: var(--color-surface);
+    color: var(--color-ink);
+  }
   .btn {
     display: inline-flex;
     align-items: center;

@@ -30,3 +30,7 @@
 
 - Étape 0 : monorepo pnpm, PostgreSQL 17 dans Docker Compose.
 - Étape 1 : API NestJS 12 minimale, route `GET /health`.
+
+## 2026-11-10 : interface web
+
+- PR 21 (socle, connexion) et PR 22 (écran À valider) : voir docs/decisions.md D27 et les revues locales. Après la PR 22, reconstruire l'API (docker compose up -d --build api) : l'écran lit le champ application des offres.
