@@ -14,5 +14,25 @@ services:
       # Les données survivent à l'arrêt du conteneur.
       - airpost-db:/var/lib/postgresql/data
 
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    # Variables listées une à une : l'API ne reçoit pas tout le .env (clés d'API des autres modules).
+    environment:
+      API_PORT: 3000
+      WEB_ORIGIN: ${WEB_ORIGIN:-}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-100}
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
+    ports:
+      # Même règle que la base : joignable depuis cet ordinateur seulement.
+      - '127.0.0.1:3000:3000'
+    # Système de fichiers en lecture seule, aucune capacité Linux superflue, pas d'élévation de droits.
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
 volumes:
   airpost-db:

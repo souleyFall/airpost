@@ -64,6 +64,17 @@ Les variables d'environnement sont validées par un schéma Zod (`apps/api/src/c
 
 En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans Node 24, aucune dépendance) ; jamais en production, où l'environnement fournit les variables. Piège évité : `new URL()` lève une erreur native qui contient la valeur saisie, d'où `URL.canParse` en amont.
 
+## D16. Image Docker de l'API
+
+- **Trois étapes** : construction (tous les outils), `pnpm deploy --prod` (code compilé + dépendances de production seulement), exécution (`node:24-slim`). Aucun compilateur ni dépendance de développement dans l'image finale.
+- **Utilisateur `node` (non-root)**, système de fichiers en lecture seule, `cap_drop: ALL`, `no-new-privileges`.
+- **`--ignore-scripts`** à l'installation et au déploiement : aucun script de dépendance ne s'exécute pendant le build (et le script `prepare` de la racine, qui installe les hooks Git, n'a pas de sens dans l'image).
+- **`.dockerignore`** : `.env`, `credentials.json`, `token.json`, `.git`, `docs/cours` n'entrent jamais dans le contexte de build.
+- **Écoute** : `API_HOST=0.0.0.0` dans le conteneur (sinon inaccessible), mais le port n'est publié que sur `127.0.0.1` de la machine.
+- Le service `api` ne reçoit que les variables qu'il utilise, pas tout le `.env`.
+- Vérifié : image de ~246 Mo, uid 1000, healthcheck vert, aucun fichier secret, valeur invalide jamais affichée.
+- Reste à faire : épingler l'image de base par empreinte (digest) avec Dependabot (PR n°24), et le proxy de confiance avec le déploiement (R8).
+
 ## D15. Durcissement HTTP
 
 - **Helmet** : en-têtes de sécurité (nosniff, anti-framing, HSTS, CSP) et suppression de `X-Powered-By`.
