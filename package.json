@@ -8,6 +8,7 @@
   "scripts": {
     "db:up": "docker compose up -d db",
     "db:down": "docker compose down",
+    "db:backup": "node scripts/backup-db.mjs",
     "dev:api": "pnpm --filter @airpost/api start:dev",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
