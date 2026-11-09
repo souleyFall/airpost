@@ -42,3 +42,5 @@
 - PR 27 : suivi des reponses Gmail (recherche bornee, classement par regles, correction, sans reponse a 14 jours).
 
 - PR 28 : audit final (registre sans risque prevu, images figees par empreinte, sauvegarde, README).
+
+- PR 29 : ecran Profil. Profil de Souleymane renseigne via l'API depuis ses informations connues (sans e-mail de signature ni date de naissance).
