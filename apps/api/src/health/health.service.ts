@@ -8,6 +8,7 @@ export class HealthService {
     return {
       status: 'ok',
       service: 'airpost-api',
+      version: '0.0.0',
       time: new Date().toISOString(),
     };
   }
