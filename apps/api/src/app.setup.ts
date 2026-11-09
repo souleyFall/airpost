@@ -1,4 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
+import type { Express } from 'express';
 import helmet from 'helmet';
 import type { Env } from './config/env';
 
@@ -21,6 +22,12 @@ export function configureApp(app: INestApplication, env: Env): void {
       allowedHeaders: ['Content-Type', 'X-CSRF-Token'],
       maxAge: 600,
     });
+  }
+
+  // Derrière le serveur web de l'application : l'adresse réelle du client vient de X-Forwarded-For,
+  // lue seulement à partir du nombre de proxys déclarés (voir TRUST_PROXY dans env.ts).
+  if (env.TRUST_PROXY > 0) {
+    (app.getHttpAdapter().getInstance() as Express).set('trust proxy', env.TRUST_PROXY);
   }
 
   // Arrêt propre sur SIGTERM (Docker) : les requêtes en cours se terminent avant la fermeture.
