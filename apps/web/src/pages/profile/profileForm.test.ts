@@ -5,7 +5,7 @@ const profile: Profile = {
   identity: {
     firstName: 'Souleymane',
     lastName: 'Fall',
-    phone: '+33 7 43 52 15 41',
+    phone: '+33 6 00 00 00 00',
     city: 'Montigny-le-Bretonneux',
     postcode: '78180',
   },
