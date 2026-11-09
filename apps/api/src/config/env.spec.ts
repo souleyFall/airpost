@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { EnvError, parseEnv } from './env';
 
+// Une configuration valide minimale : la base est obligatoire, les tests ajoutent ou remplacent le reste.
+const DATABASE_URL = 'postgresql://airpost:motdepasse@localhost:5432/airpost';
+const parse = (raw: NodeJS.ProcessEnv = {}) => parseEnv({ DATABASE_URL, ...raw });
+
 describe('parseEnv', () => {
   it('applique des valeurs par défaut sûres : écoute locale, CORS désactivé', () => {
-    const env = parseEnv({});
+    const env = parse({});
 
     expect(env).toMatchObject({
       NODE_ENV: 'development',
@@ -16,19 +20,19 @@ describe('parseEnv', () => {
   });
 
   it('convertit le port en nombre', () => {
-    expect(parseEnv({ API_PORT: '4000' }).API_PORT).toBe(4000);
+    expect(parse({ API_PORT: '4000' }).API_PORT).toBe(4000);
   });
 
   it.each(['abc', '0', '70000', '3000.5'])('refuse le port invalide « %s »', (port) => {
-    expect(() => parseEnv({ API_PORT: port })).toThrow(EnvError);
-    expect(() => parseEnv({ API_PORT: port })).toThrow(/API_PORT/);
+    expect(() => parse({ API_PORT: port })).toThrow(EnvError);
+    expect(() => parse({ API_PORT: port })).toThrow(/API_PORT/);
   });
 
   it("n'affiche jamais la valeur reçue dans le message d'erreur", () => {
     const secret = 'valeur-secrete-123456';
     let message = '';
     try {
-      parseEnv({ API_PORT: secret });
+      parse({ API_PORT: secret });
     } catch (error) {
       message = (error as Error).message;
     }
@@ -38,11 +42,11 @@ describe('parseEnv', () => {
   });
 
   it('refuse un NODE_ENV inconnu', () => {
-    expect(() => parseEnv({ NODE_ENV: 'staging' })).toThrow(/NODE_ENV/);
+    expect(() => parse({ NODE_ENV: 'staging' })).toThrow(/NODE_ENV/);
   });
 
   it('accepte une origine web', () => {
-    expect(parseEnv({ WEB_ORIGIN: 'https://airpost.example' }).WEB_ORIGIN).toBe(
+    expect(parse({ WEB_ORIGIN: 'https://airpost.example' }).WEB_ORIGIN).toBe(
       'https://airpost.example',
     );
   });
@@ -51,8 +55,8 @@ describe('parseEnv', () => {
     'refuse WEB_ORIGIN « %s » (ce n’est pas une origine)',
     (value) => {
       // EnvError et non TypeError : l'erreur native de `new URL()` embarquerait la valeur saisie.
-      expect(() => parseEnv({ WEB_ORIGIN: value })).toThrow(EnvError);
-      expect(() => parseEnv({ WEB_ORIGIN: value })).toThrow(/WEB_ORIGIN/);
+      expect(() => parse({ WEB_ORIGIN: value })).toThrow(EnvError);
+      expect(() => parse({ WEB_ORIGIN: value })).toThrow(/WEB_ORIGIN/);
     },
   );
 
@@ -60,7 +64,7 @@ describe('parseEnv', () => {
     const secret = 'sk-secret-valeur-123456';
     let error: unknown;
     try {
-      parseEnv({ WEB_ORIGIN: secret });
+      parse({ WEB_ORIGIN: secret });
     } catch (caught) {
       error = caught;
     }
@@ -70,33 +74,65 @@ describe('parseEnv', () => {
   });
 
   it('exige https pour WEB_ORIGIN en production (cookies de session)', () => {
-    expect(() =>
-      parseEnv({ NODE_ENV: 'production', WEB_ORIGIN: 'http://airpost.example' }),
-    ).toThrow(/WEB_ORIGIN : doit être en https/);
+    expect(() => parse({ NODE_ENV: 'production', WEB_ORIGIN: 'http://airpost.example' })).toThrow(
+      /WEB_ORIGIN : doit être en https/,
+    );
     expect(
-      parseEnv({ NODE_ENV: 'production', WEB_ORIGIN: 'https://airpost.example' }).WEB_ORIGIN,
+      parse({ NODE_ENV: 'production', WEB_ORIGIN: 'https://airpost.example' }).WEB_ORIGIN,
     ).toBe('https://airpost.example');
     // En développement, le front local est en http.
-    expect(
-      parseEnv({ NODE_ENV: 'development', WEB_ORIGIN: 'http://localhost:5173' }).WEB_ORIGIN,
-    ).toBe('http://localhost:5173');
+    expect(parse({ NODE_ENV: 'development', WEB_ORIGIN: 'http://localhost:5173' }).WEB_ORIGIN).toBe(
+      'http://localhost:5173',
+    );
   });
 
   it.each([
     ['RATE_LIMIT_MAX', '10001'],
     ['RATE_LIMIT_WINDOW_MS', '86400001'],
   ])('plafonne %s pour qu’un zéro de trop ne désactive pas la limitation', (name, value) => {
-    expect(() => parseEnv({ [name]: value })).toThrow(new RegExp(name));
+    expect(() => parse({ [name]: value })).toThrow(new RegExp(name));
   });
 
   it('traite une WEB_ORIGIN vide comme absente', () => {
-    expect(parseEnv({ WEB_ORIGIN: '' }).WEB_ORIGIN).toBeUndefined();
+    expect(parse({ WEB_ORIGIN: '' }).WEB_ORIGIN).toBeUndefined();
+  });
+
+  it('exige DATABASE_URL', () => {
+    expect(() => parseEnv({})).toThrow(/DATABASE_URL/);
+  });
+
+  it.each(['pas une url', 'mysql://u:p@h/db', 'http://exemple.test'])(
+    'refuse DATABASE_URL « %s » sans jamais la recopier',
+    (value) => {
+      let message = '';
+      try {
+        parseEnv({ DATABASE_URL: value });
+      } catch (error) {
+        expect(error).toBeInstanceOf(EnvError);
+        message = (error as Error).message;
+      }
+
+      expect(message).toMatch(/DATABASE_URL/);
+      expect(message).not.toContain(value);
+    },
+  );
+
+  it("n'affiche jamais le mot de passe d'une URL de base invalide", () => {
+    let message = '';
+    try {
+      parseEnv({ DATABASE_URL: 'mysql://admin:mot-de-passe-secret@h/db' });
+    } catch (error) {
+      message = (error as Error).message;
+    }
+
+    expect(message).toMatch(/DATABASE_URL/);
+    expect(message).not.toContain('mot-de-passe-secret');
   });
 
   it("ignore les variables inconnues et ne les recopie jamais (clés d'API...)", () => {
-    const env = parseEnv({ GEMINI_API_KEY: 'secret', DATABASE_URL: 'postgresql://x' });
+    const env = parse({ GEMINI_API_KEY: 'secret', POSTGRES_PASSWORD: 'secret-db' });
 
     expect(env).not.toHaveProperty('GEMINI_API_KEY');
-    expect(env).not.toHaveProperty('DATABASE_URL');
+    expect(env).not.toHaveProperty('POSTGRES_PASSWORD');
   });
 });

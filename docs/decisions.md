@@ -75,6 +75,16 @@ En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans N
 - Vérifié : image de ~246 Mo, uid 1000, healthcheck vert, aucun fichier secret, valeur invalide jamais affichée.
 - Reste à faire : épingler l'image de base par empreinte (digest) avec Dependabot (PR n°24), et le proxy de confiance avec le déploiement (R8).
 
+## D17. Base de données : Prisma 7, schéma et tests
+
+- **Prisma 7.10.1** (version stable ; le tag `latest` de npm pointe sur une 8.0 RC, écartée). Générateur `prisma-client` en sortie CommonJS dans `src/generated/prisma` (ignoré par Git, régénéré par `postinstall` et `build`). Connexion par l'adaptateur `@prisma/adapter-pg` : le pool `pg` ouvre la connexion à la première requête, l'API démarre même si la base tarde.
+- **Identifiants UUID v7** (triés dans le temps, non devinables) ; pas d'identifiant auto-incrémenté qui révélerait le volume.
+- **Schéma** : `User` (login + empreinte du mot de passe, sans e-mail), `Profile` (JSON validé par Zod), `Offer` (unicité `source` + `externalId`, clé de dédoublonnage, score), `Application` (une par offre, statut), `Reply` (extrait court de la réponse Gmail). Les suppressions se font **en cascade depuis l'offre** : effacer une offre efface la candidature, les réponses et le contact recruteur (droit à l'effacement).
+- **`DATABASE_URL` obligatoire**, validée au démarrage ; elle contient le mot de passe et n'est jamais recopiée dans une erreur (un seul `refine` : plusieurs s'exécutent tous et le second appellerait `new URL()` sur une valeur invalide).
+- **Tests d'intégration séparés** (`pnpm test:db`) : une base jetable `<base>_test` est recréée, les migrations y sont rejouées, puis elle est supprimée ; la base de développement n'est jamais touchée. Hors de `pnpm check` (qui reste exécutable sans Docker, donc dans le hook) ; à lancer avant de pousser un changement de schéma.
+- **Migrations** : `pnpm --filter @airpost/api db:migrate` en développement ; `docker compose run --rm migrate` pour appliquer les migrations versionnées (service du profil `tools`, utilise l'étape de construction de l'image).
+- **Seed** : trois offres fictives, rejouable, refusé en production.
+
 ## D15. Durcissement HTTP
 
 - **Helmet** : en-têtes de sécurité (nosniff, anti-framing, HSTS, CSP) et suppression de `X-Powered-By`.

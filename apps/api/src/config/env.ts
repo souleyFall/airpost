@@ -13,6 +13,17 @@ const origin = z.url().refine((value) => URL.canParse(value) && new URL(value).o
 });
 
 /**
+ * URL de connexion PostgreSQL. Elle contient le mot de passe : jamais recopiée dans un message d'erreur
+ * (même précaution que pour l'origine, `URL.canParse` avant tout appel à `new URL()`).
+ */
+const databaseUrl = z
+  .string()
+  // Un seul contrôle : plusieurs `refine` s'exécutent tous, et le second appellerait `new URL()` sur une valeur invalide.
+  .refine((value) => URL.canParse(value) && /^postgres(ql)?:$/.test(new URL(value).protocol), {
+    message: 'doit être une URL commençant par postgresql://',
+  });
+
+/**
  * Variables d'environnement connues de l'API.
  * Les valeurs par défaut sont les plus restrictives : écoute locale uniquement, CORS désactivé.
  * Toute variable absente de ce schéma (clés d'API, mots de passe...) est ignorée et n'est jamais
@@ -23,6 +34,7 @@ export const envSchema = z
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     API_HOST: z.string().min(1).default('127.0.0.1'),
     API_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+    DATABASE_URL: databaseUrl,
     /** Origine du front autorisée à appeler l'API depuis un navigateur. Absente : CORS désactivé. */
     WEB_ORIGIN: z.preprocess(emptyToUndefined, origin.optional()),
     /**

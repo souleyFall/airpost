@@ -1,0 +1,135 @@
+// Schéma de la base d'airpost. Les migrations SQL (prisma/migrations) sont générées à partir de ce fichier.
+//
+// RGPD : on ne stocke que ce qui sert à postuler. Les données de tiers (contact recruteur) sont
+// facultatives et supprimées avec la candidature ; voir docs/rgpd/registre-traitements.md.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum OfferSource {
+  LBA
+  LBB
+  ADZUNA
+}
+
+/// Comment la candidature part : par e-mail (brouillon Gmail) ou sur le site de l'entreprise.
+enum ApplyChannel {
+  EMAIL
+  SITE
+}
+
+enum ApplicationStatus {
+  TO_REVIEW
+  VALIDATED
+  DRAFT_CREATED
+  APPLIED
+  ACKNOWLEDGED
+  INTERVIEW
+  REJECTED
+  NO_RESPONSE
+  WITHDRAWN
+}
+
+enum ReplyKind {
+  ACKNOWLEDGEMENT
+  INTERVIEW
+  REJECTION
+  OTHER
+}
+
+/// Application mono-utilisateur : une seule ligne en pratique. Pas d'e-mail ici (minimisation).
+model User {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  login        String   @unique
+  /// Empreinte argon2 : jamais le mot de passe.
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  profile Profile?
+}
+
+model Profile {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  userId    String   @unique @db.Uuid
+  /// Contenu validé par un schéma Zod côté application (identité, parcours, compétences, préférences).
+  data      Json
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Offer {
+  id           String       @id @default(uuid(7)) @db.Uuid
+  source       OfferSource
+  /// Identifiant de l'offre chez la source : sert à ne pas la réimporter.
+  externalId   String
+  /// Empreinte (entreprise + intitulé + ville normalisés) pour repérer la même offre venant de deux sources.
+  dedupKey     String
+  title        String
+  company      String
+  city         String?
+  postcode     String?
+  latitude     Float?
+  longitude    Float?
+  description  String?
+  applyUrl     String?
+  /// Donnée d'un tiers (recruteur) : facultative, supprimée avec la candidature.
+  contactEmail String?
+  channel      ApplyChannel
+  publishedAt  DateTime?
+  firstSeenAt  DateTime     @default(now())
+  lastSeenAt   DateTime     @default(now())
+  /// Score sur 100 et détail par critère (fraîcheur, stack, rythme, trajet, concurrence, canal).
+  score        Int?
+  scoreDetail  Json?
+
+  application Application?
+
+  @@unique([source, externalId])
+  @@index([dedupKey])
+  @@index([score])
+  /// Sert à la purge des offres anciennes (durée de conservation).
+  @@index([firstSeenAt])
+}
+
+model Application {
+  id            String            @id @default(uuid(7)) @db.Uuid
+  offerId       String            @unique @db.Uuid
+  status        ApplicationStatus @default(TO_REVIEW)
+  subject       String?
+  /// Lettre ou corps du mail, relus et validés par l'utilisateur avant tout brouillon.
+  body          String?
+  gmailDraftId  String?
+  validatedAt   DateTime?
+  appliedAt     DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  offer   Offer   @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  replies Reply[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+/// Réponse reçue par e-mail, classée automatiquement. On garde un extrait court, pas le message entier.
+model Reply {
+  id             String      @id @default(uuid(7)) @db.Uuid
+  applicationId  String      @db.Uuid
+  gmailMessageId String      @unique
+  kind           ReplyKind
+  receivedAt     DateTime
+  /// 300 caractères au plus (contrôlé par l'application).
+  snippet        String?
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+}

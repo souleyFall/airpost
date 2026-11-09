@@ -13,15 +13,27 @@ services:
     volumes:
       # Les données survivent à l'arrêt du conteneur.
       - airpost-db:/var/lib/postgresql/data
+    # Prêt = accepte les connexions. L'API et les migrations attendent ce signal.
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   api:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     # Variables listées une à une : l'API ne reçoit pas tout le .env (clés d'API des autres modules).
     environment:
       API_PORT: 3000
+      # Dans le réseau Compose la base s'appelle « db » (et non « localhost », valeur du .env pour le développement
+      # hors Docker). Un mot de passe contenant @ : / ? # doit être encodé en pourcentage dans une URL.
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       WEB_ORIGIN: ${WEB_ORIGIN:-}
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-100}
       RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
@@ -30,6 +42,24 @@ services:
       - '127.0.0.1:3000:3000'
     # Système de fichiers en lecture seule, aucune capacité Linux superflue, pas d'élévation de droits.
     read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+  # Commande ponctuelle : `docker compose run --rm migrate` applique les migrations à la base.
+  # Elle utilise l'étape de construction de l'image (qui contient l'outil Prisma, absent de l'image finale).
+  migrate:
+    profiles: [tools]
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: build
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    command: ['pnpm', '--filter', '@airpost/api', 'exec', 'prisma', 'migrate', 'deploy']
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
