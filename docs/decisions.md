@@ -230,3 +230,8 @@ En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans N
 ### D29 (suite 3) : contrats recherchés dans le profil
 
 - Le profil porte search.contracts (alternance, stage ou les deux ; un profil plus ancien reste en alternance). L'IA s'en sert pour juger la compatibilité du contrat : un stage n'est plus écarté quand le candidat cherche aussi des stages. Version du prompt passée à 2 : les analyses sont refaites avec le nouveau critère.
+
+### D29 (suite 4) : candidature spontanée = type de contrat à part
+
+- La Bonne Boîte n'a pas d'annonces : ses entreprises ont le type SPONTANEE (« Spontanée »), pas « alternance ». Je les avais classées en alternance pour faire marcher les filtres, ce qui confondait le contrat et la façon de postuler. Elles ont leur propre filtre de contrat. Le prompt de l'IA précise qu'une candidature spontanée n'est jamais un contrat incompatible.
+- Deux migrations : Postgres n'autorise pas l'usage d'une nouvelle valeur d'énumération dans la migration qui l'ajoute.

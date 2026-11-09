@@ -452,6 +452,24 @@ describe('écran À valider', () => {
       });
     });
 
+    it('les candidatures spontanées ont leur propre filtre de contrat', async () => {
+      const calls = fakeApi();
+      const user = userEvent.setup();
+      renderApp();
+      await findList();
+      await user.click(screen.getByRole('button', { name: /^Filtres/ }));
+      await user.click(
+        within(screen.getByRole('group', { name: 'Contrat' })).getByRole('button', {
+          name: 'Spontanée',
+        }),
+      );
+      await waitFor(() =>
+        expect(calls.filter((c) => c.path.startsWith('/offers?')).at(-1)?.path).toContain(
+          'contract=SPONTANEE',
+        ),
+      );
+    });
+
     it('trie par fraîcheur ou par distance', async () => {
       const calls = fakeApi();
       const user = userEvent.setup();

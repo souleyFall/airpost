@@ -14,7 +14,7 @@ export type ApplicationStatus =
   | 'REJECTED'
   | 'WITHDRAWN';
 
-export type ContractType = 'ALTERNANCE' | 'STAGE' | 'CDI' | 'CDD' | 'AUTRE';
+export type ContractType = 'ALTERNANCE' | 'STAGE' | 'CDI' | 'CDD' | 'SPONTANEE' | 'AUTRE';
 
 export type Verdict = 'excellent' | 'good' | 'fair' | 'weak' | 'off_target';
 

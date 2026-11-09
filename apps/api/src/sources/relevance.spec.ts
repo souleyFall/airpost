@@ -42,11 +42,14 @@ describe('isRelevantOffer', () => {
     expect(isRelevantOffer(title)).toBe(false);
   });
 
-  it('La Bonne Alternance et La Bonne Boîte sont des alternances, quel que soit le texte', () => {
+  it('La Bonne Alternance est une alternance, La Bonne Boîte une candidature spontanée, quel que soit le texte', () => {
     expect(detectContractType('Stage de fin d’études', undefined, 'LBA')).toBe('ALTERNANCE');
     expect(
       detectContractType('Candidature spontanée : édition de logiciels', undefined, 'LBB'),
-    ).toBe('ALTERNANCE');
+    ).toBe('SPONTANEE');
+    expect(detectContractType('Alternance développeur', 'Alternance 12 mois', 'LBB')).toBe(
+      'SPONTANEE',
+    );
     expect(detectContractType('Développeur React', undefined, 'ADZUNA')).toBe('AUTRE');
   });
 

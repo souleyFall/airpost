@@ -64,7 +64,7 @@ export const MATCH_SYSTEM = [
   '',
   'PLAFONDS ABSOLUS (applique-les même si le reste est excellent) :',
   "- Le poste n'est pas du développement ni de l'informatique : 10 maximum, et renseigne « disqualifier ».",
-  "- Le contrat n'est pas compatible (CDI, CDD, ou un type de contrat absent de « contratsRecherches », par exemple un stage alors que seule l'alternance est recherchée) : 35 maximum, et renseigne « disqualifier ».",
+  "- Le contrat n'est pas compatible (CDI, CDD, ou un type de contrat absent de « contratsRecherches », par exemple un stage alors que seule l'alternance est recherchée) : 35 maximum, et renseigne « disqualifier ». Une « candidature spontanée » n'est jamais un contrat incompatible : c'est une approche pour l'un des contrats recherchés.",
   '- Le trajet dépasse le maximum accepté : 40 maximum.',
   "- Le texte de l'offre est trop pauvre pour juger la pile technique : 50 maximum.",
   '',
@@ -103,6 +103,8 @@ const CONTRACT_LABEL: Record<string, string> = {
   STAGE: 'stage',
   CDI: 'CDI',
   CDD: 'CDD',
+  SPONTANEE:
+    'candidature spontanée (aucune annonce publiée : compatible avec les contrats recherchés)',
   AUTRE: 'non déterminé',
 };
 
