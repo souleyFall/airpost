@@ -40,8 +40,12 @@ services:
       # Usage local en http (127.0.0.1) : un cookie « Secure » ne serait pas renvoyé. Mettre « true » dès que
       # l'application est servie en HTTPS (hébergement). L'API n'est de toute façon publiée que sur 127.0.0.1.
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
-      # Clé de La Bonne Alternance (facultative) : seul secret de source transmis à l'API pour l'instant.
+      # Secrets des sources d'offres, transmis à l'API un par un. Facultatifs : une source sans clé reste désactivée.
       LBA_API_KEY: ${LBA_API_KEY:-}
+      FT_CLIENT_ID: ${FT_CLIENT_ID:-}
+      FT_CLIENT_SECRET: ${FT_CLIENT_SECRET:-}
+      ADZUNA_APP_ID: ${ADZUNA_APP_ID:-}
+      ADZUNA_APP_KEY: ${ADZUNA_APP_KEY:-}
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-100}
       RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
     ports:

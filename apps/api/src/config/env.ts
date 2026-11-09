@@ -12,6 +12,9 @@ const origin = z.url().refine((value) => URL.canParse(value) && new URL(value).o
   message: 'doit être une origine (schéma, hôte, port éventuel), sans chemin ni « / » final',
 });
 
+/** Variable secrète facultative (clé d'API...) : absente ou vide = connecteur désactivé. */
+const secret = () => z.preprocess(emptyToUndefined, z.string().min(1).max(512).optional());
+
 /**
  * URL de connexion PostgreSQL. Elle contient le mot de passe : jamais recopiée dans un message d'erreur
  * (même précaution que pour l'origine, `URL.canParse` avant tout appel à `new URL()`).
@@ -39,7 +42,13 @@ export const envSchema = z
      * Clé de l'API La Bonne Alternance. Facultative : sans elle, le connecteur est désactivé.
      * C'est un secret : jamais journalisée ni recopiée dans une erreur.
      */
-    LBA_API_KEY: z.preprocess(emptyToUndefined, z.string().min(1).max(512).optional()),
+    LBA_API_KEY: secret(),
+    /** France Travail (La Bonne Boîte) : identifiant et secret OAuth2. Secrets, jamais journalisés. */
+    FT_CLIENT_ID: secret(),
+    FT_CLIENT_SECRET: secret(),
+    /** Adzuna : identifiant et clé d'application. Secrets, jamais journalisés. */
+    ADZUNA_APP_ID: secret(),
+    ADZUNA_APP_KEY: secret(),
     /**
      * Cookie de session marqué « Secure » (envoyé seulement en HTTPS). Absent : vrai en production, faux sinon.
      * À mettre à « false » uniquement pour un usage local en http (docker compose sur ce poste).

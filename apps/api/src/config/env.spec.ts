@@ -109,6 +109,15 @@ describe('parseEnv', () => {
     expect(() => parse({ SESSION_COOKIE_SECURE: 'oui' })).toThrow(/SESSION_COOKIE_SECURE/);
   });
 
+  it('lit les clés des sources comme facultatives : absentes ou vides, elles valent undefined', () => {
+    const env = parse({ LBA_API_KEY: '', FT_CLIENT_ID: 'id', ADZUNA_APP_KEY: '' });
+
+    expect(env.LBA_API_KEY).toBeUndefined();
+    expect(env.FT_CLIENT_ID).toBe('id');
+    expect(env.FT_CLIENT_SECRET).toBeUndefined();
+    expect(env.ADZUNA_APP_KEY).toBeUndefined();
+  });
+
   it('exige DATABASE_URL', () => {
     expect(() => parseEnv({})).toThrow(/DATABASE_URL/);
   });
