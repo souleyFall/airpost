@@ -3,6 +3,7 @@ import { Writable } from 'node:stream';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { hash } from '@node-rs/argon2';
 import { z } from 'zod';
+import { ARGON2_OPTIONS } from '../src/auth/argon2-options';
 import { PrismaClient } from '../src/generated/prisma/client';
 
 /**
@@ -68,8 +69,8 @@ async function main() {
   if (!connectionString) {
     throw new Error('DATABASE_URL absente : voir .env.example.');
   }
-  // Mêmes paramètres que PasswordService (src/auth/password.service.ts).
-  const passwordHash = await hash(parsed.data, { memoryCost: 19_456, timeCost: 2, parallelism: 1 });
+  // Mêmes paramètres que l'API : une seule définition.
+  const passwordHash = await hash(parsed.data, ARGON2_OPTIONS);
 
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
   try {

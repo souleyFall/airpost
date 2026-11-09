@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { isSecureCookie } from './auth/cookies';
 import { configureApp } from './app.setup';
 import { parseEnv } from './config/env';
 
@@ -35,7 +36,14 @@ async function bootstrap() {
 
   if (env.NODE_ENV !== 'production' && !LOCAL_HOSTS.has(env.API_HOST)) {
     console.warn(
-      `Attention : l'API écoute sur ${env.API_HOST}, donc depuis tout le réseau, sans authentification.`,
+      `Attention : l'API écoute sur ${env.API_HOST}, donc depuis tout le réseau (la connexion protège les routes, pas le trafic).`,
+    );
+  }
+
+  if (env.NODE_ENV === 'production' && !isSecureCookie(env)) {
+    console.warn(
+      'Attention : cookie de session sans l’attribut Secure (SESSION_COOKIE_SECURE=false). ' +
+        'Acceptable en local en http ; à passer à « true » dès que l’application est servie en HTTPS.',
     );
   }
 
