@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { parseEnv } from './config/env';
 import { HealthModule } from './health/health.module';
+import { PrismaModule } from './prisma/prisma.module';
 
 // Le module racine : il assemble les modules de l'application, un par fonctionnalité.
 @Module({
@@ -14,6 +15,7 @@ import { HealthModule } from './health/health.module';
         return [{ ttl: env.RATE_LIMIT_WINDOW_MS, limit: env.RATE_LIMIT_MAX }];
       },
     }),
+    PrismaModule,
     HealthModule,
   ],
   // Le garde est global : il s'applique à toutes les routes, y compris celles des futurs modules.

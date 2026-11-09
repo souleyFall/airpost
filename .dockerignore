@@ -9,5 +9,7 @@ credentials.json
 token.json
 **/node_modules
 **/dist
+# Client Prisma généré : l'image le régénère à partir du schéma.
+apps/api/src/generated
 docs/cours
 *.log
