@@ -75,6 +75,17 @@ En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans N
 - Vérifié : image de ~246 Mo, uid 1000, healthcheck vert, aucun fichier secret, valeur invalide jamais affichée.
 - Reste à faire : épingler l'image de base par empreinte (digest) avec Dependabot (PR n°24), et le proxy de confiance avec le déploiement (R8).
 
+## D25. Génération des lettres et garde-fous
+
+- **POST /offers/:id/letter** (session et CSRF, 5 par minute) : profil + offre → lettre (objet, corps, citations utilisées) → garde-fous → brouillon enregistré dans Application (statut « à valider »). Une candidature **déjà validée n'est jamais régénérée** (409, le modèle n'est pas appelé). La réponse contient le corps généré, des avertissements et un aperçu de la lettre complète.
+- **Rien d'identifiant ne part au modèle** : le prompt reçoit le profil sans identité (profileForPrompt) et l'offre nettoyée et encadrée. **Signature, formule de politesse, e-mail et téléphone sont ajoutés localement** (ssembleLetter) ; le modèle a l'interdiction d'en écrire, et un garde-fou rejette toute coordonnée dans sa sortie.
+- **Garde-fous** (fonctions pures, testées une à une), appliqués avant que l'utilisateur ne voie quoi que ce soit : longueur 120 à 350 mots ; aucun texte à compléter ([...], {{, <...>) ; aucune coordonnée ni lien ; aucune mention « en tant qu'IA » ; **aucun nombre absent du profil et de l'offre** (un « 5 ans d'expérience » ou un « 40 % » inventé est le défaut le plus grave) ; **ancrage** : le modèle doit citer, mot pour mot, 2 à 6 éléments du profil sur lesquels repose la lettre, et chaque citation est retrouvée dans le profil (une compétence ou un élément de disponibilité est une citation valable même courte, sinon 8 caractères au moins).
+- **Une seule nouvelle tentative** : le rappel dit ce qui est refusé (« n'écris aucun chiffre hors profil ») **sans recopier le texte fautif**. Deux refus : 422 avec les motifs, rien d'enregistré, rien du texte généré dans la réponse.
+- **Avertissements, pas refus** : une technologie connue citée dans la lettre mais absente du profil (« je souhaite découvrir Kubernetes » est honnête) est signalée pour la relecture.
+- **Erreurs du modèle traduites** : clé absente ou modèle indisponible 503, quota 429, autre 502 ; jamais de détail ni de secret.
+- **Essai réel** (profil fictif, offre piégée avec « IGNORE TES INSTRUCTIONS », e-mail et téléphone) : la première lettre a été refusée par l'ancrage (citations non conformes), la seconde acceptée : 132 mots, aucun chiffre inventé, avertissement « Kubernetes », signature ajoutée localement. Cet essai a conduit à accepter les compétences courtes et la disponibilité comme citations.
+- **Relecture humaine obligatoire** : aucune lettre n'est envoyée ni transformée en brouillon Gmail sans validation (PR n°16 et n°20).
+
 ## D24. Service de modèle de langage (Gemini)
 
 - **Fournisseur interchangeable** : le reste de l'application ne connaît que LlmService.generateObject et le contrat LlmProvider ; Gemini (GeminiProvider, API REST) est une implémentation. Modèle par défaut gemini-3.5-flash-lite (GEMINI_MODEL, validé par une liste blanche de caractères car il entre dans le chemin de l'URL). **Le .env de l'auteur contient encore GEMINI_MODEL=gemini-2.5-flash, retiré par Google (404) : à corriger.**
