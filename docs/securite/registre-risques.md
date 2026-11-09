@@ -1,0 +1,64 @@
+# Registre des risques de sécurité
+
+Suivi des failles possibles d'airpost, classées selon l'[OWASP Top 10 (2021)](https://owasp.org/Top10/). Ce registre est vivant : chaque PR qui touche à la sécurité le met à jour, et la PR n°24 le reprend pour l'audit final.
+
+**Statuts** : `traité` (contre-mesure en place et testée), `partiel` (en place mais incomplète), `prévu` (rattaché à une PR de la feuille de route), `accepté` (risque résiduel assumé, avec justification).
+
+**Gravité** : probabilité × impact, de 1 (faible) à 3 (élevé) : `faible` ≤ 2, `moyenne` 3-4, `élevée` ≥ 6.
+
+## Contexte de menace
+
+Application **mono-utilisateur**, utilisée par son propriétaire, d'abord en local (Docker sur son PC), peut-être hébergée plus tard. Les actifs à protéger, du plus sensible au moins sensible :
+
+1. l'accès à sa boîte Gmail (jeton OAuth : lecture et création de brouillons) ;
+2. les clés d'API (Gemini, France Travail, La Bonne Alternance, Adzuna) ;
+3. ses données personnelles (CV, profil, lettres, coordonnées de recruteurs) ;
+4. l'intégrité de ce qui est envoyé en son nom (aucun envoi automatique : l'humain valide toujours).
+
+## Registre
+
+| ID  | Risque                                                     | OWASP | Gravité | Contre-mesure                                                                                                                                                                                         | Statut                              |
+| --- | ---------------------------------------------------------- | ----- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| R1  | Secrets (clés, jeton Gmail) poussés sur GitHub             | A02   | élevée  | `.env`, `credentials.json`, `token.json` dans `.gitignore` ; `.env.example` sans valeur ; GitGuardian côté GitHub ; jamais de valeur lue ni affichée dans les échanges                                | traité (voir R2 pour l'écart)       |
+| R2  | Donnée personnelle dans l'historique Git (incident)        | A04   | moyenne | Voir « Incident du 2026-11-09 » ci-dessous. E-mail noreply, nouveau dépôt, anciens hashs introuvables                                                                                                 | traité                              |
+| R3  | Dépendance vulnérable ou compromise (chaîne logistique)    | A06   | élevée  | `pnpm audit` de production à chaque PR et chaque lundi ; Dependabot (npm + Actions) ; versions verrouillées (`pnpm-lock.yaml`) ; scripts de build des dépendances bloqués par pnpm                    | partiel (CI bloquée, voir R12)      |
+| R4  | Vulnérabilité de développement `minimatch` (modérée)       | A06   | faible  | Présente seulement dans l'outillage (ESLint), jamais dans l'image de production ; l'audit de production est propre. À revoir à chaque mise à jour d'ESLint                                            | accepté                             |
+| R5  | Configuration invalide ou secret affiché dans une erreur   | A05   | moyenne | Schéma Zod au démarrage ; message d'erreur = nom de variable + problème, jamais la valeur (testé, y compris le piège de `new URL()`) ; défauts restrictifs                                            | traité                              |
+| R6  | API exposée sur le réseau sans authentification            | A01   | élevée  | Écoute sur `127.0.0.1` par défaut ; avertissement au démarrage si `API_HOST` est ouvert hors production ; authentification mono-utilisateur en PR n°8                                                 | partiel                             |
+| R7  | Abus de requêtes, force brute                              | A07   | moyenne | Limitation de débit globale par IP (429 + `Retry-After`, testé) ; bornes hautes sur les réglages pour qu'une faute de frappe ne la désactive pas. Limite plus stricte sur la connexion en PR n°8      | partiel                             |
+| R8  | Limitation de débit faussée derrière un reverse proxy      | A05   | moyenne | Si un proxy est ajouté, toutes les requêtes auront son IP : il faudra déclarer le proxy de confiance (`trust proxy`). À traiter avec le déploiement Docker                                            | prévu (PR n°6, n°23)                |
+| R9  | CORS trop permissif, vol de session par une autre origine  | A05   | élevée  | CORS désactivé par défaut ; une seule origine, jamais `*` ; en-têtes autorisés en liste blanche ; `https://` exigé en production (testé)                                                              | traité                              |
+| R10 | En-têtes de sécurité absents (clickjacking, sniffing)      | A05   | moyenne | Helmet : HSTS, CSP, nosniff, anti-framing ; `X-Powered-By` retiré ; contenu des en-têtes vérifié par les tests                                                                                        | traité                              |
+| R11 | Fuite d'information par `/health` (version, détails)       | A05   | faible  | La route publique ne renvoie plus la version                                                                                                                                                          | traité                              |
+| R12 | Contrôles automatiques indisponibles (CI bloquée)          | A09   | moyenne | Le compte GitHub est verrouillé (facturation). Le hook `pre-push` lance `pnpm check` ; pas d'audit planifié ni de scan de secrets automatique tant que la CI est bloquée                              | partiel                             |
+| R13 | Hook Git contourné (`--no-verify`) ou piégé                | A08   | faible  | Le hook est du code exécuté à chaque push : il est versionné, relu en PR, et ne fait que lancer `pnpm check`. Le contournement reste possible : la protection de branche prendra le relais avec la CI | accepté                             |
+| R14 | Workflows GitHub Actions compromis                         | A08   | moyenne | Actions épinglées par SHA de commit ; permissions `contents: read` ; `persist-credentials: false` ; Dependabot surveille les actions                                                                  | traité                              |
+| R15 | Mots de passe mal stockés, session volée                   | A02   | élevée  | argon2 (haché et salé), cookie `HttpOnly` + `Secure` + `SameSite`, expiration de session, jeton anti-CSRF                                                                                             | prévu (PR n°8)                      |
+| R16 | Injection SQL                                              | A03   | élevée  | Prisma (requêtes paramétrées), aucune requête brute concaténée ; validation Zod de toute entrée                                                                                                       | prévu (PR n°7 et suivantes)         |
+| R17 | Injection de prompt par une offre d'emploi                 | A03   | élevée  | Le texte d'une offre est une donnée non fiable : séparé des consignes, sortie Gemini validée par schéma, aucune action automatique déclenchée par le modèle, validation humaine avant tout brouillon  | prévu (PR n°14, n°15)               |
+| R18 | Lettre inventée ou mensongère envoyée en son nom           | A04   | moyenne | Garde-fous de génération (pas de diplôme ni d'expérience inventés) ; brouillon Gmail seulement, jamais d'envoi ; relecture obligatoire dans l'interface                                               | prévu (PR n°15, n°20)               |
+| R19 | Jeton Gmail volé ou expiré                                 | A02   | élevée  | Portée minimale (`gmail.readonly` + `gmail.compose`, pas d'envoi direct) ; jeton hors Git, dans un volume Docker ; révocable depuis le compte Google ; reconnexion tous les 7 jours en mode Test      | prévu (PR n°20)                     |
+| R20 | SSRF via une URL d'offre ou de recruteur                   | A10   | moyenne | Le serveur n'appelle que les domaines des sources déclarées ; aucune URL fournie par une offre n'est suivie côté serveur                                                                              | prévu (PR n°10 à n°12)              |
+| R21 | XSS via le contenu d'une offre affiché dans l'interface    | A03   | élevée  | React échappe par défaut ; aucun `dangerouslySetInnerHTML` ; CSP stricte déjà en place côté API                                                                                                       | prévu (PR n°17 à n°19)              |
+| R22 | Conteneur trop privilégié, secrets dans l'image            | A05   | moyenne | Utilisateur non-root, image multi-étapes, `.dockerignore` (jamais `.env`, `credentials.json`, `token.json`), base PostgreSQL non exposée hors `127.0.0.1`                                             | partiel (base faite, API en PR n°6) |
+| R23 | Journaux contenant des données personnelles ou des secrets | A09   | moyenne | Les journaux ne reçoivent ni valeur de variable, ni jeton, ni contenu de lettre ; à contrôler à chaque nouveau module                                                                                 | partiel                             |
+| R24 | Perte de données (disque, erreur)                          | A04   | faible  | Volume Docker pour PostgreSQL ; stratégie de sauvegarde à décrire avec le déploiement                                                                                                                 | prévu (PR n°23)                     |
+
+## Incident du 2026-11-09 : adresse e-mail personnelle dans l'historique Git
+
+**Ce qui s'est passé.** Les premiers commits portaient l'adresse e-mail personnelle de l'auteur, qui laisse deviner son année de naissance. En préparant la publication du dépôt, l'historique local a été réécrit avec l'adresse `noreply` de GitHub, puis le dépôt a été rendu public quelques minutes.
+
+**Pourquoi ce n'était pas suffisant.** Réécrire l'historique ne purge pas GitHub : les anciens commits restent joignables par leur hash, sans connexion, et apparaissent dans les événements publics. Le dépôt a donc été remis en privé aussitôt.
+
+**Correction.** Ancien dépôt renommé `airpost-prive` (privé, archive à supprimer) ; nouveau dépôt public créé vide, alimenté avec l'historique réécrit. Vérification sans jeton : seule l'adresse `noreply` est lisible, les anciens hashs renvoient 422, l'archive 404.
+
+**Règles retenues.**
+
+1. Avant toute publication : `git config user.email` doit être l'adresse `noreply` ; cocher dans GitHub « Keep my email addresses private » et « Block command line pushes that expose my email ».
+2. Ne jamais rendre public un dépôt dont l'historique privé a contenu une donnée personnelle : créer un nouveau dépôt.
+3. Relire `git log --format='%ae %ce'` avant le premier envoi public.
+
+## Revue et mise à jour
+
+- Chaque PR de fonctionnalité ajoute ses risques ici (section « Sécurité » du gabarit de PR).
+- Revue complète à la PR n°24 : tous les statuts `prévu` doivent être passés à `traité` ou `accepté`, avec la preuve (test ou vérification manuelle).
