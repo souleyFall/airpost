@@ -12,3 +12,4 @@ dist/
 
 # Cours personnel : reste sur ton ordinateur, jamais envoyé sur GitHub
 docs/cours/
+.claude/settings.local.json
