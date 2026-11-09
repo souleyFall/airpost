@@ -16,6 +16,7 @@ const row = (id: string, status: string, title: string, appliedDays: number | nu
   appliedAt: appliedDays === null ? null : daysAgo(appliedDays),
   createdAt: daysAgo(6),
   updatedAt: daysAgo(1),
+  replies: [] as { id: string; kind: string; receivedAt: string; snippet: string }[],
   offer: {
     id: `offer-${id}`,
     source: 'LBA',
@@ -48,6 +49,46 @@ function fakeApi(options: { draftDeleted?: boolean | null } = {}) {
       calls.push({ method, path, body });
       if (path === '/auth/me') return json({ login: 'souley.fall', csrfToken: 'csrf' });
       if (path === '/gmail/status') return json({ configured: true });
+      if (path === '/gmail/sync' && method === 'POST') {
+        rows = rows.map((r) =>
+          r.id === 'c'
+            ? {
+                ...r,
+                status: 'REJECTED',
+                replies: [
+                  {
+                    id: 'r1',
+                    kind: 'REJECTION',
+                    receivedAt: daysAgo(0),
+                    snippet: 'Nous ne donnons pas suite',
+                  },
+                ],
+              }
+            : r,
+        );
+        return json({
+          checked: 2,
+          newReplies: 1,
+          statusChanges: 1,
+          noResponse: 0,
+          skipped: 0,
+          finishedAt: daysAgo(0),
+        });
+      }
+      if (path === '/gmail/sync') return json({}, 404);
+      const reply = /^\/replies\/(\w+)$/.exec(path);
+      if (reply && method === 'PATCH') {
+        rows = rows.map((r) =>
+          r.replies[0]?.id === reply[1]
+            ? {
+                ...r,
+                status: 'APPLIED',
+                replies: [{ ...r.replies[0], kind: (body as { kind: string }).kind }],
+              }
+            : r,
+        );
+        return json({});
+      }
       const draft = /^\/applications\/(\w+)\/draft$/.exec(path);
       if (draft && method === 'POST') {
         rows = rows.map((r) => (r.id === draft[1] ? { ...r, status: 'DRAFT_CREATED' } : r));
@@ -179,5 +220,26 @@ describe('écran Suivi', () => {
     expect(
       await screen.findByText(/brouillon n’a pas pu être retiré de Gmail/),
     ).toBeInTheDocument();
+  });
+  it('synchronise Gmail, affiche le dernier mail et permet de corriger sa catégorie', async () => {
+    const calls = fakeApi();
+    const user = userEvent.setup();
+    renderApp();
+    await user.click(await screen.findByRole('button', { name: 'Synchroniser' }));
+    expect(await screen.findByText('1 nouvelle réponse.')).toBeInTheDocument();
+    expect(await screen.findByText(/Nous ne donnons pas suite/)).toBeInTheDocument();
+    expect(screen.getAllByText('Refus').length).toBeGreaterThan(0);
+
+    await user.selectOptions(screen.getByLabelText(/Catégorie du dernier mail/), 'Autre');
+    await waitFor(() =>
+      expect(calls).toContainEqual({
+        method: 'PATCH',
+        path: '/replies/r1',
+        body: { kind: 'OTHER' },
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText(/Catégorie du dernier mail/)).toHaveValue('OTHER'),
+    );
   });
 });

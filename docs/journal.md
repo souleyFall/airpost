@@ -38,3 +38,5 @@
 - PR 24 (image Docker de l'interface, TRUST_PROXY) et PR 25 (PWA) fusionnées. Interface : http://localhost:8080 apres docker compose up -d --build.
 
 - PR 26 : brouillons Gmail (creation, suppression liee, R33 ferme). Aucun brouillon reel n'a ete cree pendant les tests (faux Gmail).
+
+- PR 27 : suivi des reponses Gmail (recherche bornee, classement par regles, correction, sans reponse a 14 jours).

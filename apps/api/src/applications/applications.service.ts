@@ -43,6 +43,12 @@ export class ApplicationsService {
         createdAt: true,
         updatedAt: true,
         offer: { select: OFFER_SUMMARY },
+        // Dernier échange affiché dans le suivi (le détail complet est dans GET /applications/:id).
+        replies: {
+          orderBy: { receivedAt: 'desc' },
+          take: 1,
+          select: { id: true, kind: true, receivedAt: true, snippet: true },
+        },
       },
     });
   }

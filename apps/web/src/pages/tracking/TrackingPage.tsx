@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ApiError, api } from '../../api/client';
-import type { ApplicationRow, ApplicationStatus } from '../../api/types';
+import type { ApplicationRow, ApplicationStatus, ReplyKind, SyncReport } from '../../api/types';
 import { useShell } from '../../components/shellContext';
 import {
   FOLLOW_UP_DAYS,
@@ -10,6 +10,13 @@ import {
   needsFollowUp,
   shortDate,
 } from '../../lib/status';
+
+const KIND_LABEL: Record<ReplyKind, string> = {
+  ACKNOWLEDGEMENT: 'Accusé de réception',
+  INTERVIEW: 'Entretien',
+  REJECTION: 'Refus',
+  OTHER: 'Autre',
+};
 
 type Filter = 'ALL' | 'TO_SEND' | 'FOLLOW_UP' | ApplicationStatus;
 
@@ -106,6 +113,9 @@ export function TrackingPage() {
   const [gmailReady, setGmailReady] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [creatingDraft, setCreatingDraft] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [lastSync, setLastSync] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -125,6 +135,9 @@ export function TrackingPage() {
     api<{ configured: boolean }>('GET', '/gmail/status')
       .then((status) => setGmailReady(status.configured))
       .catch(() => setGmailReady(false));
+    api<SyncReport>('GET', '/gmail/sync')
+      .then((report) => setLastSync(report.finishedAt))
+      .catch(() => setLastSync(null));
   }, []);
 
   useEffect(() => {
@@ -144,6 +157,41 @@ export function TrackingPage() {
             ? 'Ce changement n’est plus possible : recharge la page.'
             : 'Le changement a échoué.',
       });
+    }
+  }
+
+  async function synchronize() {
+    setSyncing(true);
+    setSyncMessage(null);
+    try {
+      const report = await api<SyncReport>('POST', '/gmail/sync');
+      setLastSync(report.finishedAt);
+      setSyncMessage(
+        report.newReplies === 0
+          ? 'Aucune nouvelle réponse.'
+          : `${report.newReplies} nouvelle${report.newReplies > 1 ? 's' : ''} réponse${report.newReplies > 1 ? 's' : ''}.`,
+      );
+      await load();
+    } catch (caught) {
+      setSyncMessage(
+        caught instanceof ApiError && caught.status === 503
+          ? 'Gmail n’est pas disponible : reconnecte Gmail puis réessaie.'
+          : caught instanceof ApiError && caught.status === 429
+            ? 'Trop de synchronisations rapprochées : réessaie dans une minute.'
+            : 'La synchronisation a échoué.',
+      );
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function correctReply(row: ApplicationRow, replyId: string, kind: ReplyKind) {
+    setRowError(null);
+    try {
+      await api('PATCH', `/replies/${replyId}`, { kind });
+      await load();
+    } catch {
+      setRowError({ id: row.id, message: 'La correction a échoué.' });
     }
   }
 
@@ -207,11 +255,34 @@ export function TrackingPage() {
 
   return (
     <div className="flex flex-col gap-4 px-8 pt-5 pb-8">
-      <div className="flex flex-wrap items-baseline gap-2">
-        <h1 className="m-0 text-[22px] leading-tight font-semibold">Suivi</h1>
-        <span className="text-muted">
-          {rows?.length ?? 0}&nbsp;candidature{(rows?.length ?? 0) > 1 ? 's' : ''}
-        </span>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-baseline gap-2">
+          <h1 className="m-0 text-[22px] leading-tight font-semibold">Suivi</h1>
+          <span className="text-muted">
+            {rows?.length ?? 0}&nbsp;candidature{(rows?.length ?? 0) > 1 ? 's' : ''}
+          </span>
+        </div>
+        {gmailReady ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <span role="status" className="text-[13px] text-muted">
+              {syncMessage ??
+                (lastSync
+                  ? `Gmail synchronisé à ${new Date(lastSync).toLocaleTimeString('fr-FR', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}`
+                  : 'Gmail pas encore synchronisé')}
+            </span>
+            <button
+              type="button"
+              className="btn !h-8 !text-[13px]"
+              onClick={() => void synchronize()}
+              disabled={syncing}
+            >
+              {syncing ? 'Synchronisation…' : 'Synchroniser'}
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <div
@@ -308,7 +379,39 @@ export function TrackingPage() {
                       {shortDate(row.appliedAt)}
                     </td>
                     <td className="max-w-[340px] border-b border-line px-3 py-3 text-[13px]">
-                      Aucun mail reçu
+                      {row.replies[0] ? (
+                        <div className="flex flex-col gap-1.5">
+                          <span>
+                            Mail du {shortDate(row.replies[0].receivedAt)} :{' '}
+                            {row.replies[0].snippet
+                              ? `« ${row.replies[0].snippet.slice(0, 90)} »`
+                              : ''}
+                          </span>
+                          <label className="flex items-center gap-1.5 text-xs text-muted">
+                            Catégorie
+                            <select
+                              className="field !h-8 !w-auto !px-2 !text-[13px]"
+                              value={row.replies[0].kind}
+                              aria-label={`Catégorie du dernier mail de ${row.offer.company}`}
+                              onChange={(event) =>
+                                void correctReply(
+                                  row,
+                                  row.replies[0].id,
+                                  event.target.value as ReplyKind,
+                                )
+                              }
+                            >
+                              {(Object.keys(KIND_LABEL) as ReplyKind[]).map((kind) => (
+                                <option key={kind} value={kind}>
+                                  {KIND_LABEL[kind]}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
+                      ) : (
+                        'Aucun mail reçu'
+                      )}
                     </td>
                     <td className="border-b border-line px-3 py-3">
                       <div className="flex flex-col items-start gap-2">
@@ -422,9 +525,10 @@ export function TrackingPage() {
 
       <p className="m-0 text-[13px] text-muted">
         Le brouillon Gmail n’est jamais envoyé par airpost : tu l’envoies toi-même depuis Gmail,
-        puis tu marques la candidature « envoyée ». Les réponses se mettent à jour à la main pour
-        l’instant. Supprimer une candidature efface aussi son brouillon Gmail et le contact du
-        recruteur enregistré.
+        puis tu marques la candidature « envoyée ». La synchronisation classe les réponses par
+        mots-clés (corrige la catégorie si elle est fausse, le statut suit) ; une candidature passe
+        en « sans réponse » après 14 jours sans mail. Supprimer une candidature efface aussi son
+        brouillon Gmail et le contact du recruteur enregistré.
       </p>
     </div>
   );

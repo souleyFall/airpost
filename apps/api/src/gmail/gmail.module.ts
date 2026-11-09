@@ -3,11 +3,12 @@ import { ProfileModule } from '../profile/profile.module';
 import { GmailClient } from './gmail.client';
 import { GmailController } from './gmail.controller';
 import { GmailService } from './gmail.service';
+import { ReplySyncService } from './reply-sync.service';
 
 @Module({
   imports: [ProfileModule],
   controllers: [GmailController],
-  providers: [GmailClient, GmailService],
+  providers: [GmailClient, GmailService, ReplySyncService],
   exports: [GmailService],
 })
 export class GmailModule {}
