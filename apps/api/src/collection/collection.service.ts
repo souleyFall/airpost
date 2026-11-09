@@ -53,6 +53,11 @@ interface Searcher {
   search(query: SearchQuery): Promise<SearchResult>;
 }
 
+/** Sources déjà filtrées par code ROME à la source : La Bonne Boîte, et La Bonne Alternance quand des codes sont configurés. */
+export function trustedSources(romeCodes: string[]): OfferSource[] {
+  return romeCodes.length > 0 ? ['LBB', 'LBA'] : ['LBB'];
+}
+
 /** Rayon de recherche (km) déduit du temps de trajet accepté, borné pour rester utile et raisonnable. */
 export function radiusFromCommute(minutes: number): number {
   return Math.min(100, Math.max(5, Math.round(minutes / MINUTES_PER_KM)));
@@ -127,7 +132,12 @@ export class CollectionService {
       sources.push(await this.collectFrom(searcher, query, profile, seen));
     }
 
-    const purged = await this.offers.purgeStale(this.env.OFFER_RETENTION_DAYS);
+    const stale = await this.offers.purgeStale(this.env.OFFER_RETENTION_DAYS);
+    // Remise à niveau des offres déjà en base avec les règles actuelles (hors métier supprimées, contrat corrigé).
+    const cleaned = await this.offers
+      .cleanup(trustedSources(profile.search.romeCodes))
+      .catch(() => ({ removed: 0, updated: 0 }));
+    const purged = stale + cleaned.removed;
     // Distances recalculées (le domicile peut avoir changé), puis analyse IA des offres sans note à jour.
     // Un échec de l'une ou l'autre ne perd pas la collecte.
     await this.offers.refreshDistances(position).catch(() => 0);
@@ -187,8 +197,7 @@ export class CollectionService {
       report.fetched = result.offers.length;
       report.skipped = result.skipped;
 
-      const trusted =
-        searcher.source === 'LBB' || (searcher.source === 'LBA' && query.romeCodes.length > 0);
+      const trusted = trustedSources(query.romeCodes).includes(searcher.source);
       const excludedNames = profile.search.excludedCompanies.map(normalizeText).filter(Boolean);
       const candidates: NormalizedOffer[] = [];
       for (const offer of result.offers) {

@@ -1,4 +1,4 @@
-import type { ContractType } from '../generated/prisma/enums';
+import type { ContractType, OfferSource } from '../generated/prisma/enums';
 
 /** Texte comparable : sans accents, en minuscules. */
 export function fold(value: string): string {
@@ -93,7 +93,18 @@ const OFF_TOPIC_TITLE = new RegExp(
     'secretaire',
     'assistant(e)? (de direction|administrati|rh|social)',
     'ressources humaines',
+    '\\brh\\b',
     'recrut',
+    'sales',
+    'account (executive|manager)',
+    'communication',
+    'credit',
+    'audit',
+    'finance',
+    'scientifique',
+    'chimi',
+    'physique',
+    'project manager',
     'charge(e)? de communication',
     'community manager',
     'marketing',
@@ -144,10 +155,18 @@ export function isRelevantOffer(title: string, description?: string | null): boo
  * Type de contrat, déduit du texte (aucune source ne le publie de façon fiable). « Alternance » l'emporte sur
  * « stage » : une annonce d'alternance peut mentionner un stage précédent, pas l'inverse.
  */
-export function detectContractType(title: string, description?: string | null): ContractType {
+export function detectContractType(
+  title: string,
+  description?: string | null,
+  source?: OfferSource,
+): ContractType {
+  // La Bonne Alternance ne sert que des contrats d'apprentissage ; une entreprise de La Bonne Boîte est approchée
+  // pour une alternance (c'est le but de l'application) : leur texte ne dit rien du contrat.
+  if (source === 'LBA' || source === 'LBB') return 'ALTERNANCE';
   const t = fold(title);
   const d = fold(description ?? '');
-  const both = `${t}\n${d}`;
+  const both = `${t}
+${d}`;
   if (/alternan|apprenti|contrat de professionnalisation|contrat pro\b/.test(t))
     return 'ALTERNANCE';
   if (/\bstage\b|stagiaire|\binternship\b/.test(t)) return 'STAGE';

@@ -9,6 +9,7 @@ import { PasswordService } from '../auth/password.service';
 import { parseEnv } from '../config/env';
 import { LlmError, LlmProvider, type LlmRequest, type LlmResponse } from '../llm/llm.types';
 import { MatchService } from '../matching/match.service';
+import { OffersService } from '../sources/offers.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { exampleProfile } from '../profile/profile.fixture';
 
@@ -187,6 +188,89 @@ describe('Offres et analyse IA (e2e, base réelle)', () => {
     });
   });
 
+  describe('OffersService.cleanup', () => {
+    it('supprime les offres hors métier sans candidature, corrige les contrats, épargne le suivi', async () => {
+      await seed('dev', { source: 'ADZUNA', title: 'Alternance développeur web' });
+      await seed('compta', { source: 'ADZUNA', title: 'Alternance comptable' });
+      await seed('lba', { source: 'LBA', title: 'Mission polyvalente' });
+      const suivie = await seed('suivie', { source: 'ADZUNA', title: 'Alternance comptable' });
+      await prisma.application.create({ data: { offerId: suivie.id, subject: 'O', body: 'T' } });
+
+      const result = await app.get(OffersService).cleanup(['LBB', 'LBA']);
+
+      expect(result.removed).toBe(1);
+      const rows = await prisma.offer.findMany({ orderBy: { externalId: 'asc' } });
+      expect(rows.map((r) => r.externalId)).toEqual(['dev', 'lba', 'suivie']);
+      expect(rows.find((r) => r.externalId === 'dev')?.contractType).toBe('ALTERNANCE');
+      expect(rows.find((r) => r.externalId === 'lba')?.contractType).toBe('ALTERNANCE');
+    });
+  });
+
+  describe('POST /offers/analyze (offres affichées)', () => {
+    const analyzeVisible = (ids: string[]) =>
+      http.post('/offers/analyze').set('Cookie', cookie).set('X-CSRF-Token', csrf).send({ ids });
+
+    async function withProfile() {
+      await http
+        .put('/profile')
+        .set('Cookie', cookie)
+        .set('X-CSRF-Token', csrf)
+        .send(exampleProfile())
+        .expect(200);
+    }
+
+    it('analyse en une fois les offres sans note et renvoie leur score', async () => {
+      await withProfile();
+      const a = await seed('a');
+      const b = await seed('b');
+      model.queue.push({ results: [result(1, 81), result(2, 42)] });
+
+      const res = await analyzeVisible([a.id, b.id]).expect(200);
+
+      const body = res.body as { analyzed: number; items: { id: string; score: number }[] };
+      expect(body.analyzed).toBe(2);
+      // Les plus récentes sont envoyées d'abord : l'ordre des notes suit celui de la demande au modèle.
+      expect(body.items.map((i) => i.id).sort()).toEqual([a.id, b.id].sort());
+      expect(body.items.map((i) => i.score).sort()).toEqual([42, 81]);
+      expect(model.requests).toHaveLength(1);
+    });
+
+    it('n’analyse que les offres demandées et ignore celles déjà à jour', async () => {
+      await withProfile();
+      const a = await seed('a');
+      await seed('autre');
+      model.queue.push({ results: [result(1, 70)] });
+      await analyzeVisible([a.id]).expect(200);
+      expect(await prisma.offer.count({ where: { score: null } })).toBe(1);
+
+      await analyzeVisible([a.id]).expect(200);
+      expect(model.requests).toHaveLength(1);
+    });
+
+    it('un quota atteint n’est pas une erreur : les offres restent sans note', async () => {
+      await withProfile();
+      const a = await seed('a');
+      model.queue.push(new LlmError('rate_limited', 'Quota'));
+
+      const res = await analyzeVisible([a.id]).expect(200);
+
+      expect(res.body).toMatchObject({ analyzed: 0, items: [{ id: a.id, score: null }] });
+    });
+
+    it('refuse sans profil (400), sans jeton CSRF (403) et une liste invalide (400)', async () => {
+      const a = await seed('a');
+      await analyzeVisible([a.id]).expect(400);
+      await http
+        .post('/offers/analyze')
+        .set('Cookie', cookie)
+        .send({ ids: [a.id] })
+        .expect(403);
+      await analyzeVisible([]).expect(400);
+      await analyzeVisible(['pas-un-uuid']).expect(400);
+      await withProfile();
+      await analyzeVisible(Array.from({ length: 101 }, () => a.id)).expect(400);
+    });
+  });
   describe('POST /offers/:id/analyze', () => {
     const analyze = (id: string, query = '') =>
       http.post(`/offers/${id}/analyze${query}`).set('Cookie', cookie).set('X-CSRF-Token', csrf);

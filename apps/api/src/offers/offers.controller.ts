@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   HttpCode,
@@ -49,6 +50,10 @@ const listQuery = z.object({
   sort: z.enum(['score', 'fresh', 'distance']).default('score'),
 });
 type ListQuery = z.infer<typeof listQuery>;
+
+/** Les offres affichées à l'écran : une page au plus. */
+const analyzeBody = z.object({ ids: z.array(z.uuid()).min(1).max(100) });
+type AnalyzeBody = z.infer<typeof analyzeBody>;
 
 /** Protège \, % et _ pour qu'une recherche « 100% » ne soit pas un motif. */
 export const escapeLike = (value: string) => value.replace(/[\\%_]/g, '\\$&');
@@ -126,6 +131,29 @@ export class OffersController {
       }),
     ]);
     return { total, limit: query.limit, offset: query.offset, items };
+  }
+
+  /**
+   * Analyse en une fois les offres affichées qui n'ont pas de note à jour (l'interface l'appelle dès que la liste
+   * s'affiche). Renvoie la note de chacune. Un quota atteint n'est pas une erreur : les offres restent sans note.
+   */
+  @Throttle({ default: { limit: 6, ttl: 60_000 } })
+  @Post('analyze')
+  @HttpCode(200)
+  async analyzeVisible(
+    @Req() req: AuthenticatedRequest,
+    @Body(new ZodValidationPipe(analyzeBody)) body: AnalyzeBody,
+  ) {
+    const profile = await this.profiles.get(req.auth.userId);
+    if (!profile) {
+      throw new BadRequestException('Renseigne ton profil avant de lancer une analyse');
+    }
+    const report = await this.matching.analyzePending(profile, body.ids.length, body.ids);
+    const items = await this.prisma.offer.findMany({
+      where: { id: { in: body.ids } },
+      select: { id: true, score: true },
+    });
+    return { ...report, items };
   }
 
   @Get(':id')

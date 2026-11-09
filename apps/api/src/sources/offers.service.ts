@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { OfferSource } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { dedupKey } from './dedup';
+import { planCleanup } from './cleanup';
 import { type Position, roundedDistance } from './geo';
 import { detectContractType } from './relevance';
 import type { NormalizedOffer } from './source.types';
@@ -49,6 +50,35 @@ export class OffersService {
       where: { lastSeenAt: { lt: limit }, application: null },
     });
     return count;
+  }
+
+  /**
+   * Applique les règles actuelles aux offres déjà enregistrées : supprime celles qui ne concernent pas le développement
+   * (sauf si elles ont une candidature : elles font partie du suivi) et corrige le type de contrat.
+   * trusted : sources déjà filtrées à la source, jamais supprimées ici.
+   */
+  async cleanup(trusted: readonly OfferSource[]): Promise<{ removed: number; updated: number }> {
+    const offers = await this.prisma.offer.findMany({
+      where: { application: null },
+      select: { id: true, source: true, title: true, description: true, contractType: true },
+    });
+    const plan = planCleanup(offers, new Set(trusted));
+    const { count } = plan.deleteIds.length
+      ? await this.prisma.offer.deleteMany({
+          where: { id: { in: plan.deleteIds }, application: null },
+        })
+      : { count: 0 };
+    for (let i = 0; i < plan.contractUpdates.length; i += BATCH_SIZE) {
+      await this.prisma.$transaction(
+        plan.contractUpdates.slice(i, i + BATCH_SIZE).map((u) =>
+          this.prisma.offer.update({
+            where: { id: u.id },
+            data: { contractType: u.contractType },
+          }),
+        ),
+      );
+    }
+    return { removed: count, updated: plan.contractUpdates.length };
   }
 
   /** Recalcule la distance à vol d'oiseau de chaque offre localisée (le domicile peut changer avec le profil). */
@@ -107,7 +137,7 @@ export class OffersService {
           applyUrl: o.applyUrl ?? null,
           contactEmail: o.contactEmail ?? null,
           channel: o.channel,
-          contractType: detectContractType(o.title, o.description),
+          contractType: detectContractType(o.title, o.description, o.source),
           publishedAt: o.publishedAt ?? null,
           lastSeenAt: now,
         };

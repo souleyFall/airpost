@@ -213,3 +213,10 @@ En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans N
 - **Liste** : filtres (source, contrat, canal, compatibilité minimale, distance maximale), recherche libre, tri (compatibilité, fraîcheur, distance) et pagination, tous côté serveur. Les jokers `%` et `_` de la recherche sont échappés.
 - **Interface** : la liste et le détail défilent séparément (chacun son conteneur), le détail repart du haut à chaque changement d'offre et la barre d'actions reste collée en bas.
 - Les anciens scores (grille) sont effacés par la migration : ils ne signifiaient plus rien.
+
+### D29 (suite) : corrections après premier usage
+
+- **Filtres de contrat à zéro** : la migration avait donné « non précisé » à toutes les offres existantes. Le type de contrat est maintenant déduit aussi de la source (La Bonne Alternance et La Bonne Boîte = alternance) et **corrigé à chaque collecte** pour les offres déjà en base (`OffersService.cleanup`). `pnpm --filter @airpost/api offers:clean` fait la même remise à niveau sans attendre.
+- **Offres hors métier** : le filtre n'agissait que sur les nouvelles offres. La remise à niveau supprime aussi les offres déjà enregistrées qui ne passent plus le filtre (jamais celles qui ont une candidature, jamais celles des sources déjà filtrées par code ROME). Liste de mots hors sujet élargie (RH, communication, vente, audit, finance, crédit...).
+- **Analyse dès l'affichage** : l'interface envoie les identifiants des offres affichées sans note à `POST /offers/analyze` (une page à la fois, 4 offres par appel au modèle), sans attendre l'ouverture du détail. Un quota atteint laisse les offres sans note, sans boucle de nouvelles demandes.
+- **Déploiement** : après une PR avec migration, `docker compose up -d --build` ne reconstruit pas le service `migrate` ; faire `docker compose build migrate` puis `docker compose run --rm migrate`.

@@ -54,6 +54,7 @@ function setup(
   }));
   const purgeStale = vi.fn(async () => 2);
   const refreshDistances = vi.fn(async () => 3);
+  const cleanup = vi.fn(async () => ({ removed: 0, updated: 0 }));
   const analyzePending = vi.fn(async () => ({ analyzed: 7, remaining: 2 }));
   const sourcesByDedupKey = vi.fn(async () => options.inDatabase ?? new Map());
   const service = new CollectionService(
@@ -65,13 +66,29 @@ function setup(
       geocodePostcode: async () =>
         options.position === undefined ? { latitude: 48.86, longitude: 2.38 } : options.position,
     } as unknown as GeocoderService,
-    { saveMany, purgeStale, sourcesByDedupKey, refreshDistances } as unknown as OffersService,
+    {
+      saveMany,
+      purgeStale,
+      sourcesByDedupKey,
+      refreshDistances,
+      cleanup,
+    } as unknown as OffersService,
     { analyzePending } as unknown as MatchService,
     { search: lba } as unknown as LbaConnector,
     { search: lbb } as unknown as LbbConnector,
     { search: adzuna } as unknown as AdzunaConnector,
   );
-  return { service, lba, adzuna, lbb, saveMany, purgeStale, analyzePending, refreshDistances };
+  return {
+    service,
+    lba,
+    adzuna,
+    lbb,
+    saveMany,
+    purgeStale,
+    analyzePending,
+    refreshDistances,
+    cleanup,
+  };
 }
 
 describe('radiusFromCommute', () => {
@@ -314,6 +331,26 @@ describe('CollectionService', () => {
       'dev',
       'spontanee',
     ]);
+  });
+
+  it('remet à niveau les offres déjà en base avec les règles actuelles, et le compte dans les offres retirées', async () => {
+    const { service, cleanup } = setup();
+    cleanup.mockResolvedValueOnce({ removed: 5, updated: 1 });
+
+    const report = await service.run('u1');
+
+    expect(cleanup).toHaveBeenCalledWith(['LBB', 'LBA']);
+    expect(report.purged).toBe(7);
+  });
+
+  it('ne fait confiance à La Bonne Alternance que si des codes ROME sont configurés', async () => {
+    const profile = exampleProfile();
+    profile.search.romeCodes = [];
+    const { service, cleanup } = setup({ profile });
+
+    await service.run('u1');
+
+    expect(cleanup).toHaveBeenCalledWith(['LBB']);
   });
 
   it('ne refiltre pas La Bonne Alternance quand des codes ROME sont configurés (déjà filtrée à la source)', async () => {
