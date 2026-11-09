@@ -10,6 +10,32 @@ import { parseEnv } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 import { exampleProfile } from '../profile/profile.fixture';
 import { HTTP_FETCH, type HttpFetch } from '../http/http-fetch';
+import { LlmProvider, type LlmRequest, type LlmResponse } from '../llm/llm.types';
+
+/** Faux modèle : note toute offre 80 et la décrit, sans réseau. */
+class FakeModel extends LlmProvider {
+  generate(request: LlmRequest): Promise<LlmResponse> {
+    const count = Number(/Évalue les (\d+) offre/.exec(request.user)?.[1] ?? 0);
+    const results = Array.from({ length: count }, (_, i) => ({
+      n: i + 1,
+      score: 80,
+      summary: 'Bonne piste.',
+      disqualifier: null,
+      strengths: ['TypeScript demandé'],
+      gaps: [],
+      brief: {
+        company: 'Éditeur de logiciels.',
+        stack: ['TypeScript'],
+        wantedProfile: null,
+        rhythm: null,
+      },
+    }));
+    return Promise.resolve({
+      text: JSON.stringify({ results }),
+      usage: { promptTokens: 1, outputTokens: 1 },
+    });
+  }
+}
 
 // Pipeline complet : session, CSRF, profil, trois sources simulées, vraie base PostgreSQL.
 describe('Collecte (e2e, base réelle, API simulées)', () => {
@@ -99,6 +125,8 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(HTTP_FETCH)
       .useValue(fakeHttp)
+      .overrideProvider(LlmProvider)
+      .useValue(new FakeModel())
       .compile();
     app = moduleRef.createNestApplication();
     configureApp(app, parseEnv());
@@ -190,9 +218,11 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
       channel: 'SITE',
       applyUrl: 'https://exemple.test/lba-1',
     });
-    // Chaque offre est notée à la fin de la collecte, avec le détail par critère.
-    expect((res.body as { scored: number }).scored).toBe(4);
-    expect(rows.every((r) => typeof r.score === 'number' && r.scoreDetail !== null)).toBe(true);
+    // Chaque offre est analysée par le modèle à la fin de la collecte, et sa distance au domicile calculée.
+    expect(res.body).toMatchObject({ analyzed: 4, pendingAnalysis: 0 });
+    expect(rows.every((r) => r.score === 80 && r.analysis !== null)).toBe(true);
+    expect(rows.find((r) => r.externalId === 'lba-1')?.distanceKm).toBeLessThan(1);
+    expect(rows.find((r) => r.externalId === 'lba-1')?.contractType).toBe('ALTERNANCE');
     // Seul le code postal part vers le géocodeur, pas le nom du candidat.
     expect(calls.filter((h) => h === 'data.geopf.fr')).toHaveLength(1);
   });
@@ -234,6 +264,8 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(HTTP_FETCH)
       .useValue(fakeHttp)
+      .overrideProvider(LlmProvider)
+      .useValue(new FakeModel())
       .compile();
     app = moduleRef.createNestApplication();
     configureApp(app, parseEnv());

@@ -30,8 +30,10 @@ describe('format', () => {
 
   it('choisit le ton du score', () => {
     expect(scoreTone(91)).toBe('high');
-    expect(scoreTone(70)).toBe('mid');
-    expect(scoreTone(69)).toBe('low');
+    expect(scoreTone(75)).toBe('high');
+    expect(scoreTone(74)).toBe('mid');
+    expect(scoreTone(55)).toBe('mid');
+    expect(scoreTone(54)).toBe('low');
     expect(scoreTone(null)).toBe('low');
   });
 });

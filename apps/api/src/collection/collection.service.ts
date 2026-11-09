@@ -4,14 +4,15 @@ import type { Env } from '../config/env';
 import type { OfferSource } from '../generated/prisma/enums';
 import type { Profile } from '../profile/profile.schema';
 import { ProfileService } from '../profile/profile.service';
-import { MINUTES_PER_KM } from '../scoring/scoring';
-import { ScoringService } from '../scoring/scoring.service';
+import { MatchService } from '../matching/match.service';
 import { AdzunaConnector } from '../sources/adzuna/adzuna.connector';
 import { dedupKey, normalizeText } from '../sources/dedup';
+import { MINUTES_PER_KM } from '../sources/geo';
 import { LbaConnector } from '../sources/lba/lba.connector';
 import { LbbConnector } from '../sources/lbb/lbb.connector';
 import { UNKNOWN_COMPANY } from '../sources/normalize';
 import { OffersService } from '../sources/offers.service';
+import { isRelevantOffer } from '../sources/relevance';
 import {
   type NormalizedOffer,
   type SearchQuery,
@@ -29,6 +30,8 @@ export interface SourceReport {
   fetched: number;
   skipped: number;
   excluded: number;
+  /** Écartées par le filtre de pertinence (hors développement/informatique). */
+  irrelevant: number;
   duplicates: number;
   created: number;
   updated: number;
@@ -38,8 +41,10 @@ export interface RunReport {
   startedAt: string;
   finishedAt: string;
   purged: number;
-  /** Offres notées après la collecte (toutes celles qui sont en base). */
-  scored: number;
+  /** Offres analysées par l'IA pendant cette collecte. */
+  analyzed: number;
+  /** Offres en base qui attendent encore une analyse (plafond par collecte ou quota du modèle). */
+  pendingAnalysis: number;
   sources: SourceReport[];
 }
 
@@ -65,7 +70,7 @@ export class CollectionService {
     private readonly profiles: ProfileService,
     private readonly geocoder: GeocoderService,
     private readonly offers: OffersService,
-    private readonly scoring: ScoringService,
+    private readonly matching: MatchService,
     lba: LbaConnector,
     lbb: LbbConnector,
     adzuna: AdzunaConnector,
@@ -123,19 +128,24 @@ export class CollectionService {
     }
 
     const purged = await this.offers.purgeStale(this.env.OFFER_RETENTION_DAYS);
-    // Le score dépend de la fraîcheur et du profil : tout est recalculé. Un échec ne perd pas la collecte.
-    const scored = await this.scoring.rescoreAll(profile, position).catch(() => 0);
+    // Distances recalculées (le domicile peut avoir changé), puis analyse IA des offres sans note à jour.
+    // Un échec de l'une ou l'autre ne perd pas la collecte.
+    await this.offers.refreshDistances(position).catch(() => 0);
+    const analysis = await this.matching
+      .analyzePending(profile)
+      .catch(() => ({ analyzed: 0, remaining: 0 }));
     const report: RunReport = {
       startedAt: startedAt.toISOString(),
       finishedAt: new Date().toISOString(),
       purged,
-      scored,
+      analyzed: analysis.analyzed,
+      pendingAnalysis: analysis.remaining,
       sources,
     };
     this.last = report;
     // Des comptes seulement : ni titre, ni entreprise, ni erreur détaillée dans les journaux.
     this.logger.log(
-      `Collecte terminée : ${sources.map((s) => `${s.source} ${s.status} (+${s.created}/~${s.updated})`).join(', ')} ; ${purged} offre(s) purgée(s), ${scored} notée(s).`,
+      `Collecte terminée : ${sources.map((s) => `${s.source} ${s.status} (+${s.created}/~${s.updated})`).join(', ')} ; ${purged} offre(s) purgée(s), ${analysis.analyzed} analysée(s), ${analysis.remaining} en attente.`,
     );
     return report;
   }
@@ -152,6 +162,7 @@ export class CollectionService {
       fetched: 0,
       skipped: 0,
       excluded: 0,
+      irrelevant: 0,
       duplicates: 0,
       created: 0,
       updated: 0,
@@ -176,6 +187,8 @@ export class CollectionService {
       report.fetched = result.offers.length;
       report.skipped = result.skipped;
 
+      const trusted =
+        searcher.source === 'LBB' || (searcher.source === 'LBA' && query.romeCodes.length > 0);
       const excludedNames = profile.search.excludedCompanies.map(normalizeText).filter(Boolean);
       const candidates: NormalizedOffer[] = [];
       for (const offer of result.offers) {
@@ -183,6 +196,10 @@ export class CollectionService {
         // Mots entiers : « sa » ne doit pas exclure « casino ». Les mots sont séparés par des tirets (normalizeText).
         if (excludedNames.some((name) => `-${company}-`.includes(`-${name}-`))) {
           report.excluded++;
+        } else if (!trusted && !isRelevantOffer(offer.title, offer.description)) {
+          // Déjà filtrées par code ROME à la source : La Bonne Boîte (qui n'a d'ailleurs pas d'intitulé de poste) et La
+          // Bonne Alternance quand des codes sont configurés. Adzuna, elle, cherche par mots et renvoie du bruit.
+          report.irrelevant++;
         } else {
           candidates.push(offer);
         }

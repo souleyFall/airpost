@@ -24,6 +24,12 @@ const BASE_URL = 'https://api.adzuna.com/v1/api/jobs/fr/search/1';
 const TIMEOUT_MS = 10_000;
 /** Maximum de l'API par page ; les formules gratuites sont limitées (≈ 25 appels/min, 250/jour). */
 const RESULTS_PER_PAGE = 50;
+/**
+ * Une requête par type de contrat recherché : l'alternance d'abord, puis les stages et les postes de développeur
+ * (CDI/CDD), pour que les filtres de l'interface aient quelque chose à filtrer. 3 appels par collecte, très en
+ * dessous du quota gratuit (250 par jour).
+ */
+const WHAT_TERMS = ['alternance', 'stage', 'développeur'] as const;
 
 const jobSchema = z.object({
   // Une chaîne chez Adzuna ; un nombre est toléré et converti.
@@ -98,13 +104,31 @@ export class AdzunaConnector {
       throw new SourceError('ADZUNA', 'invalid', 'Adzuna : lieu ou rayon de recherche invalide.');
     }
 
+    const offers = new Map<string, NormalizedOffer>();
+    let skipped = 0;
+    for (const what of WHAT_TERMS) {
+      const page = await this.searchOne(query, what, appId, appKey, where);
+      skipped += page.skipped;
+      // La même annonce peut ressortir de deux requêtes : on la garde une fois.
+      for (const offer of page.offers) offers.set(offer.externalId, offer);
+    }
+    return { offers: [...offers.values()], skipped };
+  }
+
+  private async searchOne(
+    query: SearchQuery,
+    what: string,
+    appId: string,
+    appKey: string,
+    where: string,
+  ): Promise<SearchResult> {
     const params = new URLSearchParams({
       app_id: appId,
       app_key: appKey,
       'content-type': 'application/json',
       results_per_page: String(RESULTS_PER_PAGE),
       sort_by: 'date',
-      what: 'alternance',
+      what,
       where,
       distance: String(query.radiusKm),
     });

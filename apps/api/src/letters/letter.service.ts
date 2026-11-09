@@ -1,16 +1,12 @@
 import {
-  BadGatewayException,
   BadRequestException,
   ConflictException,
-  HttpException,
-  HttpStatus,
   Injectable,
   NotFoundException,
-  ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { LlmService } from '../llm/llm.service';
-import { LlmError } from '../llm/llm.types';
+import { translateLlmError } from '../llm/llm-http';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProfileService } from '../profile/profile.service';
 import { type Violation, checkLetter, claimedTechNotInProfile } from './guardrails';
@@ -147,31 +143,7 @@ export class LetterService {
         useCache: false,
       });
     } catch (error) {
-      throw this.translate(error);
+      throw translateLlmError(error);
     }
-  }
-
-  private translate(error: unknown): HttpException {
-    if (error instanceof LlmError) {
-      switch (error.reason) {
-        case 'not_configured':
-          return new ServiceUnavailableException(
-            'Génération indisponible : clé Gemini non configurée',
-          );
-        case 'rate_limited':
-          return new HttpException(
-            'Quota Gemini atteint, réessaie plus tard',
-            HttpStatus.TOO_MANY_REQUESTS,
-          );
-        case 'unauthorized':
-        case 'model_unavailable':
-          return new ServiceUnavailableException(
-            'Génération indisponible : clé ou modèle Gemini à vérifier',
-          );
-        default:
-          return new BadGatewayException('Le service de génération a échoué ; réessaie');
-      }
-    }
-    return new BadGatewayException('Le service de génération a échoué ; réessaie');
   }
 }

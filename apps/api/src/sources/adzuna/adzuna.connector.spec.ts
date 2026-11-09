@@ -138,8 +138,23 @@ describe('AdzunaConnector', () => {
 
     const { offers, skipped } = await adzuna.search(QUERY);
 
+    // La même réponse revient aux trois requêtes (alternance, stage, développeur) : une offre gardée, 3 x 3 ignorées.
     expect(offers).toHaveLength(1);
-    expect(skipped).toBe(3);
+    expect(skipped).toBe(9);
+  });
+
+  it('interroge Adzuna trois fois (alternance, stage, développeur) et fusionne les résultats sans doublon', async () => {
+    let call = 0;
+    const { adzuna, http } = setup(() => json({ results: [job(), job({ id: `u-${++call}` })] }));
+
+    const { offers } = await adzuna.search(QUERY);
+
+    expect(http.mock.calls.map((c) => new URL(c[0]).searchParams.get('what'))).toEqual([
+      'alternance',
+      'stage',
+      'développeur',
+    ]);
+    expect(offers).toHaveLength(4);
   });
 
   describe('erreurs', () => {

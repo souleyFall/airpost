@@ -72,3 +72,9 @@ Non requise : traitement à petite échelle, usage personnel, aucune donnée sen
 - **Brouillons** : la lettre validée et l'adresse du recruteur sont déposées dans les brouillons de la boîte de l'utilisateur. Supprimer une candidature, la retirer, revenir à « validée » ou effacer le compte supprime le brouillon ; si Gmail est injoignable, l'application le signale et l'utilisateur le retire lui-même.
 - **Réponses** : pour chaque candidature envoyée, une recherche bornée dans la boîte (expéditeur ou nom d'entreprise, après la date d'envoi) ; sont conservés **300 caractères d'extrait**, la date et la catégorie, jamais le corps ni l'adresse de l'expéditeur. Ces extraits peuvent contenir des données de tiers (le recruteur) : ils sont effacés avec la candidature, exportés avec les données de l'utilisateur, et ne sont envoyés à aucun service externe (classement par règles locales).
 - **Sauvegardes** (`pnpm db:backup`) : fichier local contenant toutes ces données ; à garder sur l'ordinateur de l'utilisateur, chiffré s'il en sort.
+
+## Mise à jour 2026-11-09 : analyse de compatibilité par IA
+
+- **Nouvelle finalité** : classer les offres selon leur adéquation avec le profil et en résumer le contenu. Même sous-traitant (Google Gemini), mêmes données que pour la lettre : extrait minimal du profil (parcours, compétences, critères) et texte de l'offre sans e-mail, téléphone ni lien. Jamais l'identité, la ville ni le code postal : la distance est calculée sur le serveur.
+- **Volume** : jusqu'à 40 offres par collecte (au lieu d'une lettre à la demande). Point de vigilance inchangé sur l'offre gratuite de Gemini (réutilisation possible des contenus) : à trancher avant de rendre l'application publique.
+- **Conservation** : l'analyse (note, explication, brief) est stockée avec l'offre et supprimée avec elle (purge à 90 jours sans réapparition).

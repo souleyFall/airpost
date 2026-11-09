@@ -10,7 +10,7 @@ import { dedupKey } from '../sources/dedup';
 import type { LbaConnector } from '../sources/lba/lba.connector';
 import type { LbbConnector } from '../sources/lbb/lbb.connector';
 import { UNKNOWN_COMPANY } from '../sources/normalize';
-import type { ScoringService } from '../scoring/scoring.service';
+import type { MatchService } from '../matching/match.service';
 import type { OffersService } from '../sources/offers.service';
 import { type NormalizedOffer, type SearchQuery, SourceError } from '../sources/source.types';
 import { CollectionService, radiusFromCommute } from './collection.service';
@@ -53,7 +53,8 @@ function setup(
     updated: 0,
   }));
   const purgeStale = vi.fn(async () => 2);
-  const rescoreAll = vi.fn(async () => 7);
+  const refreshDistances = vi.fn(async () => 3);
+  const analyzePending = vi.fn(async () => ({ analyzed: 7, remaining: 2 }));
   const sourcesByDedupKey = vi.fn(async () => options.inDatabase ?? new Map());
   const service = new CollectionService(
     { OFFER_RETENTION_DAYS: 90 } as Env,
@@ -64,13 +65,13 @@ function setup(
       geocodePostcode: async () =>
         options.position === undefined ? { latitude: 48.86, longitude: 2.38 } : options.position,
     } as unknown as GeocoderService,
-    { saveMany, purgeStale, sourcesByDedupKey } as unknown as OffersService,
-    { rescoreAll } as unknown as ScoringService,
+    { saveMany, purgeStale, sourcesByDedupKey, refreshDistances } as unknown as OffersService,
+    { analyzePending } as unknown as MatchService,
     { search: lba } as unknown as LbaConnector,
     { search: lbb } as unknown as LbbConnector,
     { search: adzuna } as unknown as AdzunaConnector,
   );
-  return { service, lba, adzuna, lbb, saveMany, purgeStale, rescoreAll };
+  return { service, lba, adzuna, lbb, saveMany, purgeStale, analyzePending, refreshDistances };
 }
 
 describe('radiusFromCommute', () => {
@@ -118,7 +119,7 @@ describe('CollectionService', () => {
   it('enregistre les offres de chaque source et tient un bilan', async () => {
     const { service, saveMany } = setup({
       lba: async () => ({
-        offers: [offer('LBA', '1'), offer('LBA', '2', { title: 'Autre' })],
+        offers: [offer('LBA', '1'), offer('LBA', '2', { title: 'Alternance développeur Java' })],
         skipped: 1,
       }),
       adzuna: async () => ({ offers: [offer('ADZUNA', 'a', { company: 'Autre SA' })], skipped: 0 }),
@@ -222,7 +223,10 @@ describe('CollectionService', () => {
     const { service, saveMany } = setup({
       lba: async () => ({ offers: [offer('LBA', '1')], skipped: 0 }),
       adzuna: async () => ({
-        offers: [offer('ADZUNA', 'a'), offer('ADZUNA', 'b', { title: 'Autre poste' })],
+        offers: [
+          offer('ADZUNA', 'a'),
+          offer('ADZUNA', 'b', { title: 'Alternance développeur PHP' }),
+        ],
         skipped: 0,
       }),
     });
@@ -263,25 +267,83 @@ describe('CollectionService', () => {
     expect(report.sources[1]).toMatchObject({ duplicates: 0, created: 1 });
   });
 
-  it('note toutes les offres après la collecte, avec le profil et la position', async () => {
-    const { service, rescoreAll } = setup();
+  it('recalcule les distances puis fait analyser les offres par l’IA, avec le profil', async () => {
+    const { service, analyzePending, refreshDistances } = setup();
 
     const report = await service.run('u1');
 
-    expect(rescoreAll).toHaveBeenCalledWith(exampleProfile(), { latitude: 48.86, longitude: 2.38 });
-    expect(report.scored).toBe(7);
+    expect(refreshDistances).toHaveBeenCalledWith({ latitude: 48.86, longitude: 2.38 });
+    expect(analyzePending).toHaveBeenCalledWith(exampleProfile());
+    expect(report).toMatchObject({ analyzed: 7, pendingAnalysis: 2 });
   });
 
-  it('une panne du scoring ne fait pas perdre la collecte', async () => {
-    const { service, rescoreAll } = setup({
+  it('une panne de l’analyse IA ne fait pas perdre la collecte', async () => {
+    const { service, analyzePending } = setup({
       lba: async () => ({ offers: [offer('LBA', '1')], skipped: 0 }),
     });
-    rescoreAll.mockRejectedValueOnce(new Error('échec'));
+    analyzePending.mockRejectedValueOnce(new Error('échec'));
 
     const report = await service.run('u1');
 
-    expect(report.scored).toBe(0);
+    expect(report.analyzed).toBe(0);
     expect(report.sources[0]).toMatchObject({ status: 'ok', created: 1 });
+  });
+
+  it('écarte les offres hors développement, sauf celles déjà filtrées par code ROME à la source', async () => {
+    const { service, saveMany } = setup({
+      adzuna: async () => ({
+        offers: [
+          offer('ADZUNA', 'dev', { title: 'Alternance développeur full stack' }),
+          offer('ADZUNA', 'compta', { title: 'Alternance comptable', description: 'Excel, SQL' }),
+        ],
+        skipped: 0,
+      }),
+      lbb: async () => ({
+        offers: [
+          offer('LBB', 'spontanee', { title: 'Candidature spontanée : activités des sociétés' }),
+        ],
+        skipped: 0,
+      }),
+    });
+
+    const report = await service.run('u1');
+
+    expect(report.sources[1]).toMatchObject({ irrelevant: 1, created: 1 });
+    expect(report.sources[2]).toMatchObject({ irrelevant: 0, created: 1 });
+    expect(saveMany.mock.calls.flatMap((call) => call[0].map((o) => o.externalId))).toEqual([
+      'dev',
+      'spontanee',
+    ]);
+  });
+
+  it('ne refiltre pas La Bonne Alternance quand des codes ROME sont configurés (déjà filtrée à la source)', async () => {
+    const { service, saveMany } = setup({
+      lba: async () => ({
+        offers: [offer('LBA', 'x', { title: 'Alternance - Mission polyvalente' })],
+        skipped: 0,
+      }),
+    });
+
+    const report = await service.run('u1');
+
+    expect(report.sources[0]).toMatchObject({ irrelevant: 0, created: 1 });
+    expect(saveMany.mock.calls[0]?.[0]).toHaveLength(1);
+  });
+
+  it('refiltre La Bonne Alternance sans code ROME : elle renvoie alors toutes les offres', async () => {
+    const profile = exampleProfile();
+    profile.search.romeCodes = [];
+    const { service } = setup({
+      profile,
+      lba: async () => ({
+        offers: [offer('LBA', 'x', { title: 'Alternance comptable' })],
+        skipped: 0,
+      }),
+    });
+
+    const report = await service.run('u1');
+
+    expect(report.sources[0]).toMatchObject({ irrelevant: 1, created: 0 });
   });
 
   it('purge avec la durée de conservation configurée', async () => {

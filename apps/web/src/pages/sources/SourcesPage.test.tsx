@@ -9,7 +9,8 @@ const report = {
   startedAt: new Date().toISOString(),
   finishedAt: new Date().toISOString(),
   purged: 2,
-  scored: 40,
+  analyzed: 40,
+  pendingAnalysis: 0,
   sources: [
     {
       source: 'LBA',
@@ -17,6 +18,7 @@ const report = {
       fetched: 100,
       skipped: 0,
       excluded: 0,
+      irrelevant: 0,
       duplicates: 0,
       created: 30,
       updated: 0,
@@ -28,6 +30,7 @@ const report = {
       fetched: 0,
       skipped: 0,
       excluded: 0,
+      irrelevant: 0,
       duplicates: 0,
       created: 0,
       updated: 0,
@@ -38,6 +41,7 @@ const report = {
       fetched: 0,
       skipped: 0,
       excluded: 0,
+      irrelevant: 0,
       duplicates: 0,
       created: 0,
       updated: 0,
