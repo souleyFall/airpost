@@ -1,0 +1,13 @@
+# Rien de ceci ne doit entrer dans une image : secrets, historique, dépendances locales, cours personnel.
+.git
+.github
+.githooks
+.env
+.env.*
+!.env.example
+credentials.json
+token.json
+**/node_modules
+**/dist
+docs/cours
+*.log

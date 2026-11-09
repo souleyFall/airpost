@@ -8,8 +8,8 @@ Une ligne par pull request prévue. L'ordre peut évoluer ; l'état est mis à j
 | 2   | `chore` : outillage qualité (lint, formatage, tests, CI, Dependabot)                             | ouverte  |
 | 3   | `chore` : hook Git `pre-push` (remplace la CI tant que le compte GitHub est verrouillé)          | ouverte  |
 | 4   | `feat(security)` : en-têtes de sécurité, limitation de débit, CORS strict, configuration validée | ouverte  |
-| 5   | `docs(security)` : registre des risques, registre RGPD, `SECURITY.md`                            | en cours |
-| 6   | `chore(docker)` : image de l'API (multi-étapes, utilisateur non-root), `docker compose` complet  | à faire  |
+| 5   | `docs(security)` : registre des risques, registre RGPD, `SECURITY.md`                            | ouverte  |
+| 6   | `chore(docker)` : image de l'API (multi-étapes, utilisateur non-root), `docker compose` complet  | en cours |
 | 7   | `feat(db)` : Prisma, schéma, migrations, données de démonstration                                | à faire  |
 | 8   | `feat(auth)` : connexion mono-utilisateur (mot de passe haché, session sécurisée)                | à faire  |
 | 9   | `feat(profile)` : profil du candidat validé par un schéma                                        | à faire  |
