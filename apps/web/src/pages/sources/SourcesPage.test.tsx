@@ -1,0 +1,107 @@
+import { render, screen, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { AppRoutes } from '../../App';
+import { setCsrfToken } from '../../api/client';
+import { AuthProvider } from '../../auth/AuthProvider';
+
+const report = {
+  startedAt: new Date().toISOString(),
+  finishedAt: new Date().toISOString(),
+  purged: 2,
+  scored: 40,
+  sources: [
+    {
+      source: 'LBA',
+      status: 'ok',
+      fetched: 100,
+      skipped: 0,
+      excluded: 0,
+      duplicates: 0,
+      created: 30,
+      updated: 0,
+    },
+    {
+      source: 'LBB',
+      status: 'error',
+      reason: 'rate_limited',
+      fetched: 0,
+      skipped: 0,
+      excluded: 0,
+      duplicates: 0,
+      created: 0,
+      updated: 0,
+    },
+    {
+      source: 'ADZUNA',
+      status: 'disabled',
+      fetched: 0,
+      skipped: 0,
+      excluded: 0,
+      duplicates: 0,
+      created: 0,
+      updated: 0,
+    },
+  ],
+};
+
+function fakeApi(options: { last: boolean }) {
+  const json = (data: unknown, code = 200) => new Response(JSON.stringify(data), { status: code });
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      const path = url.replace(/^\/api/, '');
+      if (path === '/auth/me') return json({ login: 'souley.fall', csrfToken: 'csrf' });
+      if (path === '/collection/status') {
+        return json({
+          sources: { LBA: true, LBB: true, ADZUNA: false },
+          gemini: { configured: true, model: 'gemini-3.5-flash-lite' },
+        });
+      }
+      if (path === '/collection/last') return options.last ? json(report) : json({}, 404);
+      return json({}, 404);
+    }),
+  );
+}
+
+function renderApp() {
+  return render(
+    <MemoryRouter initialEntries={['/sources']}>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </MemoryRouter>,
+  );
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  setCsrfToken(null);
+});
+
+describe('écran Sources', () => {
+  it('distingue connectée, en erreur, non configurée et pas encore connectée', async () => {
+    fakeApi({ last: true });
+    renderApp();
+    const table = await screen.findByRole('table', { name: 'État des sources' });
+    const rowOf = (name: string) => within(table).getByRole('row', { name: new RegExp(name) });
+    expect(rowOf('La Bonne Alternance')).toHaveTextContent('Connectée');
+    expect(rowOf('La Bonne Alternance')).toHaveTextContent('100 lues, 30 nouvelles');
+    expect(rowOf('La Bonne Boîte')).toHaveTextContent('En erreur');
+    expect(rowOf('La Bonne Boîte')).toHaveTextContent('quota atteint');
+    expect(rowOf('Adzuna')).toHaveTextContent('Non configurée');
+    expect(rowOf('Adzuna')).toHaveTextContent('Jobs by Adzuna');
+    expect(rowOf('Gemini')).toHaveTextContent('gemini-3.5-flash-lite');
+    expect(rowOf('Gmail')).toHaveTextContent('Pas encore connecté');
+  });
+
+  it('fonctionne sans bilan de collecte', async () => {
+    fakeApi({ last: false });
+    renderApp();
+    const table = await screen.findByRole('table', { name: 'État des sources' });
+    expect(screen.getByText(/Lance-en une depuis la barre latérale/)).toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: /La Bonne Alternance/ })).toHaveTextContent(
+      'Configurée',
+    );
+  });
+});

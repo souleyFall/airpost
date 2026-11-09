@@ -80,3 +80,44 @@ export interface RunReport {
   purged: number;
   scored: number;
 }
+
+export interface ApplicationRow {
+  id: string;
+  status: ApplicationStatus;
+  subject: string | null;
+  validatedAt: string | null;
+  appliedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  offer: {
+    id: string;
+    source: OfferSource;
+    title: string;
+    company: string;
+    city: string | null;
+    channel: ApplyChannel;
+    applyUrl: string | null;
+    score: number | null;
+  };
+}
+
+export interface SourcesStatus {
+  sources: Record<OfferSource, boolean>;
+  gemini: { configured: boolean; model: string };
+}
+
+export interface SourceReport {
+  source: OfferSource;
+  status: 'ok' | 'disabled' | 'error';
+  reason?: string;
+  fetched: number;
+  skipped: number;
+  excluded: number;
+  duplicates: number;
+  created: number;
+  updated: number;
+}
+
+export interface FullRunReport extends RunReport {
+  sources: SourceReport[];
+}

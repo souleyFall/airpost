@@ -280,6 +280,19 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
     expect(ids).not.toContain('old-free');
   });
 
+  it('indique quelles connexions sont configurées, sans jamais exposer une clé', async () => {
+    await http.get('/collection/status').expect(401);
+    const session = await connect();
+
+    const res = await http.get('/collection/status').set('Cookie', session.cookie).expect(200);
+
+    expect(res.body).toMatchObject({
+      sources: { LBA: true, LBB: true, ADZUNA: true },
+      gemini: { configured: expect.any(Boolean) as unknown },
+    });
+    expect(JSON.stringify(res.body)).not.toMatch(/cle-lba|secret-ft|id-ft|cle-adzuna/);
+  });
+
   it('expose le bilan de la dernière collecte', async () => {
     const session = await withProfile();
     await http.get('/collection/last').set('Cookie', session.cookie).expect(404);
