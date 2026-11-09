@@ -31,6 +31,7 @@ export function exampleProfile(): Profile {
       other: [],
     },
     search: {
+      contracts: ['ALTERNANCE'],
       rhythms: ['2J_3J', '1S_1S'],
       startDate: 'asap',
       maxCommuteMinutes: 60,

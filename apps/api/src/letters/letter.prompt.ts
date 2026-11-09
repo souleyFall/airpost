@@ -31,7 +31,7 @@ export function cleanSubject(subject: string): string {
 }
 
 export const LETTER_SYSTEM = [
-  'Tu rédiges, en français, une lettre de motivation pour une candidature en alternance (développement logiciel).',
+  'Tu rédiges, en français, une lettre de motivation pour une candidature en alternance ou en stage (développement logiciel).',
   'Règles absolues :',
   "1. Utilise UNIQUEMENT les faits du profil fourni. N'invente aucun diplôme, entreprise, chiffre, durée, technologie ni résultat.",
   "2. Tu peux reprendre une exigence de l'offre, mais ne prétends pas la maîtriser si elle ne figure pas dans le profil : dis que tu souhaites la découvrir ou l'approfondir.",

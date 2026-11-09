@@ -22,6 +22,7 @@ const profile: Profile = {
   ],
   skills: { languages: ['TypeScript'], frameworks: [], tools: [], other: [] },
   search: {
+    contracts: ['ALTERNANCE'],
     rhythms: ['AUTRE'],
     startDate: 'asap',
     maxCommuteMinutes: 75,
@@ -120,6 +121,21 @@ describe('écran Profil', () => {
     expect(await screen.findByText(/5 chiffres attendus/)).toBeInTheDocument();
     expect(screen.getByText('identity.postcode')).toBeInTheDocument();
     expect(screen.getByLabelText('Code postal')).toHaveValue('12');
+  });
+
+  it('choisit les contrats recherchés (alternance et stage) et les envoie à l’API', async () => {
+    const calls = fakeApi({ existing: true });
+    const user = userEvent.setup();
+    renderApp();
+    const alternance = await screen.findByRole('checkbox', { name: 'Alternance' });
+    const stage = screen.getByRole('checkbox', { name: 'Stage' });
+    expect(alternance).toBeChecked();
+    expect(stage).not.toBeChecked();
+    await user.click(stage);
+    await user.click(screen.getByRole('button', { name: 'Enregistrer le profil' }));
+    await screen.findByText(/Profil enregistré/);
+    const put = calls.find((c) => c.method === 'PUT');
+    expect((put?.body as Profile).search.contracts).toEqual(['ALTERNANCE', 'STAGE']);
   });
 
   it('ajoute et retire une expérience', async () => {

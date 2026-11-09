@@ -5,7 +5,7 @@ import type { Profile } from '../profile/profile.schema';
 import { MINUTES_PER_KM } from '../sources/geo';
 
 /** À incrémenter à chaque changement du prompt ou du schéma : les analyses existantes sont alors refaites. */
-export const PROMPT_VERSION = 1;
+export const PROMPT_VERSION = 2;
 
 /** Nombre d'offres analysées par appel : économise le quota du modèle sans noyer le contexte. */
 export const BATCH_SIZE = 4;
@@ -57,14 +57,14 @@ export const MATCH_SYSTEM = [
   '',
   'ÉVALUE le taux de compatibilité de 0 à 100 en pesant, dans cet ordre :',
   "1. Pertinence du métier (40 points) : le poste est-il du développement logiciel ? Les technologies demandées recoupent-elles celles du candidat (langages, frameworks, outils, domaines comme l'IA ou l'intégration d'API) ? Compte les technologies réellement demandées, pas les mots à la mode ; une technologie voisine (Vue pour React, Fastify pour Express) vaut une correspondance partielle.",
-  "2. Contrat et calendrier (20 points) : le contrat correspond-il à ce que cherche le candidat (alternance ou contrat d'apprentissage/professionnalisation, durée, date de début) ? Le rythme annoncé est-il compatible avec celui qu'il recherche ? Un rythme non précisé est neutre : ni bonus ni malus.",
+  "2. Contrat et calendrier (20 points) : le contrat correspond-il à l'un des « contratsRecherches » du candidat (ALTERNANCE : alternance, contrat d'apprentissage ou de professionnalisation ; STAGE : stage), durée et date de début ? Le rythme annoncé est-il compatible avec celui qu'il recherche ? Un rythme non précisé est neutre : ni bonus ni malus.",
   "3. Niveau (15 points) : le niveau d'études et l'expérience demandés sont-ils cohérents avec le parcours du candidat (Master en cours, deux stages de développeur) ? Une annonce qui exige plusieurs années d'expérience ou un diplôme qu'il n'aura pas est pénalisée.",
   '4. Trajet (15 points) : à partir de la distance fournie et du trajet maximal accepté. Sous la moitié du maximum : tous les points ; entre la moitié et le maximum : dégressif ; au-delà : aucun. Distance inconnue : points médians.',
   "5. Chances réelles (10 points) : ancienneté de l'annonce (une annonce récente est encore ouverte et moins concurrencée), qualité des informations, et source. Une « candidature spontanée » (source La Bonne Boîte) n'est pas une offre ouverte : plafonne l'ensemble à 60.",
   '',
   'PLAFONDS ABSOLUS (applique-les même si le reste est excellent) :',
   "- Le poste n'est pas du développement ni de l'informatique : 10 maximum, et renseigne « disqualifier ».",
-  "- Le contrat n'est pas compatible (CDI, CDD ou stage alors que le candidat cherche une alternance) : 35 maximum, et renseigne « disqualifier ».",
+  "- Le contrat n'est pas compatible (CDI, CDD, ou un type de contrat absent de « contratsRecherches », par exemple un stage alors que seule l'alternance est recherchée) : 35 maximum, et renseigne « disqualifier ».",
   '- Le trajet dépasse le maximum accepté : 40 maximum.',
   "- Le texte de l'offre est trop pauvre pour juger la pile technique : 50 maximum.",
   '',
@@ -111,6 +111,7 @@ export function candidateBlock(profile: Profile): string {
   return JSON.stringify({
     profil: profileForPrompt(profile),
     recherche: {
+      contratsRecherches: profile.search.contracts,
       trajetMaximalMinutes: profile.search.maxCommuteMinutes,
       motsClesPrioritaires: profile.search.keywords,
       rythmesAcceptes: profile.search.rhythms,
