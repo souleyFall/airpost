@@ -1,0 +1,18 @@
+version: 2
+
+updates:
+  # Dépendances npm (pnpm) : un seul verrouillage à la racine couvre tout le workspace.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-et-patch:
+        update-types: [minor, patch]
+
+  # Les actions GitHub utilisées par la CI (elles sont figées par empreinte).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

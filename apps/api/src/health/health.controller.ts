@@ -14,7 +14,7 @@ export class HealthController {
   }
 
   @Get('/ping')
-  pong(){
-    return "pong";
+  pong() {
+    return 'pong';
   }
 }

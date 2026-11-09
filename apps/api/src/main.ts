@@ -12,4 +12,8 @@ async function bootstrap() {
   console.log(`API prête sur http://127.0.0.1:${port}`);
 }
 
-bootstrap();
+// Si le démarrage échoue, on affiche l'erreur et on quitte avec un code non nul (Docker et la CI le détectent).
+bootstrap().catch((error: unknown) => {
+  console.error('Échec du démarrage de l’API', error);
+  process.exit(1);
+});
