@@ -41,9 +41,17 @@ type Job = z.infer<typeof jobSchema>;
 
 const responseSchema = z.object({ jobs: z.array(z.unknown()) });
 
-/** « 99 RUE DE LA VERRERIE 75004 PARIS » → code postal et ville (les 5 derniers chiffres et ce qui suit). */
+// Bornes sur les textes venus de la source : ils sont stockés, puis envoyés à un modèle de langage.
+const MAX_TITLE = 200;
+const MAX_COMPANY = 200;
+const MAX_DESCRIPTION = 10_000;
+
+/**
+ * « 99 RUE DE LA VERRERIE 75004 PARIS » → code postal et ville. Le préfixe gourmand fait choisir le DERNIER
+ * groupe de 5 chiffres suivi d'un espace : « ZAC 12345 Bât A 75004 PARIS » donne bien 75004.
+ */
 export function parseAddress(address?: string | null): { postcode?: string; city?: string } {
-  const match = /(\d{5})\s+(\D.*)$/.exec(address?.trim() ?? '');
+  const match = /^.*\b(\d{5})\s+(\D.*)$/.exec(address?.trim() ?? '');
   return match ? { postcode: match[1], city: match[2]?.trim() } : {};
 }
 
@@ -75,16 +83,17 @@ export function normalizeJob(job: Job): NormalizedOffer | null {
   return {
     source: 'LBA',
     externalId: job.identifier.id,
-    title: job.offer.title.trim(),
-    company:
+    title: job.offer.title.trim().slice(0, MAX_TITLE),
+    company: (
       (job.workplace.name ?? job.workplace.brand ?? job.workplace.legal_name)?.trim() ||
-      'Entreprise non indiquée',
+      'Entreprise non indiquée'
+    ).slice(0, MAX_COMPANY),
     city,
     postcode,
     // GeoJSON : [longitude, latitude].
     latitude: coordinates?.[1],
     longitude: coordinates?.[0],
-    description: job.offer.description?.trim() || undefined,
+    description: job.offer.description?.trim().slice(0, MAX_DESCRIPTION) || undefined,
     applyUrl,
     // La Bonne Alternance ne publie ni e-mail ni téléphone de recruteur : on postule par le site.
     channel: 'SITE',
@@ -110,6 +119,20 @@ export class LbaConnector {
       );
     }
 
+    // Une requête absurde (NaN d'un géocodage raté...) ne doit pas consommer un des 60 appels par minute.
+    if (
+      !Number.isFinite(query.latitude) ||
+      !Number.isFinite(query.longitude) ||
+      !Number.isFinite(query.radiusKm) ||
+      query.radiusKm <= 0
+    ) {
+      throw new SourceError(
+        'LBA',
+        'invalid',
+        'La Bonne Alternance : requête de recherche invalide.',
+      );
+    }
+
     const params = new URLSearchParams({
       latitude: String(query.latitude),
       longitude: String(query.longitude),
@@ -125,6 +148,8 @@ export class LbaConnector {
       response = await this.http(`${BASE_URL}?${params.toString()}`, {
         headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' },
         signal: AbortSignal.timeout(TIMEOUT_MS),
+        // Pas de redirection : la clé ne doit jamais partir ailleurs que vers le domaine prévu.
+        redirect: 'error',
       });
     } catch {
       // Réseau coupé ou délai dépassé. Pas de détail : le message d'origine peut contenir l'URL.
@@ -140,6 +165,10 @@ export class LbaConnector {
         'rate_limited',
         'La Bonne Alternance : limite de 60 appels par minute atteinte.',
       );
+    }
+    if (response.status === 400) {
+      // Notre requête est mauvaise : inutile de la réessayer telle quelle.
+      throw new SourceError('LBA', 'invalid', 'La Bonne Alternance : requête refusée (400).');
     }
     if (!response.ok) {
       throw new SourceError(

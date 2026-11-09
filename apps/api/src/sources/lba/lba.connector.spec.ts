@@ -190,7 +190,52 @@ describe('LbaConnector', () => {
     expect(offers[1]?.city).toBeUndefined();
   });
 
+  it('borne la taille des textes venus de la source', async () => {
+    const { lba } = connector(() =>
+      json({
+        jobs: [
+          job({
+            workplace: { name: 'E'.repeat(500) },
+            offer: { title: 'T'.repeat(500), description: 'D'.repeat(50_000) },
+          }),
+        ],
+      }),
+    );
+
+    const { offers } = await lba.search(QUERY);
+
+    expect(offers[0]?.title).toHaveLength(200);
+    expect(offers[0]?.company).toHaveLength(200);
+    expect(offers[0]?.description).toHaveLength(10_000);
+  });
+
+  it('refuse les redirections (la clé ne quitte pas le domaine prévu)', async () => {
+    const { lba, http } = connector(() => json({ jobs: [] }));
+
+    await lba.search(QUERY);
+
+    expect(http.mock.calls[0]?.[1]?.redirect).toBe('error');
+  });
+
   describe('erreurs', () => {
+    it.each([
+      ['latitude NaN', { ...QUERY, latitude: Number.NaN }],
+      ['longitude infinie', { ...QUERY, longitude: Number.POSITIVE_INFINITY }],
+      ['rayon nul', { ...QUERY, radiusKm: 0 }],
+      ['rayon négatif', { ...QUERY, radiusKm: -5 }],
+    ])('refuse une requête invalide sans appeler le réseau (%s)', async (_name, query) => {
+      const { lba, http } = connector(() => json({ jobs: [] }));
+
+      await expect(lba.search(query)).rejects.toMatchObject({ reason: 'invalid' });
+      expect(http).not.toHaveBeenCalled();
+    });
+
+    it('classe un 400 en « invalid » (notre requête), pas en panne', async () => {
+      const { lba } = connector(() => json({}, 400));
+
+      await expect(lba.search(QUERY)).rejects.toMatchObject({ reason: 'invalid' });
+    });
+
     async function failure(lba: LbaConnector): Promise<SourceError> {
       try {
         await lba.search(QUERY);
@@ -251,6 +296,7 @@ describe('parseAddress', () => {
     ['92000 Nanterre', { postcode: '92000', city: 'Nanterre' }],
     ['99 RUE DE LA VERRERIE 75004 PARIS', { postcode: '75004', city: 'PARIS' }],
     ['12 avenue Foch 69006 Lyon 6e', { postcode: '69006', city: 'Lyon 6e' }],
+    ['ZAC 12345 Bât A 75004 PARIS', { postcode: '75004', city: 'PARIS' }],
     ['Londres', {}],
     ['', {}],
     [null, {}],
