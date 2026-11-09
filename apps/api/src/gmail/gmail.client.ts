@@ -19,6 +19,14 @@ export class GmailError extends Error {
   }
 }
 
+export interface MessageMeta {
+  id: string;
+  subject: string;
+  from: string;
+  snippet: string;
+  receivedAt: Date;
+}
+
 const API = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
@@ -77,6 +85,56 @@ export class GmailClient {
   /** Supprime un brouillon. Déjà absent (404) = succès : le résultat voulu est atteint. */
   async deleteDraft(id: string): Promise<void> {
     await this.call('DELETE', `/drafts/${encodeURIComponent(id)}`, undefined, [404]);
+  }
+
+  /** Identifiants des messages qui correspondent à une recherche Gmail (jamais un balayage : requête obligatoire). */
+  async searchMessageIds(query: string, max: number): Promise<string[]> {
+    const params = new URLSearchParams({ q: query, maxResults: String(max) });
+    const response = await this.call('GET', `/messages?${params.toString()}`);
+    const data = z
+      .object({ messages: z.array(z.object({ id: z.string().min(1) })).optional() })
+      .safeParse(await response.json());
+    if (!data.success) {
+      throw new GmailError('unavailable', 'Réponse Gmail inattendue.');
+    }
+    return (data.data.messages ?? []).map((message) => message.id);
+  }
+
+  /** En-têtes utiles et extrait d'un message (pas le corps complet : minimisation). */
+  async messageMeta(id: string): Promise<MessageMeta> {
+    const params = new URLSearchParams({ format: 'metadata' });
+    for (const header of ['Subject', 'From']) {
+      params.append('metadataHeaders', header);
+    }
+    const response = await this.call(
+      'GET',
+      `/messages/${encodeURIComponent(id)}?${params.toString()}`,
+    );
+    const data = z
+      .object({
+        id: z.string().min(1),
+        snippet: z.string().default(''),
+        internalDate: z.string().regex(/^\d{1,16}$/),
+        payload: z
+          .object({
+            headers: z.array(z.object({ name: z.string(), value: z.string() })).default([]),
+          })
+          .default({ headers: [] }),
+      })
+      .safeParse(await response.json());
+    if (!data.success) {
+      throw new GmailError('unavailable', 'Réponse Gmail inattendue.');
+    }
+    const header = (name: string) =>
+      data.data.payload.headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ??
+      '';
+    return {
+      id: data.data.id,
+      subject: header('Subject'),
+      from: header('From'),
+      snippet: data.data.snippet,
+      receivedAt: new Date(Number(data.data.internalDate)),
+    };
   }
 
   /** Appel authentifié ; `tolerated` liste des statuts d'erreur acceptés (traités comme un succès). */

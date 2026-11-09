@@ -89,6 +89,7 @@ export interface ApplicationRow {
   appliedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  replies: ReplyRow[];
   offer: {
     id: string;
     source: OfferSource;
@@ -120,4 +121,22 @@ export interface SourceReport {
 
 export interface FullRunReport extends RunReport {
   sources: SourceReport[];
+}
+
+export type ReplyKind = 'ACKNOWLEDGEMENT' | 'INTERVIEW' | 'REJECTION' | 'OTHER';
+
+export interface ReplyRow {
+  id: string;
+  kind: ReplyKind;
+  receivedAt: string;
+  snippet: string | null;
+}
+
+export interface SyncReport {
+  checked: number;
+  newReplies: number;
+  statusChanges: number;
+  noResponse: number;
+  skipped: number;
+  finishedAt: string;
 }
