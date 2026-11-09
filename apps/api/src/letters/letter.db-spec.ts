@@ -16,15 +16,15 @@ import { validLetter } from './letter.fixture';
 class FakeModel extends LlmProvider {
   queue: (object | LlmError)[] = [];
   requests: LlmRequest[] = [];
-  generate(request: LlmRequest): Promise<LlmResponse> {
+  /** Exécuté pendant la génération : simule ce que fait l'utilisateur pendant que le modèle travaille. */
+  duringGeneration?: () => Promise<void>;
+  async generate(request: LlmRequest): Promise<LlmResponse> {
     this.requests.push(request);
+    await this.duringGeneration?.();
     const next = this.queue.shift();
-    if (!next) return Promise.reject(new Error('plus de réponse préparée'));
-    if (next instanceof LlmError) return Promise.reject(next);
-    return Promise.resolve({
-      text: JSON.stringify(next),
-      usage: { promptTokens: 10, outputTokens: 10 },
-    });
+    if (!next) throw new Error('plus de réponse préparée');
+    if (next instanceof LlmError) throw next;
+    return { text: JSON.stringify(next), usage: { promptTokens: 10, outputTokens: 10 } };
   }
 }
 
@@ -41,6 +41,7 @@ describe('Génération de lettre (e2e, base réelle, faux modèle)', () => {
   beforeEach(async () => {
     model.queue = [];
     model.requests = [];
+    model.duringGeneration = undefined;
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(LlmProvider)
       .useValue(model)
@@ -235,6 +236,68 @@ describe('Génération de lettre (e2e, base réelle, faux modèle)', () => {
     expect((await prisma.application.findUniqueOrThrow({ where: { offerId } })).body).toBe(
       validLetter().body,
     );
+  });
+
+  it('n’écrase pas une candidature validée pendant la génération (409)', async () => {
+    await saveProfile();
+    await prisma.application.create({ data: { offerId, subject: 'Objet', body: 'Brouillon' } });
+    model.queue.push(validLetter());
+    // L'utilisateur valide la candidature dans un autre onglet pendant que le modèle travaille.
+    model.duringGeneration = async () => {
+      await prisma.application.update({
+        where: { offerId },
+        data: { status: 'VALIDATED', body: 'Texte validé' },
+      });
+    };
+
+    await generate().expect(409);
+
+    expect((await prisma.application.findUniqueOrThrow({ where: { offerId } })).body).toBe(
+      'Texte validé',
+    );
+  });
+
+  it('deux générations simultanées ne créent qu’une candidature et aucune ne plante', async () => {
+    await saveProfile();
+    model.queue.push(validLetter(), validLetter());
+
+    const [a, b] = await Promise.all([generate(), generate()]);
+
+    expect([a.status, b.status]).toEqual([200, 200]);
+    expect(await prisma.application.count()).toBe(1);
+  });
+
+  it('« régénérer » donne un autre texte : pas de mémoire des réponses pour les lettres', async () => {
+    await saveProfile();
+    const second = validLetter({ subject: 'Un autre objet pour la seconde lettre' });
+    model.queue.push(validLetter(), second);
+
+    await generate().expect(200);
+    const again = await generate().expect(200);
+
+    expect(model.requests).toHaveLength(2);
+    expect((again.body as { subject: string }).subject).toBe(
+      'Un autre objet pour la seconde lettre',
+    );
+    expect((await prisma.application.findUniqueOrThrow({ where: { offerId } })).subject).toBe(
+      'Un autre objet pour la seconde lettre',
+    );
+  });
+
+  it('met l’objet sur une seule ligne : pas d’injection d’en-tête dans le futur brouillon Gmail', async () => {
+    await saveProfile();
+    model.queue.push(
+      validLetter({
+        subject: 'Candidature alternance\r\nBcc: quelquun\u0000 développeur',
+      }),
+    );
+
+    const res = await generate().expect(200);
+
+    const subject = (res.body as { subject: string }).subject;
+    expect(subject).not.toMatch(/[\r\n]/);
+    expect(subject.includes(String.fromCharCode(0))).toBe(false);
+    expect(subject).toBe('Candidature alternance Bcc: quelquun développeur');
   });
 
   it.each([

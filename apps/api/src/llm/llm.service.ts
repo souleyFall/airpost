@@ -12,6 +12,8 @@ export interface GenerateObjectRequest<T> {
   schema: ZodType<T>;
   temperature?: number;
   maxOutputTokens?: number;
+  /** Faux : toujours interroger le modèle (par exemple pour « régénérer » et obtenir un autre texte). Vrai par défaut. */
+  useCache?: boolean;
 }
 
 /** Durée de vie d'une réponse en mémoire : 6 heures. */
@@ -40,6 +42,9 @@ export class LlmService {
 
   async generateObject<T>(request: GenerateObjectRequest<T>): Promise<T> {
     const temperature = request.temperature ?? 0.3;
+    if (request.useCache === false) {
+      return this.generateAndValidate(request, temperature);
+    }
     const maxOutputTokens = request.maxOutputTokens ?? 2_048;
     const key = this.cacheKey(request, temperature, maxOutputTokens);
 

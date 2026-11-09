@@ -18,6 +18,7 @@ import {
   LETTER_SYSTEM,
   assembleLetter,
   buildLetterPrompt,
+  cleanSubject,
   feedbackFor,
   letterSchema,
 } from './letter.prompt';
@@ -65,23 +66,21 @@ export class LetterService {
     const offerText = `${offer.title}\n${offer.description ?? ''}`;
     let violations: Violation[] = [];
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-      const letter = await this.ask(
+      const generated = await this.ask(
         profile,
         offer,
         attempt === 0 ? undefined : feedbackFor(violations),
       );
+      // Objet sur une seule ligne : il deviendra un en-tête de message.
+      const letter = { ...generated, subject: cleanSubject(generated.subject) };
       const result = checkLetter(letter, { profile, offerText });
       if (result.violations.length > 0) {
         violations = result.violations;
         continue;
       }
-      const application = await this.prisma.application.upsert({
-        where: { offerId },
-        update: { subject: letter.subject, body: letter.body },
-        create: { offerId, subject: letter.subject, body: letter.body },
-      });
+      const applicationId = await this.saveDraft(offerId, letter.subject, letter.body);
       return {
-        applicationId: application.id,
+        applicationId,
         subject: letter.subject,
         body: letter.body,
         preview: assembleLetter(profile.identity, letter.body),
@@ -98,6 +97,40 @@ export class LetterService {
     });
   }
 
+  /**
+   * Enregistre le brouillon SANS jamais écraser une candidature déjà validée, même si elle l'a été pendant la
+   * génération (qui dure plusieurs secondes) : la mise à jour est conditionnée au statut « à valider », et la
+   * création concurrente (double clic) est rattrapée par la contrainte d'unicité.
+   */
+  private async saveDraft(offerId: string, subject: string, body: string): Promise<string> {
+    const updateDraft = () =>
+      this.prisma.application.updateMany({
+        where: { offerId, status: 'TO_REVIEW' },
+        data: { subject, body },
+      });
+    const idOf = async () =>
+      (
+        await this.prisma.application.findUniqueOrThrow({
+          where: { offerId },
+          select: { id: true },
+        })
+      ).id;
+
+    if ((await updateDraft()).count > 0) {
+      return idOf();
+    }
+    try {
+      return (await this.prisma.application.create({ data: { offerId, subject, body } })).id;
+    } catch (error) {
+      if ((error as { code?: string }).code !== 'P2002') throw error;
+      // La candidature existe déjà : créée à l'instant (on la met à jour) ou validée entre-temps (on refuse).
+      if ((await updateDraft()).count > 0) return idOf();
+      throw new ConflictException(
+        'La candidature est déjà validée : la lettre ne peut plus être régénérée',
+      );
+    }
+  }
+
   private async ask(
     profile: Parameters<typeof buildLetterPrompt>[0],
     offer: Parameters<typeof buildLetterPrompt>[1],
@@ -110,6 +143,8 @@ export class LetterService {
         schema: letterSchema,
         temperature: 0.4,
         maxOutputTokens: 1_500,
+        // « Régénérer » doit produire un autre texte : pas de mémoire des réponses pour les lettres.
+        useCache: false,
       });
     } catch (error) {
       throw this.translate(error);

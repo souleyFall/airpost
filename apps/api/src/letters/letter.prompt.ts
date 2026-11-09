@@ -12,6 +12,24 @@ export const letterSchema = z.object({
 });
 export type GeneratedLetter = z.infer<typeof letterSchema>;
 
+/**
+ * Objet sur une seule ligne, sans caractère de contrôle. L'objet deviendra un en-tête de message (brouillon Gmail) :
+ * un retour à la ligne y permettrait d'injecter d'autres en-têtes (« Bcc: ... »).
+ */
+export function cleanSubject(subject: string): string {
+  const isControl = (char: string) => {
+    const code = char.codePointAt(0) ?? 0;
+    // C0 (dont \r et \n), DEL, C1, s\u00e9parateurs de ligne et de paragraphe Unicode.
+    return code < 32 || (code >= 127 && code <= 159) || code === 0x2028 || code === 0x2029;
+  };
+  return [...subject]
+    .map((char) => (isControl(char) ? ' ' : char))
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120);
+}
+
 export const LETTER_SYSTEM = [
   'Tu rédiges, en français, une lettre de motivation pour une candidature en alternance (développement logiciel).',
   'Règles absolues :',
