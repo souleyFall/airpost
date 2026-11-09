@@ -36,6 +36,11 @@ export default defineConfig(
     files: ['**/*.spec.ts', '**/*.e2e-spec.ts', '**/*.db-spec.ts', '**/*.test.ts', '**/*.test.tsx'],
     rules: { '@typescript-eslint/require-await': 'off' },
   },
+  // Service worker : s'exécute dans le navigateur, pas dans Node.
+  {
+    files: ['apps/web/public/sw.js'],
+    languageOptions: { globals: { ...globals.serviceworker } },
+  },
   // Les fichiers JavaScript de configuration ne sont pas dans un tsconfig : pas de règles typées.
   { files: ['**/*.{js,mjs}'], extends: [tseslint.configs.disableTypeChecked] },
   // Toujours en dernier : désactive les règles de style qui entreraient en conflit avec Prettier.
