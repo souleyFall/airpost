@@ -9,6 +9,8 @@
   - BOM supprimé dans `.gitignore` et `apps/api/tsconfig.json`.
   - Actions GitHub figées par empreinte, jeton non conservé après le `checkout`, audit hebdomadaire, annulation de la CI limitée aux PR.
   - Audit sans réinstallation, Dependabot réduit à la racine, tests rendus plus robustes.
+- PR n°3 : hook Git `pre-push` qui lance `pnpm check` avant chaque envoi (la CI GitHub est bloquée par un verrou de facturation du compte).
+- Incident de confidentialité : l'adresse e-mail personnelle figurait dans les commits. Historique réécrit avec l'adresse « noreply » de GitHub, puis dépôt recréé : les anciens commits restaient joignables par leur hash après une réécriture. Détails et leçon dans le registre des risques (PR n°5).
 
 ## 2026-11-08
 
