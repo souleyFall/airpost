@@ -1,0 +1,31 @@
+#!/bin/sh
+# Contrôle local avant chaque envoi vers GitHub : mêmes vérifications que la CI
+# (lint, formatage, types, tests, build). Il remplace la CI tant que celle-ci est indisponible.
+#
+# Git fournit sur l'entrée standard une ligne par référence envoyée :
+#   <réf locale> <sha local> <réf distante> <sha distant>
+# Une suppression de branche a un sha local fait uniquement de zéros : rien à contrôler.
+
+zero=0000000000000000000000000000000000000000
+a_controler=0
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+  if [ "$local_sha" != "$zero" ]; then
+    a_controler=1
+  fi
+done
+
+if [ "$a_controler" -eq 0 ]; then
+  exit 0
+fi
+
+if ! command -v pnpm >/dev/null 2>&1; then
+  echo "pre-push : la commande pnpm est introuvable dans le PATH de Git."
+  echo "           Lance l'envoi depuis un terminal où pnpm fonctionne (par exemple celui de VS Code)."
+  exit 1
+fi
+
+echo "pre-push : pnpm check (lint, formatage, types, tests, build)..."
+if ! pnpm check; then
+  echo "pre-push : échec. L'envoi est annulé : corrige, puis recommence."
+  exit 1
+fi
