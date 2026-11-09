@@ -190,6 +190,9 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
       channel: 'SITE',
       applyUrl: 'https://exemple.test/lba-1',
     });
+    // Chaque offre est notée à la fin de la collecte, avec le détail par critère.
+    expect((res.body as { scored: number }).scored).toBe(4);
+    expect(rows.every((r) => typeof r.score === 'number' && r.scoreDetail !== null)).toBe(true);
     // Seul le code postal part vers le géocodeur, pas le nom du candidat.
     expect(calls.filter((h) => h === 'data.geopf.fr')).toHaveLength(1);
   });

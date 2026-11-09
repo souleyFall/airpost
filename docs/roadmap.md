@@ -15,8 +15,8 @@ Une ligne par pull request prévue. L'ordre peut évoluer ; l'état est mis à j
 | 9   | `feat(profile)` : profil du candidat validé par un schéma                                        | fusionnée |
 | 10  | `feat(sources)` : connecteur La Bonne Alternance                                                 | fusionnée |
 | 11  | `feat(sources)` : connecteurs La Bonne Boîte et Adzuna                                           | fusionnée |
-| 12  | `feat(pipeline)` : collecte, dédoublonnage, tâche planifiée                                      | ouverte   |
-| 13  | `feat(scoring)` : grille de score sur 100                                                        | à faire   |
+| 12  | `feat(pipeline)` : collecte, dédoublonnage, tâche planifiée                                      | fusionnée |
+| 13  | `feat(scoring)` : grille de score sur 100                                                        | ouverte   |
 | 14  | `feat(llm)` : service Gemini (réponses validées, cache, minimisation des données envoyées)       | à faire   |
 | 15  | `feat(generation)` : lettres, objets et garde-fous                                               | à faire   |
 | 16  | `feat(applications)` : cycle de vie des candidatures et validation                               | à faire   |

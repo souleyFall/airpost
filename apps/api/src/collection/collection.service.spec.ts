@@ -10,6 +10,7 @@ import { dedupKey } from '../sources/dedup';
 import type { LbaConnector } from '../sources/lba/lba.connector';
 import type { LbbConnector } from '../sources/lbb/lbb.connector';
 import { UNKNOWN_COMPANY } from '../sources/normalize';
+import type { ScoringService } from '../scoring/scoring.service';
 import type { OffersService } from '../sources/offers.service';
 import { type NormalizedOffer, type SearchQuery, SourceError } from '../sources/source.types';
 import { CollectionService, radiusFromCommute } from './collection.service';
@@ -52,6 +53,7 @@ function setup(
     updated: 0,
   }));
   const purgeStale = vi.fn(async () => 2);
+  const rescoreAll = vi.fn(async () => 7);
   const sourcesByDedupKey = vi.fn(async () => options.inDatabase ?? new Map());
   const service = new CollectionService(
     { OFFER_RETENTION_DAYS: 90 } as Env,
@@ -63,11 +65,12 @@ function setup(
         options.position === undefined ? { latitude: 48.86, longitude: 2.38 } : options.position,
     } as unknown as GeocoderService,
     { saveMany, purgeStale, sourcesByDedupKey } as unknown as OffersService,
+    { rescoreAll } as unknown as ScoringService,
     { search: lba } as unknown as LbaConnector,
     { search: lbb } as unknown as LbbConnector,
     { search: adzuna } as unknown as AdzunaConnector,
   );
-  return { service, lba, adzuna, lbb, saveMany, purgeStale };
+  return { service, lba, adzuna, lbb, saveMany, purgeStale, rescoreAll };
 }
 
 describe('radiusFromCommute', () => {
@@ -258,6 +261,27 @@ describe('CollectionService', () => {
     const report = await service.run('u1');
 
     expect(report.sources[1]).toMatchObject({ duplicates: 0, created: 1 });
+  });
+
+  it('note toutes les offres après la collecte, avec le profil et la position', async () => {
+    const { service, rescoreAll } = setup();
+
+    const report = await service.run('u1');
+
+    expect(rescoreAll).toHaveBeenCalledWith(exampleProfile(), { latitude: 48.86, longitude: 2.38 });
+    expect(report.scored).toBe(7);
+  });
+
+  it('une panne du scoring ne fait pas perdre la collecte', async () => {
+    const { service, rescoreAll } = setup({
+      lba: async () => ({ offers: [offer('LBA', '1')], skipped: 0 }),
+    });
+    rescoreAll.mockRejectedValueOnce(new Error('échec'));
+
+    const report = await service.run('u1');
+
+    expect(report.scored).toBe(0);
+    expect(report.sources[0]).toMatchObject({ status: 'ok', created: 1 });
   });
 
   it('purge avec la durée de conservation configurée', async () => {

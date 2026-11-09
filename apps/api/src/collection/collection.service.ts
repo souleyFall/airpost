@@ -4,6 +4,7 @@ import type { Env } from '../config/env';
 import type { OfferSource } from '../generated/prisma/enums';
 import type { Profile } from '../profile/profile.schema';
 import { ProfileService } from '../profile/profile.service';
+import { ScoringService } from '../scoring/scoring.service';
 import { AdzunaConnector } from '../sources/adzuna/adzuna.connector';
 import { dedupKey, normalizeText } from '../sources/dedup';
 import { LbaConnector } from '../sources/lba/lba.connector';
@@ -36,6 +37,8 @@ export interface RunReport {
   startedAt: string;
   finishedAt: string;
   purged: number;
+  /** Offres notées après la collecte (toutes celles qui sont en base). */
+  scored: number;
   sources: SourceReport[];
 }
 
@@ -64,6 +67,7 @@ export class CollectionService {
     private readonly profiles: ProfileService,
     private readonly geocoder: GeocoderService,
     private readonly offers: OffersService,
+    private readonly scoring: ScoringService,
     lba: LbaConnector,
     lbb: LbbConnector,
     adzuna: AdzunaConnector,
@@ -121,16 +125,19 @@ export class CollectionService {
     }
 
     const purged = await this.offers.purgeStale(this.env.OFFER_RETENTION_DAYS);
+    // Le score dépend de la fraîcheur et du profil : tout est recalculé. Un échec ne perd pas la collecte.
+    const scored = await this.scoring.rescoreAll(profile, position).catch(() => 0);
     const report: RunReport = {
       startedAt: startedAt.toISOString(),
       finishedAt: new Date().toISOString(),
       purged,
+      scored,
       sources,
     };
     this.last = report;
     // Des comptes seulement : ni titre, ni entreprise, ni erreur détaillée dans les journaux.
     this.logger.log(
-      `Collecte terminée : ${sources.map((s) => `${s.source} ${s.status} (+${s.created}/~${s.updated})`).join(', ')} ; ${purged} offre(s) purgée(s).`,
+      `Collecte terminée : ${sources.map((s) => `${s.source} ${s.status} (+${s.created}/~${s.updated})`).join(', ')} ; ${purged} offre(s) purgée(s), ${scored} notée(s).`,
     );
     return report;
   }

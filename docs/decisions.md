@@ -75,6 +75,18 @@ En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans N
 - Vérifié : image de ~246 Mo, uid 1000, healthcheck vert, aucun fichier secret, valeur invalide jamais affichée.
 - Reste à faire : épingler l'image de base par empreinte (digest) avec Dependabot (PR n°24), et le proxy de confiance avec le déploiement (R8).
 
+## D23. Scoring des offres
+
+- **Grille sur 100** (fraîcheur 25, pile technique 25, rythme 15, trajet 15, concurrence 10, canal 10), en **fonctions pures** (scoring.ts) : mêmes entrées, même score ; chaque critère se teste seul et chaque score garde son détail (scoreDetail, JSON) pour que l'interface explique « pourquoi 74 ? ». Les seuils sont des **réglages initiaux** à ajuster à l'usage.
+- **Fraîcheur** : ≤ 3 j 25, ≤ 7 j 20, ≤ 14 j 15, ≤ 30 j 8, au-delà 3 (date de publication, sinon première apparition).
+- **Pile** : part des 4 premiers termes du profil (mots-clés + langages + frameworks + outils) retrouvés **en mots entiers** dans l'intitulé et la description (« go » ne matche pas « mongo »). 4 termes = 25 points.
+- **Rythme** : repéré dans le texte (« 2 jours / 3 jours », « 1 semaine / 1 semaine »...). Conforme au profil 15, incompatible 2, **inconnu 8 (neutre)** : beaucoup d'offres n'en parlent pas, on ne les pénalise pas.
+- **Trajet** : distance à vol d'oiseau (haversine) × 2 min/km (30 km/h, comme le rayon de recherche) ; plein tarif sous la moitié du temps accepté, dégressif de 15 à 5 jusqu'au maximum, 0 au-delà, **7 si l'offre n'est pas localisée**.
+- **Concurrence** : le nombre de candidats n'est publié nulle part ; estimée par la source (candidature spontanée 8 > portail officiel 5 > agrégateur 3). Approximation assumée.
+- **Canal** : e-mail direct avec adresse 10, lien de candidature 6, sinon 2.
+- **Recalcul complet à chaque collecte** (la fraîcheur dépend du temps, le profil peut changer), par lots de 200 ; un échec du scoring ne fait pas perdre la collecte.
+- **Lecture** : GET /offers (score décroissant, non notées à la fin, sans la description, filtre minScore, pagination bornée) et GET /offers/:id (identifiant UUID validé). Lecture seule, session obligatoire.
+
 ## D22. Pipeline de collecte
 
 - **Une collecte** (CollectionService.run) : profil → code postal géocodé (service public de l'État, data.geopf.fr, **seul le code postal** quitte le serveur) → rayon déduit du trajet accepté (30 km/h : 60 min = 30 km, borné de 5 à 100 km) → trois sources l'une après l'autre (LBA, Adzuna, puis La Bonne Boîte) → exclusions du profil → dédoublonnage → enregistrement → purge. Chaque source a son bilan (ok, disabled si la clé manque, error avec une raison sans détail technique) ; **une source en panne ne bloque pas les autres**.
