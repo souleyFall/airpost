@@ -93,7 +93,8 @@ describe('Durcissement HTTP (e2e)', () => {
       .set('Access-Control-Request-Headers', 'content-type, x-en-tete-inattendu')
       .expect(204);
 
-    expect(res.headers['access-control-allow-headers']).toBe('Content-Type');
+    // Seuls Content-Type et le jeton anti-CSRF sont autorisés : x-en-tete-inattendu est écarté.
+    expect(res.headers['access-control-allow-headers']).toBe('Content-Type,X-CSRF-Token');
   });
 
   it('limite le débit : 429 au-delà du seuil, avec Retry-After', async () => {

@@ -37,6 +37,9 @@ services:
       # hors Docker). Un mot de passe contenant @ : / ? # doit être encodé en pourcentage dans une URL.
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       WEB_ORIGIN: ${WEB_ORIGIN:-}
+      # Usage local en http (127.0.0.1) : un cookie « Secure » ne serait pas renvoyé. Mettre « true » dès que
+      # l'application est servie en HTTPS (hébergement). L'API n'est de toute façon publiée que sur 127.0.0.1.
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-100}
       RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
     ports:

@@ -1,9 +1,10 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { parseEnv } from '../config/env';
 import { PrismaService } from './prisma.service';
 
 // Tests d'intégration : vrai PostgreSQL, migrations appliquées sur une base jetable (voir test/).
 describe('Schéma de la base (intégration)', () => {
-  const prisma = new PrismaService();
+  const prisma = new PrismaService(parseEnv());
 
   const offerData = {
     source: 'LBA',

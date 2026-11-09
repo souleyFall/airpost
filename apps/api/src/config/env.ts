@@ -35,6 +35,11 @@ export const envSchema = z
     API_HOST: z.string().min(1).default('127.0.0.1'),
     API_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
     DATABASE_URL: databaseUrl,
+    /**
+     * Cookie de session marqué « Secure » (envoyé seulement en HTTPS). Absent : vrai en production, faux sinon.
+     * À mettre à « false » uniquement pour un usage local en http (docker compose sur ce poste).
+     */
+    SESSION_COOKIE_SECURE: z.preprocess(emptyToUndefined, z.enum(['true', 'false']).optional()),
     /** Origine du front autorisée à appeler l'API depuis un navigateur. Absente : CORS désactivé. */
     WEB_ORIGIN: z.preprocess(emptyToUndefined, origin.optional()),
     /**

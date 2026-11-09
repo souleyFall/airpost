@@ -52,7 +52,26 @@ model User {
   passwordHash String
   createdAt    DateTime @default(now())
 
-  profile Profile?
+  profile  Profile?
+  sessions Session[]
+}
+
+/// Session de connexion côté serveur. Le cookie contient un jeton aléatoire ; seule son empreinte
+/// (SHA-256) est stockée : une fuite de la base ne permet pas de se connecter.
+model Session {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  userId    String   @db.Uuid
+  tokenHash String   @unique
+  /// Jeton anti-CSRF propre à la session, exigé dans l'en-tête X-CSRF-Token des requêtes qui modifient.
+  csrfToken String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  /// Sert à purger les sessions expirées.
+  @@index([expiresAt])
 }
 
 model Profile {

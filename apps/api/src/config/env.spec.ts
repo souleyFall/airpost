@@ -97,6 +97,18 @@ describe('parseEnv', () => {
     expect(parse({ WEB_ORIGIN: '' }).WEB_ORIGIN).toBeUndefined();
   });
 
+  it.each([
+    ['true', 'true'],
+    ['false', 'false'],
+    ['', undefined],
+  ])('lit SESSION_COOKIE_SECURE=« %s »', (value, expected) => {
+    expect(parse({ SESSION_COOKIE_SECURE: value }).SESSION_COOKIE_SECURE).toBe(expected);
+  });
+
+  it('refuse une valeur ambiguë pour SESSION_COOKIE_SECURE', () => {
+    expect(() => parse({ SESSION_COOKIE_SECURE: 'oui' })).toThrow(/SESSION_COOKIE_SECURE/);
+  });
+
   it('exige DATABASE_URL', () => {
     expect(() => parseEnv({})).toThrow(/DATABASE_URL/);
   });

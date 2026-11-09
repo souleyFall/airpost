@@ -17,8 +17,8 @@ export function configureApp(app: INestApplication, env: Env): void {
       credentials: true,
       methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
       // Liste blanche d'en-têtes (sans elle, la bibliothèque accepte tout ce que le préambule demande).
-      // On y ajoutera l'en-tête du jeton anti-CSRF avec l'authentification.
-      allowedHeaders: ['Content-Type'],
+      // X-CSRF-Token : jeton anti-CSRF de la session, exigé par l'API sur les requêtes qui modifient.
+      allowedHeaders: ['Content-Type', 'X-CSRF-Token'],
       maxAge: 600,
     });
   }
