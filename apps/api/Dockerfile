@@ -3,7 +3,7 @@
 # Contexte de build : la racine du dépôt (voir docker-compose.yml).
 
 # --- Étape 1 : construction (dépendances de développement, compilation TypeScript) ---
-FROM node:24-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9 AS build
+FROM node:26-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072 AS build
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 # La version de pnpm est celle du champ « packageManager » de package.json.
@@ -25,7 +25,7 @@ RUN pnpm --filter @airpost/api build \
     && cp -r apps/api/dist /out/dist
 
 # --- Étape 2 : image d'exécution ---
-FROM node:24-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9 AS runtime
+FROM node:26-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072 AS runtime
 ENV NODE_ENV=production
 # Dans un conteneur, « 127.0.0.1 » est invisible depuis l'extérieur : on écoute sur toutes les
 # interfaces du conteneur. C'est docker-compose.yml qui limite l'accès à la machine locale.
