@@ -5,6 +5,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type { ApplicationStatus } from '../generated/prisma/enums';
+import { GmailService } from '../gmail/gmail.service';
 import { cleanSubject } from '../letters/letter.prompt';
 import { PrismaService } from '../prisma/prisma.service';
 import { canTransitionManually } from './transitions';
@@ -22,7 +23,10 @@ const OFFER_SUMMARY = {
 
 @Injectable()
 export class ApplicationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly gmail: GmailService,
+  ) {}
 
   /** Candidatures, les plus récemment modifiées d'abord, avec un résumé de l'offre (sans la description). */
   list(status?: ApplicationStatus, limit = 200) {
@@ -97,7 +101,7 @@ export class ApplicationsService {
   async changeStatus(id: string, to: ApplicationStatus) {
     const current = await this.prisma.application.findUnique({
       where: { id },
-      select: { status: true, subject: true, body: true },
+      select: { status: true, subject: true, body: true, gmailDraftId: true },
     });
     if (!current) {
       throw new NotFoundException('Candidature introuvable');
@@ -110,11 +114,25 @@ export class ApplicationsService {
       throw new UnprocessableEntityException('Objet et lettre requis pour valider');
     }
 
+    // Revenir en arrière ou retirer la candidature rend le brouillon Gmail sans objet : on le supprime (RGPD :
+    // il contient la lettre et l'adresse du recruteur). Si Gmail est injoignable, l'identifiant est conservé et
+    // le brouillon sera retiré à la prochaine occasion. Une candidature « envoyée » garde son brouillon : c'est
+    // Gmail qui le fait disparaître quand le message part.
+    let forgetDraft = false;
+    if (
+      current.status === 'DRAFT_CREATED' &&
+      (to === 'VALIDATED' || to === 'WITHDRAWN') &&
+      current.gmailDraftId
+    ) {
+      forgetDraft = await this.gmail.deleteDraftQuietly(current.gmailDraftId);
+    }
+
     const now = new Date();
     const { count } = await this.prisma.application.updateMany({
       where: { id, status: current.status },
       data: {
         status: to,
+        ...(forgetDraft ? { gmailDraftId: null } : {}),
         ...(to === 'VALIDATED' ? { validatedAt: now } : {}),
         ...(to === 'TO_REVIEW' ? { validatedAt: null } : {}),
         ...(to === 'APPLIED' ? { appliedAt: now } : {}),
@@ -130,16 +148,19 @@ export class ApplicationsService {
    * Supprime la candidature (RGPD : effacement) et retire de l'offre le contact du recruteur, qui n'avait de
    * raison d'être conservé que pour cette candidature. L'offre elle-même reste (donnée publique) jusqu'à sa purge.
    */
-  // À faire avec le module Gmail (PR n°20) : supprimer aussi le brouillon Gmail associé (`gmailDraftId`), sinon il
-  // resterait dans la boîte avec la lettre et l'adresse du recruteur.
-  async remove(id: string): Promise<void> {
+  // Le brouillon Gmail associé est supprimé aussi (sinon il resterait dans la boîte avec la lettre et l'adresse du
+  // recruteur) ; `gmailDraftDeleted` vaut false si Gmail n'a pas pu être joint : l'interface le signale.
+  async remove(id: string): Promise<{ gmailDraftDeleted: boolean | null }> {
     const application = await this.prisma.application.findUnique({
       where: { id },
-      select: { offerId: true },
+      select: { offerId: true, gmailDraftId: true },
     });
     if (!application) {
       throw new NotFoundException('Candidature introuvable');
     }
+    const gmailDraftDeleted = application.gmailDraftId
+      ? await this.gmail.deleteDraftQuietly(application.gmailDraftId)
+      : null;
     await this.prisma.$transaction([
       this.prisma.application.delete({ where: { id } }),
       this.prisma.offer.update({
@@ -147,6 +168,7 @@ export class ApplicationsService {
         data: { contactEmail: null },
       }),
     ]);
+    return { gmailDraftDeleted };
   }
 
   private async explainMiss(id: string, conflictMessage: string): Promise<never> {

@@ -69,6 +69,12 @@ export const envSchema = z
     ADZUNA_APP_ID: secret(),
     ADZUNA_APP_KEY: secret(),
     /**
+     * Fichiers d'autorisation Gmail (jamais leur contenu ici). Relatifs : cherchés dans le dossier courant puis à la
+     * racine du dépôt. Absents : le module Gmail est désactivé (aucun brouillon, aucun suivi).
+     */
+    GMAIL_CREDENTIALS_FILE: z.preprocess(emptyToUndefined, z.string().max(300).optional()),
+    GMAIL_TOKEN_FILE: z.preprocess(emptyToUndefined, z.string().max(300).optional()),
+    /**
      * Cookie de session marqué « Secure » (envoyé seulement en HTTPS). Absent : vrai en production, faux sinon.
      * À mettre à « false » uniquement pour un usage local en http (docker compose sur ce poste).
      */

@@ -68,12 +68,16 @@ export function SourcesPage() {
   const [status, setStatus] = useState<SourcesStatus | null>(null);
   const [report, setReport] = useState<FullRunReport | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [gmailConfigured, setGmailConfigured] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
         const current = await api<SourcesStatus>('GET', '/collection/status');
+        const gmail = await api<{ configured: boolean }>('GET', '/gmail/status').catch(() => ({
+          configured: false,
+        }));
         let last: FullRunReport | null = null;
         try {
           last = await api<FullRunReport>('GET', '/collection/last');
@@ -82,6 +86,7 @@ export function SourcesPage() {
         }
         if (!cancelled) {
           setStatus(current);
+          setGmailConfigured(gmail.configured);
           setReport(last);
         }
       } catch {
@@ -125,10 +130,12 @@ export function SourcesPage() {
         },
         {
           name: 'Gmail',
-          state: 'Pas encore connecté',
-          tone: 'neutral',
+          state: gmailConfigured ? 'Autorisation présente' : 'Non configuré',
+          tone: gmailConfigured ? 'ok' : 'warn',
           count: '—',
-          note: 'Création de brouillons et lecture des réponses : arrive avec le module Gmail. Aucun envoi automatique.',
+          note: gmailConfigured
+            ? 'Création de brouillons. Aucun envoi automatique : tu envoies toi-même depuis Gmail. Si la création échoue, l’autorisation a peut-être expiré (7 jours en mode test) : reconnecte Gmail.'
+            : 'Fichiers d’autorisation Gmail absents : aucun brouillon ne peut être créé.',
         },
       ]
     : [];

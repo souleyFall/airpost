@@ -278,7 +278,7 @@ describe('Candidatures (e2e, base réelle)', () => {
         data: { applicationId: id, gmailMessageId: 'm1', kind: 'OTHER', receivedAt: new Date() },
       });
 
-      await write('delete', `/applications/${id}`).expect(204);
+      await write('delete', `/applications/${id}`).expect(200);
 
       expect(await prisma.application.count()).toBe(0);
       expect(await prisma.reply.count()).toBe(0);
@@ -288,7 +288,7 @@ describe('Candidatures (e2e, base réelle)', () => {
     });
 
     it('répond 404 pour une candidature déjà supprimée', async () => {
-      await write('delete', `/applications/${id}`).expect(204);
+      await write('delete', `/applications/${id}`).expect(200);
 
       await write('delete', `/applications/${id}`).expect(404);
     });

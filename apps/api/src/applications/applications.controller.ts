@@ -72,9 +72,9 @@ export class ApplicationsController {
     return this.applications.changeStatus(id, body.status);
   }
 
+  /** Supprime la candidature et son brouillon Gmail ; `gmailDraftDeleted: false` = brouillon à retirer à la main. */
   @Delete(':id')
-  @HttpCode(204)
-  async remove(@Param('id', new ParseUUIDPipe()) id: string): Promise<void> {
-    await this.applications.remove(id);
+  remove(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.applications.remove(id);
   }
 }

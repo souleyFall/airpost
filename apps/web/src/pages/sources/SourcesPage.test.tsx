@@ -58,6 +58,7 @@ function fakeApi(options: { last: boolean }) {
           gemini: { configured: true, model: 'gemini-3.5-flash-lite' },
         });
       }
+      if (path === '/gmail/status') return json({ configured: false });
       if (path === '/collection/last') return options.last ? json(report) : json({}, 404);
       return json({}, 404);
     }),
@@ -92,7 +93,7 @@ describe('écran Sources', () => {
     expect(rowOf('Adzuna')).toHaveTextContent('Non configurée');
     expect(rowOf('Adzuna')).toHaveTextContent('Jobs by Adzuna');
     expect(rowOf('Gemini')).toHaveTextContent('gemini-3.5-flash-lite');
-    expect(rowOf('Gmail')).toHaveTextContent('Pas encore connecté');
+    expect(rowOf('Gmail')).toHaveTextContent('Non configuré');
   });
 
   it('fonctionne sans bilan de collecte', async () => {

@@ -28,7 +28,8 @@ const row = (id: string, status: string, title: string, appliedDays: number | nu
   },
 });
 
-function fakeApi() {
+function fakeApi(options: { draftDeleted?: boolean | null } = {}) {
+  const draftDeleted = options.draftDeleted ?? null;
   const calls: { method: string; path: string; body?: unknown }[] = [];
   let rows = [
     row('a', 'VALIDATED', 'Poste validé', null),
@@ -46,6 +47,12 @@ function fakeApi() {
       const body = init?.body ? (JSON.parse(init.body as string) as unknown) : undefined;
       calls.push({ method, path, body });
       if (path === '/auth/me') return json({ login: 'souley.fall', csrfToken: 'csrf' });
+      if (path === '/gmail/status') return json({ configured: true });
+      const draft = /^\/applications\/(\w+)\/draft$/.exec(path);
+      if (draft && method === 'POST') {
+        rows = rows.map((r) => (r.id === draft[1] ? { ...r, status: 'DRAFT_CREATED' } : r));
+        return json({ draftId: 'd1' });
+      }
       if (path.startsWith('/applications?')) return json(rows);
       const status = /^\/applications\/(\w+)\/status$/.exec(path);
       if (status && method === 'POST') {
@@ -56,7 +63,7 @@ function fakeApi() {
       const del = /^\/applications\/(\w+)$/.exec(path);
       if (del && method === 'DELETE') {
         rows = rows.filter((r) => r.id !== del[1]);
-        return new Response(null, { status: 204 });
+        return json({ gmailDraftDeleted: draftDeleted });
       }
       return json({}, 404);
     }),
@@ -144,5 +151,33 @@ describe('écran Suivi', () => {
     await user.click(screen.getByRole('button', { name: 'Confirmer la suppression' }));
     await waitFor(() => expect(calls.some((c) => c.method === 'DELETE')).toBe(true));
     await waitFor(() => expect(screen.queryByText('Poste validé')).not.toBeInTheDocument());
+  });
+  it('crée le brouillon Gmail d’une candidature validée par e-mail', async () => {
+    const calls = fakeApi();
+    const user = userEvent.setup();
+    renderApp();
+    await user.click(await screen.findByRole('button', { name: 'Créer le brouillon Gmail' }));
+    await waitFor(() =>
+      expect(calls).toContainEqual({
+        method: 'POST',
+        path: '/applications/a/draft',
+        body: undefined,
+      }),
+    );
+    expect(
+      await screen.findByRole('link', { name: /Ouvrir le brouillon dans Gmail/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('prévient quand le brouillon Gmail n’a pas pu être supprimé avec la candidature', async () => {
+    fakeApi({ draftDeleted: false });
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByText('Poste validé');
+    await user.click(screen.getAllByRole('button', { name: 'Supprimer' })[0]);
+    await user.click(screen.getByRole('button', { name: 'Confirmer la suppression' }));
+    expect(
+      await screen.findByText(/brouillon n’a pas pu être retiré de Gmail/),
+    ).toBeInTheDocument();
   });
 });
