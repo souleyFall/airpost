@@ -38,6 +38,14 @@ describe('isRelevantOffer', () => {
     expect(isRelevantOffer('Développeur logiciel pour banque')).toBe(true);
   });
 
+  it('un intitulé mixte (poste technique dans un secteur hors sujet) est tranché par la description', () => {
+    expect(isRelevantOffer('Alternance Data Analyst - Banque')).toBe(false);
+    expect(isRelevantOffer('Alternance Data Analyst - Banque', 'SQL, Python, Power BI')).toBe(true);
+    expect(isRelevantOffer('Chargé de recrutement informatique', 'Sourcing de profils')).toBe(
+      false,
+    );
+  });
+
   it('un intitulé neutre est gardé si la description cite au moins deux technologies', () => {
     expect(isRelevantOffer('Alternance - Mission polyvalente', 'React, TypeScript et Docker')).toBe(
       true,

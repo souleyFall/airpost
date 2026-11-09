@@ -289,12 +289,12 @@ describe('CollectionService', () => {
     expect(report.sources[0]).toMatchObject({ status: 'ok', created: 1 });
   });
 
-  it('écarte les offres hors développement, sauf pour La Bonne Boîte (déjà filtrée par code ROME)', async () => {
+  it('écarte les offres hors développement, sauf celles déjà filtrées par code ROME à la source', async () => {
     const { service, saveMany } = setup({
-      lba: async () => ({
+      adzuna: async () => ({
         offers: [
-          offer('LBA', 'dev', { title: 'Alternance développeur full stack' }),
-          offer('LBA', 'compta', { title: 'Alternance comptable', description: 'Excel, SQL' }),
+          offer('ADZUNA', 'dev', { title: 'Alternance développeur full stack' }),
+          offer('ADZUNA', 'compta', { title: 'Alternance comptable', description: 'Excel, SQL' }),
         ],
         skipped: 0,
       }),
@@ -308,9 +308,42 @@ describe('CollectionService', () => {
 
     const report = await service.run('u1');
 
-    expect(report.sources[0]).toMatchObject({ irrelevant: 1, created: 1 });
+    expect(report.sources[1]).toMatchObject({ irrelevant: 1, created: 1 });
     expect(report.sources[2]).toMatchObject({ irrelevant: 0, created: 1 });
-    expect(saveMany.mock.calls[0]?.[0].map((o) => o.externalId)).toEqual(['dev']);
+    expect(saveMany.mock.calls.flatMap((call) => call[0].map((o) => o.externalId))).toEqual([
+      'dev',
+      'spontanee',
+    ]);
+  });
+
+  it('ne refiltre pas La Bonne Alternance quand des codes ROME sont configurés (déjà filtrée à la source)', async () => {
+    const { service, saveMany } = setup({
+      lba: async () => ({
+        offers: [offer('LBA', 'x', { title: 'Alternance - Mission polyvalente' })],
+        skipped: 0,
+      }),
+    });
+
+    const report = await service.run('u1');
+
+    expect(report.sources[0]).toMatchObject({ irrelevant: 0, created: 1 });
+    expect(saveMany.mock.calls[0]?.[0]).toHaveLength(1);
+  });
+
+  it('refiltre La Bonne Alternance sans code ROME : elle renvoie alors toutes les offres', async () => {
+    const profile = exampleProfile();
+    profile.search.romeCodes = [];
+    const { service } = setup({
+      profile,
+      lba: async () => ({
+        offers: [offer('LBA', 'x', { title: 'Alternance comptable' })],
+        skipped: 0,
+      }),
+    });
+
+    const report = await service.run('u1');
+
+    expect(report.sources[0]).toMatchObject({ irrelevant: 1, created: 0 });
   });
 
   it('purge avec la durée de conservation configurée', async () => {

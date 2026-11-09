@@ -187,6 +187,8 @@ export class CollectionService {
       report.fetched = result.offers.length;
       report.skipped = result.skipped;
 
+      const trusted =
+        searcher.source === 'LBB' || (searcher.source === 'LBA' && query.romeCodes.length > 0);
       const excludedNames = profile.search.excludedCompanies.map(normalizeText).filter(Boolean);
       const candidates: NormalizedOffer[] = [];
       for (const offer of result.offers) {
@@ -194,8 +196,9 @@ export class CollectionService {
         // Mots entiers : « sa » ne doit pas exclure « casino ». Les mots sont séparés par des tirets (normalizeText).
         if (excludedNames.some((name) => `-${company}-`.includes(`-${name}-`))) {
           report.excluded++;
-        } else if (searcher.source !== 'LBB' && !isRelevantOffer(offer.title, offer.description)) {
-          // La Bonne Boîte n'a pas d'intitulé de poste : elle est déjà filtrée par code ROME à la source.
+        } else if (!trusted && !isRelevantOffer(offer.title, offer.description)) {
+          // Déjà filtrées par code ROME à la source : La Bonne Boîte (qui n'a d'ailleurs pas d'intitulé de poste) et La
+          // Bonne Alternance quand des codes sont configurés. Adzuna, elle, cherche par mots et renvoie du bruit.
           report.irrelevant++;
         } else {
           candidates.push(offer);

@@ -265,6 +265,16 @@ describe('écran À valider', () => {
     expect(within(getList()).getAllByRole('button')[0]).toHaveTextContent('91');
   });
 
+  it('n’analyse pas les offres qu’on ne fait que traverser aux flèches du clavier', async () => {
+    const calls = fakeApi({ analyzed: false });
+    const user = userEvent.setup();
+    renderApp();
+    await findList();
+    await user.keyboard('{ArrowDown}');
+    expect(await screen.findByText(/Compatibilité 80 \/ 100/)).toBeInTheDocument();
+    const analyses = calls.filter((c) => c.method === 'POST' && c.path.includes('/analyze'));
+    expect(analyses.map((c) => c.path)).toEqual(['/offers/o2/analyze']);
+  });
   it('indique l’échec de l’analyse (quota) et permet de réessayer', async () => {
     fakeApi({ analyzed: false, analyzeStatus: 429 });
     renderApp();

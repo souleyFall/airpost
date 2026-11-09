@@ -1,4 +1,4 @@
-﻿import type { ContractType } from '../generated/prisma/enums';
+import type { ContractType } from '../generated/prisma/enums';
 
 /** Texte comparable : sans accents, en minuscules. */
 export function fold(value: string): string {
@@ -127,15 +127,16 @@ export function isRelevantOffer(title: string, description?: string | null): boo
   if (STRONG_TITLE.test(t)) {
     return true;
   }
-  // « Commercial web », « Chargé de marketing digital » : le mot technique ne suffit pas à en faire une offre de dev.
+  const body = fold(description ?? '');
+  const hits = new Set(body.match(TECH_BODY) ?? []);
   if (OFF_TOPIC_TITLE.test(t)) {
-    return false;
+    // Intitulé mixte (« Data analyst banque », « Commercial web ») : un mot technique ne suffit pas, la description
+    // tranche. Elle doit citer au moins une technologie ; sinon c'est un poste de banque, de vente ou de recrutement.
+    return TECH_TITLE.test(t) && hits.size >= 1;
   }
   if (TECH_TITLE.test(t)) {
     return true;
   }
-  const body = fold(description ?? '');
-  const hits = new Set(body.match(TECH_BODY) ?? []);
   return hits.size >= 2;
 }
 

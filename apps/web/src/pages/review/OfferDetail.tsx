@@ -37,6 +37,9 @@ function analysisErrorText(error: unknown): string {
   return 'L’analyse a échoué.';
 }
 
+/** Délai avant l'analyse automatique d'une offre ouverte. */
+const AUTO_ANALYZE_DELAY_MS = 400;
+
 const TONE_CLASS = {
   high: 'border-ink bg-ink text-paper',
   mid: 'border-ink bg-transparent text-ink',
@@ -115,10 +118,14 @@ export function OfferDetail({ offerId, onChanged, onAnalyzed }: Props) {
   const needsAnalysis = offer !== null && offer.analysis === null;
   const autoAnalyzed = useRef(false);
   useEffect(() => {
-    if (needsAnalysis && !autoAnalyzed.current) {
+    if (!needsAnalysis || autoAnalyzed.current) return;
+    // Petit délai : en parcourant la liste aux flèches, on ne lance pas une analyse (donc un appel au modèle,
+    // au quota limité) pour chaque offre qu'on ne fait que traverser.
+    const timer = setTimeout(() => {
       autoAnalyzed.current = true;
       void analyze(false);
-    }
+    }, AUTO_ANALYZE_DELAY_MS);
+    return () => clearTimeout(timer);
   }, [needsAnalysis, analyze]);
 
   useEffect(() => {
