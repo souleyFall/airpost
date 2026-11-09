@@ -7,6 +7,7 @@ import type { Env } from './config/env';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProfileModule } from './profile/profile.module';
+import { SourcesModule } from './sources/sources.module';
 
 // Le module racine : il assemble les modules de l'application, un par fonctionnalité.
 @Module({
@@ -20,6 +21,7 @@ import { ProfileModule } from './profile/profile.module';
     PrismaModule,
     AuthModule,
     ProfileModule,
+    SourcesModule,
     HealthModule,
   ],
   // Le garde est global : il s'applique à toutes les routes, y compris celles des futurs modules.

@@ -1,5 +1,6 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client';
+import { dedupKey } from '../src/sources/dedup';
 
 /**
  * Données de démonstration, entièrement fictives (entreprises « Exemple »), pour développer l'interface
@@ -37,18 +38,6 @@ const DEMO_OFFERS = [
     score: 61,
   },
 ] as const;
-
-function dedupKey(company: string, title: string, city: string): string {
-  return [company, title, city]
-    .map((part) =>
-      part
-        .normalize('NFD')
-        .replace(/\p{Diacritic}/gu, '')
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-'),
-    )
-    .join('|');
-}
 
 async function main() {
   // Ces données fictives n'ont rien à faire dans une base réelle.
