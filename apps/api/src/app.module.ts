@@ -6,6 +6,7 @@ import { CollectionModule } from './collection/collection.module';
 import { ConfigModule, ENV } from './config/config.module';
 import type { Env } from './config/env';
 import { HealthModule } from './health/health.module';
+import { OffersModule } from './offers/offers.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProfileModule } from './profile/profile.module';
 import { SourcesModule } from './sources/sources.module';
@@ -24,6 +25,7 @@ import { SourcesModule } from './sources/sources.module';
     ProfileModule,
     SourcesModule,
     CollectionModule,
+    OffersModule,
     HealthModule,
   ],
   // Le garde est global : il s'applique à toutes les routes, y compris celles des futurs modules.

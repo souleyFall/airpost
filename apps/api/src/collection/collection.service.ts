@@ -4,6 +4,8 @@ import type { Env } from '../config/env';
 import type { OfferSource } from '../generated/prisma/enums';
 import type { Profile } from '../profile/profile.schema';
 import { ProfileService } from '../profile/profile.service';
+import { MINUTES_PER_KM } from '../scoring/scoring';
+import { ScoringService } from '../scoring/scoring.service';
 import { AdzunaConnector } from '../sources/adzuna/adzuna.connector';
 import { dedupKey, normalizeText } from '../sources/dedup';
 import { LbaConnector } from '../sources/lba/lba.connector';
@@ -36,6 +38,8 @@ export interface RunReport {
   startedAt: string;
   finishedAt: string;
   purged: number;
+  /** Offres notées après la collecte (toutes celles qui sont en base). */
+  scored: number;
   sources: SourceReport[];
 }
 
@@ -44,12 +48,9 @@ interface Searcher {
   search(query: SearchQuery): Promise<SearchResult>;
 }
 
-/** Vitesse moyenne retenue pour passer du temps de trajet au rayon de recherche : 30 km/h. */
-const KM_PER_COMMUTE_MINUTE = 0.5;
-
 /** Rayon de recherche (km) déduit du temps de trajet accepté, borné pour rester utile et raisonnable. */
 export function radiusFromCommute(minutes: number): number {
-  return Math.min(100, Math.max(5, Math.round(minutes * KM_PER_COMMUTE_MINUTE)));
+  return Math.min(100, Math.max(5, Math.round(minutes / MINUTES_PER_KM)));
 }
 
 @Injectable()
@@ -64,6 +65,7 @@ export class CollectionService {
     private readonly profiles: ProfileService,
     private readonly geocoder: GeocoderService,
     private readonly offers: OffersService,
+    private readonly scoring: ScoringService,
     lba: LbaConnector,
     lbb: LbbConnector,
     adzuna: AdzunaConnector,
@@ -121,16 +123,19 @@ export class CollectionService {
     }
 
     const purged = await this.offers.purgeStale(this.env.OFFER_RETENTION_DAYS);
+    // Le score dépend de la fraîcheur et du profil : tout est recalculé. Un échec ne perd pas la collecte.
+    const scored = await this.scoring.rescoreAll(profile, position).catch(() => 0);
     const report: RunReport = {
       startedAt: startedAt.toISOString(),
       finishedAt: new Date().toISOString(),
       purged,
+      scored,
       sources,
     };
     this.last = report;
     // Des comptes seulement : ni titre, ni entreprise, ni erreur détaillée dans les journaux.
     this.logger.log(
-      `Collecte terminée : ${sources.map((s) => `${s.source} ${s.status} (+${s.created}/~${s.updated})`).join(', ')} ; ${purged} offre(s) purgée(s).`,
+      `Collecte terminée : ${sources.map((s) => `${s.source} ${s.status} (+${s.created}/~${s.updated})`).join(', ')} ; ${purged} offre(s) purgée(s), ${scored} notée(s).`,
     );
     return report;
   }
