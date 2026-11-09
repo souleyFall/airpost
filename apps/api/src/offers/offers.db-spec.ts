@@ -206,6 +206,73 @@ describe('Offres et analyse IA (e2e, base réelle)', () => {
     });
   });
 
+  describe('offres écartées par l’IA', () => {
+    const analyzeVisible = (ids: string[]) =>
+      http.post('/offers/analyze').set('Cookie', cookie).set('X-CSRF-Token', csrf).send({ ids });
+
+    async function withProfile() {
+      await http
+        .put('/profile')
+        .set('Cookie', cookie)
+        .set('X-CSRF-Token', csrf)
+        .send(exampleProfile())
+        .expect(200);
+    }
+
+    it('une offre jugée hors cible est marquée écartée et quitte le fil', async () => {
+      await withProfile();
+      const bonne = await seed('bonne');
+      const compta = await seed('compta');
+      model.queue.push({
+        results: [
+          result(1, 80),
+          result(2, 90, { disqualifier: 'Poste de comptabilité, pas de développement' }),
+        ],
+      });
+
+      const res = await analyzeVisible([bonne.id, compta.id]).expect(200);
+
+      const flags = Object.fromEntries(
+        (res.body as { items: { id: string; excluded: boolean }[] }).items.map((i) => [
+          i.id,
+          i.excluded,
+        ]),
+      );
+      expect(Object.values(flags).sort()).toEqual([false, true]);
+      expect(titles(await get('?pending=true')).length).toBe(1);
+      // Sans le filtre « à traiter », l’offre reste consultable : elle n’est pas supprimée.
+      expect((await get('')).body).toMatchObject({ total: 2 });
+    });
+
+    it('une réanalyse favorable la remet dans le fil', async () => {
+      await withProfile();
+      const offer = await seed('a', { excluded: true });
+      model.queue.push({ results: [result(1, 70)] });
+
+      await http
+        .post(`/offers/${offer.id}/analyze?force=true`)
+        .set('Cookie', cookie)
+        .set('X-CSRF-Token', csrf)
+        .expect(200);
+
+      expect((await prisma.offer.findFirstOrThrow()).excluded).toBe(false);
+      expect(titles(await get('?pending=true'))).toEqual(['Offre a']);
+    });
+
+    it('une offre écartée mais qui a déjà une candidature reste dans le fil', async () => {
+      const offer = await seed('suivie', { excluded: true });
+      await prisma.application.create({ data: { offerId: offer.id, subject: 'O', body: 'T' } });
+      await seed('masquee', { excluded: true });
+
+      expect(titles(await get('?pending=true'))).toEqual(['Offre suivie']);
+    });
+
+    it('le détail indique si l’offre est écartée', async () => {
+      const offer = await seed('a', { excluded: true });
+      const res = await http.get(`/offers/${offer.id}`).set('Cookie', cookie).expect(200);
+      expect(res.body).toMatchObject({ excluded: true });
+    });
+  });
   describe('POST /offers/analyze (offres affichées)', () => {
     const analyzeVisible = (ids: string[]) =>
       http.post('/offers/analyze').set('Cookie', cookie).set('X-CSRF-Token', csrf).send({ ids });

@@ -165,6 +165,8 @@ export class MatchService {
           analysis: analysis,
           analyzedAt: new Date(),
           profileHash: fingerprint,
+          // Écartée par l'IA : masquée du fil. Recalculé à chaque analyse (un nouveau profil peut la rendre pertinente).
+          excluded: analysis.verdict === 'off_target',
         },
       });
       saved++;

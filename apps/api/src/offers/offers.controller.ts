@@ -87,6 +87,8 @@ export class OffersController {
     if (query.channel) and.push({ channel: query.channel });
     if (query.pending) {
       and.push({ OR: [{ application: null }, { application: { status: 'TO_REVIEW' } }] });
+      // Écartées par l'IA : hors du fil, sauf si tu as déjà commencé une candidature dessus.
+      and.push({ OR: [{ excluded: false }, { application: { isNot: null } }] });
     }
     if (query.q) {
       // % et _ sont des jokers du LIKE de PostgreSQL : saisis par l'utilisateur, ils doivent être pris au pied de la lettre.
@@ -151,7 +153,7 @@ export class OffersController {
     const report = await this.matching.analyzePending(profile, body.ids.length, body.ids);
     const items = await this.prisma.offer.findMany({
       where: { id: { in: body.ids } },
-      select: { id: true, score: true },
+      select: { id: true, score: true, excluded: true },
     });
     return { ...report, items };
   }
@@ -183,6 +185,7 @@ export class OffersController {
         score: true,
         analysis: true,
         analyzedAt: true,
+        excluded: true,
         application: { select: { id: true, status: true } },
       },
     });

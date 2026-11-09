@@ -220,3 +220,9 @@ En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans N
 - **Offres hors métier** : le filtre n'agissait que sur les nouvelles offres. La remise à niveau supprime aussi les offres déjà enregistrées qui ne passent plus le filtre (jamais celles qui ont une candidature, jamais celles des sources déjà filtrées par code ROME). Liste de mots hors sujet élargie (RH, communication, vente, audit, finance, crédit...).
 - **Analyse dès l'affichage** : l'interface envoie les identifiants des offres affichées sans note à `POST /offers/analyze` (une page à la fois, 4 offres par appel au modèle), sans attendre l'ouverture du détail. Un quota atteint laisse les offres sans note, sans boucle de nouvelles demandes.
 - **Déploiement** : après une PR avec migration, `docker compose up -d --build` ne reconstruit pas le service `migrate` ; faire `docker compose build migrate` puis `docker compose run --rm migrate`.
+
+### D29 (suite 2) : offres écartées par l'IA
+
+- Une offre que l'IA juge hors cible (hors métier, contrat incompatible) est **masquée du fil « À valider »**, pas supprimée : supprimée, elle serait réimportée puis réanalysée à chaque collecte (quota du modèle). Colonne `excluded`, recalculée à chaque analyse (un profil modifié peut la remettre dans le fil).
+- Exception : une offre écartée sur laquelle une candidature existe déjà reste visible (le travail commencé ne disparaît pas).
+- Les offres moins bien notées mais pas écartées (verdict « peu adaptée ») restent dans le fil ; le filtre de compatibilité minimale les masque au besoin.

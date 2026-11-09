@@ -188,15 +188,18 @@ export function ReviewPage() {
             ? current.map((o) => (scores.has(o.id) ? { ...o, score: scores.get(o.id) ?? null } : o))
             : current,
         );
-        // Le tri par compatibilité doit tenir compte des nouvelles notes.
-        if (result.analyzed > 0 && filters.sort === 'score') void load();
+        // Nouvelles notes (tri par compatibilité) et offres écartées par l'IA, qui quittent le fil.
+        if (result.analyzed > 0) {
+          void load();
+          void refreshBadge();
+        }
       } catch {
         // Quota ou service indisponible : les offres restent sans note, l'ouverture du détail réessaiera.
       } finally {
         setAnalyzingCount((count) => Math.max(0, count - ids.length));
       }
     })();
-  }, [items, filters.sort, load]);
+  }, [items, load, refreshBadge]);
 
   // Recherche : on attend la fin de la frappe avant d'interroger l'API.
   useEffect(() => {
@@ -523,11 +526,16 @@ export function ReviewPage() {
           <OfferDetail
             key={selectedId}
             offerId={selectedId}
-            onAnalyzed={(id, score) =>
+            onAnalyzed={(id, score, excluded) => {
               setItems((current) =>
                 current ? current.map((o) => (o.id === id ? { ...o, score } : o)) : current,
-              )
-            }
+              );
+              // Écartée par l'IA : elle quitte le fil.
+              if (excluded) {
+                void load();
+                void refreshBadge();
+              }
+            }}
             onChanged={() => {
               void load();
               void refreshBadge();

@@ -122,6 +122,8 @@ model Offer {
   /// Analyse du modèle : verdict, points forts et manques, brief de l'offre. Validée par un schéma Zod.
   analysis     Json?
   analyzedAt   DateTime?
+  /// Écartée par l'IA (hors métier, contrat incompatible) : masquée du fil « À valider », mais conservée pour ne pas être réimportée puis réanalysée à chaque collecte.
+  excluded     Boolean      @default(false)
   /// Empreinte du profil et du prompt au moment de l'analyse : si elle change, l'analyse est refaite.
   profileHash  String?
 
@@ -132,6 +134,7 @@ model Offer {
   @@index([score])
   @@index([source])
   @@index([contractType])
+  @@index([excluded])
   /// Sert à la purge des offres qui ne sont plus publiées (durée de conservation).
   @@index([lastSeenAt])
 }

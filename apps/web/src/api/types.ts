@@ -64,6 +64,8 @@ export interface OfferDetail extends OfferSummary {
   contactEmail: string | null;
   analysis: Analysis | null;
   analyzedAt: string | null;
+  /** Écartée par l'IA : n'apparaît plus dans le fil « À valider ». */
+  excluded: boolean;
 }
 
 export interface OfferList {
