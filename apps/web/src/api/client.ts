@@ -8,10 +8,16 @@
  */
 const BASE = '/api';
 
+export interface ApiIssue {
+  champ: string;
+  probleme: string;
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    readonly issues: ApiIssue[] = [],
   ) {
     super(message);
     this.name = 'ApiError';
@@ -41,7 +47,8 @@ export async function api<T>(method: Method, path: string, body?: unknown): Prom
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!response.ok) {
-    throw new ApiError(response.status, await errorMessage(response));
+    const { message, issues } = await errorDetails(response);
+    throw new ApiError(response.status, message, issues);
   }
   if (response.status === 204) {
     return undefined as T;
@@ -49,15 +56,30 @@ export async function api<T>(method: Method, path: string, body?: unknown): Prom
   return (await response.json()) as T;
 }
 
-/** Message de l'API s'il est lisible, sinon un message neutre : jamais de contenu de réponse brut affiché. */
-async function errorMessage(response: Response): Promise<string> {
+/**
+ * Message de l'API s'il est lisible, sinon un message neutre : jamais de contenu de réponse brut affiché.
+ * Les erreurs de validation (400) listent le champ et le problème, jamais la valeur envoyée.
+ */
+async function errorDetails(response: Response): Promise<{ message: string; issues: ApiIssue[] }> {
   try {
     const data: unknown = await response.json();
-    if (data && typeof data === 'object' && 'message' in data && typeof data.message === 'string') {
-      return data.message;
+    if (data && typeof data === 'object') {
+      const message =
+        'message' in data && typeof data.message === 'string'
+          ? data.message
+          : `Erreur ${response.status}`;
+      const issues: ApiIssue[] = [];
+      if ('errors' in data && Array.isArray(data.errors)) {
+        for (const item of data.errors as unknown[]) {
+          if (item && typeof item === 'object' && 'champ' in item && 'probleme' in item) {
+            issues.push({ champ: String(item.champ), probleme: String(item.probleme) });
+          }
+        }
+      }
+      return { message, issues };
     }
   } catch {
     // corps absent ou non JSON
   }
-  return `Erreur ${response.status}`;
+  return { message: `Erreur ${response.status}`, issues: [] };
 }
