@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { ENV } from '../config/config.module';
 import type { Env } from '../config/env';
-import { HTTP_FETCH, type HttpFetch } from '../sources/http-fetch';
+import { HTTP_FETCH, type HttpFetch } from '../http/http-fetch';
 import { LlmError, LlmProvider, type LlmRequest, type LlmResponse } from './llm.types';
 
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -13,7 +13,13 @@ const responseSchema = z.object({
     .array(
       z.object({
         finishReason: z.string().nullish(),
-        content: z.object({ parts: z.array(z.object({ text: z.string().optional() })) }).nullish(),
+        content: z
+          .object({
+            parts: z.array(
+              z.object({ text: z.string().optional(), thought: z.boolean().optional() }),
+            ),
+          })
+          .nullish(),
       }),
     )
     .nullish(),
@@ -101,7 +107,12 @@ export class GeminiProvider extends LlmProvider {
     ) {
       throw new LlmError('blocked', 'Gemini : génération interrompue par le service.');
     }
-    const text = candidate?.content?.parts.map((part) => part.text ?? '').join('') ?? '';
+    const text =
+      candidate?.content?.parts
+        // Les parties de « réflexion » du modèle ne font pas partie de la réponse.
+        .filter((part) => !part.thought)
+        .map((part) => part.text ?? '')
+        .join('') ?? '';
     if (!text.trim()) {
       throw new LlmError('invalid_output', 'Gemini : réponse vide.');
     }

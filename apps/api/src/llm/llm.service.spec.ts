@@ -106,6 +106,25 @@ describe('LlmService.generateObject', () => {
       expect(generate).toHaveBeenCalledTimes(1);
     });
 
+    it('renvoie une copie : modifier le résultat ne fausse pas les réponses suivantes', async () => {
+      const { service } = setup(() => response(VALID));
+      const first = (await service.generateObject(ask())) as z.infer<typeof schema>;
+      first.objet = 'MODIFIÉ PAR L’APPELANT';
+
+      const second = (await service.generateObject(ask())) as z.infer<typeof schema>;
+
+      expect(second.objet).toBe('Candidature');
+    });
+
+    it('rappelle le modèle quand la limite de sortie change', async () => {
+      const { service, generate } = setup(() => response(VALID));
+
+      await service.generateObject(ask({ maxOutputTokens: 200 }));
+      await service.generateObject(ask({ maxOutputTokens: 2000 }));
+
+      expect(generate).toHaveBeenCalledTimes(2);
+    });
+
     it('rappelle le modèle quand le contenu, les consignes ou la température changent', async () => {
       const { service, generate } = setup(() => response(VALID));
 

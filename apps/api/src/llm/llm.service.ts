@@ -40,21 +40,23 @@ export class LlmService {
 
   async generateObject<T>(request: GenerateObjectRequest<T>): Promise<T> {
     const temperature = request.temperature ?? 0.3;
-    const key = this.cacheKey(request, temperature);
+    const maxOutputTokens = request.maxOutputTokens ?? 2_048;
+    const key = this.cacheKey(request, temperature, maxOutputTokens);
 
     const cached = this.cache.get(key);
     if (cached && cached.expiresAt > Date.now()) {
-      return cached.value as T;
+      // Copie : l'appelant peut modifier l'objet (y ajouter des coordonnées) sans fausser les réponses suivantes.
+      return structuredClone(cached.value) as T;
     }
     // Deux demandes identiques en même temps : un seul appel (les quotas gratuits sont serrés).
     const pending = this.inFlight.get(key);
     if (pending) {
-      return pending as Promise<T>;
+      return (pending as Promise<T>).then((value) => structuredClone(value));
     }
 
     const work = this.generateAndValidate(request, temperature)
       .then((value) => {
-        this.remember(key, value);
+        this.remember(key, structuredClone(value));
         return value;
       })
       .finally(() => this.inFlight.delete(key));
@@ -104,9 +106,21 @@ export class LlmService {
   }
 
   /** Clé de mémoire : empreinte du modèle, des consignes, du contenu et de la température. */
-  private cacheKey<T>(request: GenerateObjectRequest<T>, temperature: number): string {
+  private cacheKey<T>(
+    request: GenerateObjectRequest<T>,
+    temperature: number,
+    maxOutputTokens: number,
+  ): string {
     return createHash('sha256')
-      .update(JSON.stringify([this.env.GEMINI_MODEL, request.system, request.user, temperature]))
+      .update(
+        JSON.stringify([
+          this.env.GEMINI_MODEL,
+          request.system,
+          request.user,
+          temperature,
+          maxOutputTokens,
+        ]),
+      )
       .digest('hex');
   }
 

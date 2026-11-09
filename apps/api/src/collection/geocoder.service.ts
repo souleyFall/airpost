@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
-import { HTTP_FETCH, type HttpFetch } from '../sources/http-fetch';
+import { HTTP_FETCH, type HttpFetch } from '../http/http-fetch';
 
 const URL_BASE = 'https://data.geopf.fr/geocodage/search';
 const TIMEOUT_MS = 10_000;

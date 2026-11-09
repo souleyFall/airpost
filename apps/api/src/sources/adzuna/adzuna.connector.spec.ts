@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Env } from '../../config/env';
-import type { HttpFetch } from '../http-fetch';
+import type { HttpFetch } from '../../http/http-fetch';
 import { type SearchQuery, SourceError } from '../source.types';
 import { AdzunaConnector } from './adzuna.connector';
 

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Env } from '../config/env';
-import type { HttpFetch } from '../sources/http-fetch';
+import type { HttpFetch } from '../http/http-fetch';
 import { GeminiProvider } from './gemini.provider';
 import { LlmError, type LlmRequest } from './llm.types';
 
@@ -81,6 +81,23 @@ describe('GeminiProvider', () => {
       text: '{"a":1}',
       usage: { promptTokens: 0, outputTokens: 0 },
     });
+  });
+
+  it('ignore les parties de réflexion du modèle (thought) : seul le JSON est renvoyé', async () => {
+    const { provider } = setup(() =>
+      json({
+        candidates: [
+          {
+            finishReason: 'STOP',
+            content: {
+              parts: [{ text: 'Je réfléchis à la structure…', thought: true }, { text: '{"a":1}' }],
+            },
+          },
+        ],
+      }),
+    );
+
+    expect((await provider.generate(REQUEST)).text).toBe('{"a":1}');
   });
 
   it('refuse de s’appeler sans clé, sans réseau', async () => {

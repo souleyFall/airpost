@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { HttpFetch } from '../sources/http-fetch';
+import type { HttpFetch } from '../http/http-fetch';
 import { GeocoderService } from './geocoder.service';
 
 const json = (body: unknown, status = 200) =>
