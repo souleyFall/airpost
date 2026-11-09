@@ -11,8 +11,8 @@ Une ligne par pull request prévue. L'ordre peut évoluer ; l'état est mis à j
 | 5   | `docs(security)` : registre des risques, registre RGPD, `SECURITY.md`                            | fusionnée |
 | 6   | `chore(docker)` : image de l'API (multi-étapes, utilisateur non-root), `docker compose` complet  | fusionnée |
 | 7   | `feat(db)` : Prisma, schéma, migrations, données de démonstration                                | fusionnée |
-| 8   | `feat(auth)` : connexion mono-utilisateur (mot de passe haché, session sécurisée)                | ouverte   |
-| 9   | `feat(profile)` : profil du candidat validé par un schéma                                        | à faire   |
+| 8   | `feat(auth)` : connexion mono-utilisateur (mot de passe haché, session sécurisée)                | fusionnée |
+| 9   | `feat(profile)` : profil du candidat validé par un schéma                                        | ouverte   |
 | 10  | `feat(sources)` : connecteur La Bonne Alternance                                                 | à faire   |
 | 11  | `feat(sources)` : connecteurs La Bonne Boîte et Adzuna                                           | à faire   |
 | 12  | `feat(pipeline)` : collecte, dédoublonnage, tâche planifiée                                      | à faire   |
