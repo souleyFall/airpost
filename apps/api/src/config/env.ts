@@ -36,6 +36,11 @@ export const envSchema = z
     API_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
     DATABASE_URL: databaseUrl,
     /**
+     * Clé de l'API La Bonne Alternance. Facultative : sans elle, le connecteur est désactivé.
+     * C'est un secret : jamais journalisée ni recopiée dans une erreur.
+     */
+    LBA_API_KEY: z.preprocess(emptyToUndefined, z.string().min(1).max(512).optional()),
+    /**
      * Cookie de session marqué « Secure » (envoyé seulement en HTTPS). Absent : vrai en production, faux sinon.
      * À mettre à « false » uniquement pour un usage local en http (docker compose sur ce poste).
      */

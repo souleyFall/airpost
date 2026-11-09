@@ -75,6 +75,15 @@ En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans N
 - Vérifié : image de ~246 Mo, uid 1000, healthcheck vert, aucun fichier secret, valeur invalide jamais affichée.
 - Reste à faire : épingler l'image de base par empreinte (digest) avec Dependabot (PR n°24), et le proxy de confiance avec le déploiement (R8).
 
+## D20. Connecteur La Bonne Alternance et enregistrement des offres
+
+- **Format commun** (NormalizedOffer) pour toutes les sources, puis OffersService.saveMany : upsert par (source, externalId), le score et la candidature ne sont jamais écrasés, irstSeenAt est conservé, lastSeenAt rafraîchi, empreinte de dédoublonnage (dedupKey, partagée avec le seed) recalculée.
+- **Forme de la réponse vérifiée sur la vraie API** (13 offres pour M1805 près de Paris, 450 sans filtre) : jobs[].identifier.id, workplace (nom, marque, raison sociale souvent absents : repli sur « Entreprise non indiquée »), workplace.location.address + geopoint GeoJSON [longitude, latitude], offer (titre, description, statut, dates), pply.url. Plusieurs codes ROME : séparés par une virgule ; un paramètre répété donne 400. Clé absente ou fausse : 401.
+- **Tolérance** : le schéma Zod ne lit que ce qui sert ; une entrée illisible est comptée (skipped), jamais fatale ; les offres expirées ou non actives sont écartées.
+- **Canal** : La Bonne Alternance ne publie ni e-mail ni téléphone de recruteur, donc toutes ses offres sont en canal « site » (l'utilisateur postule lui-même). Les « recruteurs » sans offre (candidatures spontanées) sont ignorés pour l'instant.
+- **Sécurité** : clé lue dans LBA_API_KEY (facultative ; sans elle le connecteur refuse de s'appeler, sans réseau), envoyée en en-tête Authorization, jamais dans l'URL, jamais dans une erreur (testé pour 401, 429, 500 et réseau coupé). Délai maximal de 10 s. Seules les URL http(s) sont conservées (javascript: écarté). etch est injecté : tests sans réseau.
+- **Limite de débit** (60 appels/min) : respectée par le pipeline de collecte (PR n°12), qui fera peu d'appels ; pas de file d'attente dans le connecteur.
+
 ## D19. Profil du candidat
 
 - **Schéma Zod strict** (profile.schema.ts) : identité, titre, résumé, formations, expériences avec réalisations (méthode XYZ), compétences, critères de recherche (rythmes, démarrage « asap » ou date, trajet maximal, mots-clés, codes ROME, entreprises exclues). Un champ inconnu est refusé, toutes les tailles sont bornées : le profil part vers un modèle de langage, on ne laisse pas grossir sans limite ce qui y est envoyé.
