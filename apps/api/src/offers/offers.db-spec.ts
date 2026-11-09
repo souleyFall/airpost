@@ -178,6 +178,23 @@ describe('Offres et scoring (e2e, base réelle)', () => {
       },
     );
 
+    it('indique pour chaque offre si une candidature existe et à quel stade', async () => {
+      const withLetter = await seed('avec', { score: 80 });
+      await seed('sans', { score: 70 });
+      const application = await prisma.application.create({
+        data: { offerId: withLetter.id, subject: 'Objet', body: 'Texte' },
+      });
+
+      const res = await http.get('/offers').set('Cookie', cookie).expect(200);
+
+      const items = (res.body as { items: { title: string; application: unknown }[] }).items;
+      expect(items.find((i) => i.title === 'Offre avec')?.application).toEqual({
+        id: application.id,
+        status: 'TO_REVIEW',
+      });
+      expect(items.find((i) => i.title === 'Offre sans')?.application).toBeNull();
+    });
+
     it('renvoie une liste vide sans erreur', async () => {
       const res = await http.get('/offers').set('Cookie', cookie).expect(200);
 

@@ -46,6 +46,8 @@ export class OffersController {
           firstSeenAt: true,
           score: true,
           scoreDetail: true,
+          // Permet à l'interface de savoir quelles offres ont déjà une lettre, et à quel stade.
+          application: { select: { id: true, status: true } },
         },
       }),
     ]);
@@ -76,6 +78,7 @@ export class OffersController {
         lastSeenAt: true,
         score: true,
         scoreDetail: true,
+        application: { select: { id: true, status: true } },
       },
     });
     if (!offer) {

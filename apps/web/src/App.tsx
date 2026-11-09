@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './auth/AuthProvider';
 import { AppShell } from './components/AppShell';
 import { LoginPage } from './pages/LoginPage';
 import { Placeholder } from './pages/Placeholder';
+import { ReviewPage } from './pages/review/ReviewPage';
 
 /** Écrans réservés : sans session, retour à la connexion (l'API refuse de toute façon les données). */
 function RequireAuth() {
@@ -25,7 +26,7 @@ export function AppRoutes() {
     <Routes>
       <Route path="/connexion" element={<LoginPage />} />
       <Route element={<RequireAuth />}>
-        <Route index element={<Placeholder title="À valider" />} />
+        <Route index element={<ReviewPage />} />
         <Route path="suivi" element={<Placeholder title="Suivi" />} />
         <Route path="sources" element={<Placeholder title="Sources" />} />
       </Route>
