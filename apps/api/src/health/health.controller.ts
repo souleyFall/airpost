@@ -12,4 +12,9 @@ export class HealthController {
   check() {
     return this.health.status();
   }
+
+  @Get('/ping')
+  pong(){
+    return "pong";
+  }
 }
