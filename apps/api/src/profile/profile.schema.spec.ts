@@ -71,6 +71,22 @@ describe('profileSchema', () => {
     expect(profileSchema.safeParse(mutate(exampleProfile())).success).toBe(false);
   });
 
+  it('refuse une fin antérieure au début, accepte une même date', () => {
+    const experience = exampleProfile();
+    experience.experiences[0].startDate = '2025-09';
+    experience.experiences[0].endDate = '2025-04';
+    expect(profileSchema.safeParse(experience).success).toBe(false);
+    experience.experiences[0].endDate = '2025-09';
+    expect(profileSchema.safeParse(experience).success).toBe(true);
+
+    const education = exampleProfile();
+    education.education[0].startYear = 2025;
+    education.education[0].endYear = 2024;
+    expect(profileSchema.safeParse(education).success).toBe(false);
+    education.education[0].endYear = 2027;
+    expect(profileSchema.safeParse(education).success).toBe(true);
+  });
+
   it('borne la taille des textes et des listes (le profil part vers un modèle de langage)', () => {
     const tooLong = exampleProfile();
     tooLong.summary = 'x'.repeat(1001);

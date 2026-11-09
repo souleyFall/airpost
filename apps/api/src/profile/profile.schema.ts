@@ -31,26 +31,37 @@ const identity = z.strictObject({
     .optional(),
 });
 
-const education = z.strictObject({
-  school: text(120),
-  degree: text(160),
-  startYear: z.number().int().min(1980).max(2100),
-  // Absente : formation en cours.
-  endYear: z.number().int().min(1980).max(2100).optional(),
-});
+const education = z
+  .strictObject({
+    school: text(120),
+    degree: text(160),
+    startYear: z.number().int().min(1980).max(2100),
+    // Absente : formation en cours.
+    endYear: z.number().int().min(1980).max(2100).optional(),
+  })
+  .refine((e) => e.endYear === undefined || e.endYear >= e.startYear, {
+    message: 'la fin précède le début',
+    path: ['endYear'],
+  });
 
-const experience = z.strictObject({
-  company: text(120),
-  role: text(120),
-  startDate: yearMonth,
-  // Absente : poste en cours.
-  endDate: yearMonth.optional(),
-  /**
-   * Réalisations chiffrées si possible (méthode XYZ : « j'ai fait X, mesuré par Y, en faisant Z »).
-   * La génération des lettres ne doit citer que ce qui figure ici : rien d'inventé.
-   */
-  achievements: z.array(text(300)).max(10),
-});
+const experience = z
+  .strictObject({
+    company: text(120),
+    role: text(120),
+    startDate: yearMonth,
+    // Absente : poste en cours.
+    endDate: yearMonth.optional(),
+    /**
+     * Réalisations chiffrées si possible (méthode XYZ : « j'ai fait X, mesuré par Y, en faisant Z »).
+     * La génération des lettres ne doit citer que ce qui figure ici : rien d'inventé.
+     */
+    achievements: z.array(text(300)).max(10),
+  })
+  // AAAA-MM se compare correctement comme du texte.
+  .refine((e) => e.endDate === undefined || e.endDate >= e.startDate, {
+    message: 'la fin précède le début',
+    path: ['endDate'],
+  });
 
 const skills = z.strictObject({
   languages: shortList(40),
