@@ -7,18 +7,52 @@ import { AppModule } from '../app.module';
 import { configureApp } from '../app.setup';
 import { PasswordService } from '../auth/password.service';
 import { parseEnv } from '../config/env';
+import { LlmError, LlmProvider, type LlmRequest, type LlmResponse } from '../llm/llm.types';
+import { MatchService } from '../matching/match.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { exampleProfile } from '../profile/profile.fixture';
-import { ScoringService } from '../scoring/scoring.service';
 
-describe('Offres et scoring (e2e, base réelle)', () => {
+/** Faux modèle : rejoue des réponses préparées (ou une erreur) et garde les requêtes pour les inspecter. */
+class FakeModel extends LlmProvider {
+  queue: (object | LlmError)[] = [];
+  requests: LlmRequest[] = [];
+  generate(request: LlmRequest): Promise<LlmResponse> {
+    this.requests.push(request);
+    const next = this.queue.shift();
+    if (!next) return Promise.reject(new LlmError('unavailable', 'File vide'));
+    if (next instanceof LlmError) return Promise.reject(next);
+    return Promise.resolve({
+      text: JSON.stringify(next),
+      usage: { promptTokens: 1, outputTokens: 1 },
+    });
+  }
+}
+
+const result = (n: number, score: number, extra: Record<string, unknown> = {}) => ({
+  n,
+  score,
+  summary: 'Résumé.',
+  disqualifier: null,
+  strengths: ['Point fort'],
+  gaps: ['Manque'],
+  brief: {
+    company: 'Éditeur de logiciels.',
+    stack: ['React', 'NestJS'],
+    wantedProfile: 'Étudiant en Master.',
+    rhythm: null,
+  },
+  ...extra,
+});
+
+describe('Offres et analyse IA (e2e, base réelle)', () => {
   const PASSWORD = 'un-mot-de-passe-solide-1234';
-  const HOME = { latitude: 48.860162, longitude: 2.381844 };
+  const model = new FakeModel();
 
   let app: INestApplication;
   let prisma: PrismaService;
   let http: ReturnType<typeof request>;
   let cookie: string;
+  let csrf: string;
 
   const seed = (id: string, extra: Record<string, unknown> = {}) =>
     prisma.offer.create({
@@ -34,8 +68,17 @@ describe('Offres et scoring (e2e, base réelle)', () => {
       },
     });
 
+  const get = (query: string) => http.get(`/offers${query}`).set('Cookie', cookie).expect(200);
+  const titles = (res: { body: unknown }) =>
+    (res.body as { items: { title: string }[] }).items.map((i) => i.title);
+
   beforeEach(async () => {
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    model.queue = [];
+    model.requests = [];
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(LlmProvider)
+      .useValue(model)
+      .compile();
     app = moduleRef.createNestApplication();
     configureApp(app, parseEnv());
     await app.init();
@@ -51,69 +94,146 @@ describe('Offres et scoring (e2e, base réelle)', () => {
       .send({ login: 'alice', password: PASSWORD })
       .expect(200);
     cookie = ((res.headers['set-cookie'] as unknown as string[])[0] ?? '').split(';')[0] ?? '';
+    csrf = (res.body as { csrfToken: string }).csrfToken;
   });
 
   afterEach(async () => {
     await app.close();
   });
 
-  describe('ScoringService', () => {
-    it('note toutes les offres et enregistre le détail par critère', async () => {
-      const now = new Date();
-      await seed('bonne', {
-        title: 'Alternance TypeScript React',
-        description: 'Node.js et Docker. 2 jours / 3 jours',
-        publishedAt: now,
-        latitude: 48.87,
-        longitude: 2.4,
-        applyUrl: 'https://exemple.test/a',
-      });
-      await seed('faible', {
-        title: 'Comptable',
-        publishedAt: new Date(now.getTime() - 90 * 86_400_000),
+  describe('MatchService', () => {
+    it('analyse les offres sans note : score, verdict, brief, empreinte du profil', async () => {
+      await seed('a', { title: 'Alternance React', distanceKm: 4.2 });
+      model.queue.push({
+        results: [result(1, 82, { strengths: ['React demandé, présent dans ton profil'] })],
       });
 
-      const count = await app.get(ScoringService).rescoreAll(exampleProfile(), HOME, now);
+      const report = await app.get(MatchService).analyzePending(exampleProfile());
 
-      expect(count).toBe(2);
-      const good = await prisma.offer.findFirstOrThrow({ where: { externalId: 'bonne' } });
-      const weak = await prisma.offer.findFirstOrThrow({ where: { externalId: 'faible' } });
-      expect(good.score).toBeGreaterThan(weak.score ?? 0);
-      expect(good.scoreDetail).toMatchObject({
-        total: good.score,
-        stack: 25,
-        rhythm: 15,
-        detectedRhythm: '2J_3J',
+      expect(report).toEqual({ analyzed: 1, remaining: 0 });
+      const row = await prisma.offer.findFirstOrThrow();
+      expect(row.score).toBe(82);
+      expect(row.analyzedAt).not.toBeNull();
+      expect(row.profileHash).toMatch(/^[0-9a-f]{32}$/);
+      expect(row.analysis).toMatchObject({
+        verdict: 'excellent',
+        strengths: ['React demandé, présent dans ton profil'],
+        brief: { stack: ['React', 'NestJS'] },
       });
+      // Les faits calculés par le système sont dans le prompt ; l'identité du candidat n'y est pas.
+      const prompt = model.requests[0]?.user ?? '';
+      expect(prompt).toContain('4.2 km');
+      expect(prompt).not.toContain('Montigny');
     });
 
-    it('recalcule : la fraîcheur baisse avec le temps', async () => {
-      const published = new Date('2026-11-01T00:00:00Z');
-      await seed('a', { publishedAt: published });
-      const scoring = app.get(ScoringService);
+    it('n’analyse pas deux fois avec le même profil, mais refait l’analyse si le profil change', async () => {
+      await seed('a');
+      model.queue.push({ results: [result(1, 70)] }, { results: [result(1, 40)] });
+      const matching = app.get(MatchService);
 
-      await scoring.rescoreAll(exampleProfile(), HOME, new Date('2026-11-02T00:00:00Z'));
-      const early = (await prisma.offer.findFirstOrThrow()).score ?? 0;
-      await scoring.rescoreAll(exampleProfile(), HOME, new Date('2027-01-01T00:00:00Z'));
-      const late = (await prisma.offer.findFirstOrThrow()).score ?? 0;
+      await matching.analyzePending(exampleProfile());
+      expect((await matching.analyzePending(exampleProfile())).analyzed).toBe(0);
+      expect(model.requests).toHaveLength(1);
 
-      expect(late).toBeLessThan(early);
+      const changed = exampleProfile();
+      changed.search.keywords = [...changed.search.keywords, 'Rust'];
+      expect((await matching.analyzePending(changed)).analyzed).toBe(1);
+      expect((await prisma.offer.findFirstOrThrow()).score).toBe(40);
     });
 
-    it('traite un grand nombre d’offres par lots', async () => {
-      await prisma.offer.createMany({
-        data: Array.from({ length: 450 }, (_, i) => ({
-          source: 'LBA' as const,
-          externalId: `lot-${i}`,
-          dedupKey: `lot-${i}`,
-          title: 'Offre',
-          company: 'X',
-          channel: 'SITE' as const,
-        })),
+    it('plafonne le score d’une offre écartée, quoi qu’écrive le modèle', async () => {
+      await seed('compta');
+      model.queue.push({
+        results: [result(1, 90, { disqualifier: 'Poste de comptabilité, pas de développement' })],
       });
 
-      expect(await app.get(ScoringService).rescoreAll(exampleProfile(), HOME)).toBe(450);
-      expect(await prisma.offer.count({ where: { score: null } })).toBe(0);
+      await app.get(MatchService).analyzePending(exampleProfile());
+
+      const row = await prisma.offer.findFirstOrThrow();
+      expect(row.score).toBe(35);
+      expect(row.analysis).toMatchObject({ verdict: 'off_target' });
+    });
+
+    it('regroupe les offres par lots et respecte le plafond par collecte', async () => {
+      for (let i = 0; i < 6; i++) await seed(`lot-${i}`);
+      model.queue.push({ results: [1, 2, 3, 4].map((n) => result(n, 60)) });
+      model.queue.push({ results: [1, 2].map((n) => result(n, 60)) });
+
+      const capped = await app.get(MatchService).analyzePending(exampleProfile(), 4);
+      expect(capped).toEqual({ analyzed: 4, remaining: 2 });
+      expect(model.requests).toHaveLength(1);
+    });
+
+    it('un quota atteint arrête la boucle sans perdre les offres déjà analysées', async () => {
+      for (let i = 0; i < 6; i++) await seed(`q-${i}`);
+      model.queue.push(
+        { results: [1, 2, 3, 4].map((n) => result(n, 60)) },
+        new LlmError('rate_limited', 'Quota'),
+      );
+
+      const report = await app.get(MatchService).analyzePending(exampleProfile());
+
+      expect(report).toEqual({ analyzed: 4, remaining: 2 });
+    });
+
+    it('ignore une entrée dont le numéro est hors plage ou répété (l’offre sera retentée)', async () => {
+      await seed('a');
+      await seed('b');
+      model.queue.push({ results: [result(1, 70), result(1, 20), result(3, 90)] });
+
+      const report = await app.get(MatchService).analyzePending(exampleProfile());
+
+      expect(report).toEqual({ analyzed: 1, remaining: 1 });
+    });
+  });
+
+  describe('POST /offers/:id/analyze', () => {
+    const analyze = (id: string, query = '') =>
+      http.post(`/offers/${id}/analyze${query}`).set('Cookie', cookie).set('X-CSRF-Token', csrf);
+
+    async function withProfile() {
+      await http
+        .put('/profile')
+        .set('Cookie', cookie)
+        .set('X-CSRF-Token', csrf)
+        .send(exampleProfile())
+        .expect(200);
+    }
+
+    it('exige une connexion et le jeton CSRF', async () => {
+      const offer = await seed('a');
+      await http.post(`/offers/${offer.id}/analyze`).expect(401);
+      await http.post(`/offers/${offer.id}/analyze`).set('Cookie', cookie).expect(403);
+    });
+
+    it('refuse (400) sans profil', async () => {
+      const offer = await seed('a');
+      await analyze(offer.id).expect(400);
+      expect(model.requests).toHaveLength(0);
+    });
+
+    it('analyse l’offre ouverte et renvoie le détail à jour ; sans nouvel appel si déjà à jour', async () => {
+      await withProfile();
+      const offer = await seed('a');
+      model.queue.push({ results: [result(1, 77)] });
+
+      const first = await analyze(offer.id).expect(200);
+      expect(first.body).toMatchObject({ score: 77, analysis: { verdict: 'excellent' } });
+      await analyze(offer.id).expect(200);
+      expect(model.requests).toHaveLength(1);
+
+      model.queue.push({ results: [result(1, 50)] });
+      const forced = await analyze(offer.id, '?force=true').expect(200);
+      expect(forced.body).toMatchObject({ score: 50 });
+      expect(model.requests).toHaveLength(2);
+    });
+
+    it('traduit un quota atteint en 429 et une offre inconnue en 404', async () => {
+      await withProfile();
+      const offer = await seed('a');
+      model.queue.push(new LlmError('rate_limited', 'Quota'));
+      await analyze(offer.id).expect(429);
+      await analyze('00000000-0000-4000-8000-000000000000').expect(404);
     });
   });
 
@@ -129,54 +249,138 @@ describe('Offres et scoring (e2e, base réelle)', () => {
       await seed('sans-score');
       await seed('bas', { score: 10 });
 
-      const res = await http.get('/offers').set('Cookie', cookie).expect(200);
+      const res = await get('');
 
-      const body = res.body as { total: number; items: { externalId?: string; title: string }[] };
-      expect(body.total).toBe(4);
-      expect(body.items.map((i) => i.title)).toEqual([
-        'Offre haut',
-        'Offre moyen',
-        'Offre bas',
-        'Offre sans-score',
-      ]);
+      expect((res.body as { total: number }).total).toBe(4);
+      expect(titles(res)).toEqual(['Offre haut', 'Offre moyen', 'Offre bas', 'Offre sans-score']);
       expect(JSON.stringify(res.body)).not.toContain('confidentielle');
     });
 
-    it('pagine de façon stable quand score et date sont identiques', async () => {
+    it('pagine : page, taille, total, et sans doublon ni trou quand score et date sont identiques', async () => {
       const same = new Date();
-      for (let i = 0; i < 6; i++) await seed(`eq${i}`, { score: 50, firstSeenAt: same });
+      for (let i = 0; i < 7; i++) await seed(`eq${i}`, { score: 50, firstSeenAt: same });
 
-      const titles: string[] = [];
-      for (const offset of [0, 2, 4]) {
-        const res = await http
-          .get(`/offers?limit=2&offset=${offset}`)
-          .set('Cookie', cookie)
-          .expect(200);
-        titles.push(...(res.body as { items: { title: string }[] }).items.map((i) => i.title));
+      const all: string[] = [];
+      for (const offset of [0, 3, 6]) {
+        const res = await get(`?limit=3&offset=${offset}`);
+        expect(res.body).toMatchObject({ total: 7, limit: 3, offset });
+        all.push(...titles(res));
       }
 
-      expect(new Set(titles).size).toBe(6);
+      expect(all).toHaveLength(7);
+      expect(new Set(all).size).toBe(7);
+      expect(titles(await get('?limit=3&offset=6'))).toHaveLength(1);
     });
 
-    it('filtre par score minimum et pagine', async () => {
+    it('filtre par score minimum', async () => {
       for (let i = 1; i <= 5; i++) await seed(`o${i}`, { score: i * 10 });
 
-      const filtered = await http.get('/offers?minScore=30').set('Cookie', cookie).expect(200);
-      expect((filtered.body as { total: number }).total).toBe(3);
+      expect((await get('?minScore=30')).body).toMatchObject({ total: 3 });
+      expect(titles(await get('?limit=2&offset=1'))).toEqual(['Offre o4', 'Offre o3']);
+    });
 
-      const page = await http.get('/offers?limit=2&offset=1').set('Cookie', cookie).expect(200);
-      expect((page.body as { items: { title: string }[] }).items.map((i) => i.title)).toEqual([
-        'Offre o4',
-        'Offre o3',
+    it('filtre par source, type de contrat et canal (valeurs multiples séparées par des virgules)', async () => {
+      await seed('lba-alt', { source: 'LBA', contractType: 'ALTERNANCE', score: 90 });
+      await seed('adz-alt', { source: 'ADZUNA', contractType: 'ALTERNANCE', score: 80 });
+      await seed('adz-cdi', { source: 'ADZUNA', contractType: 'CDI', score: 70 });
+      await seed('lbb-stage', {
+        source: 'LBB',
+        contractType: 'STAGE',
+        channel: 'EMAIL',
+        score: 60,
+      });
+
+      expect(titles(await get('?source=ADZUNA'))).toEqual(['Offre adz-alt', 'Offre adz-cdi']);
+      expect(titles(await get('?source=LBA,LBB'))).toEqual(['Offre lba-alt', 'Offre lbb-stage']);
+      expect(titles(await get('?contract=ALTERNANCE'))).toEqual(['Offre lba-alt', 'Offre adz-alt']);
+      expect(titles(await get('?contract=CDI,STAGE'))).toEqual([
+        'Offre adz-cdi',
+        'Offre lbb-stage',
+      ]);
+      expect(titles(await get('?source=ADZUNA&contract=ALTERNANCE'))).toEqual(['Offre adz-alt']);
+      expect(titles(await get('?channel=EMAIL'))).toEqual(['Offre lbb-stage']);
+    });
+
+    it('recherche dans l’intitulé, l’entreprise, la ville et la description, sans tenir compte de la casse', async () => {
+      await seed('a', { title: 'Développeur React', company: 'Alpha' });
+      await seed('b', { title: 'Autre', company: 'Beta Logiciels' });
+      await seed('c', { title: 'Autre aussi', city: 'Élancourt' });
+      await seed('d', { title: 'Encore', description: 'Stack: NestJS et Prisma' });
+
+      expect(titles(await get('?q=REACT'))).toEqual(['Développeur React']);
+      expect(titles(await get('?q=beta'))).toEqual(['Autre']);
+      expect(titles(await get('?q=%C3%A9lancourt'))).toEqual(['Autre aussi']);
+      expect(titles(await get('?q=prisma'))).toEqual(['Encore']);
+      expect((await get('?q=introuvable')).body).toMatchObject({ total: 0, items: [] });
+    });
+
+    it('traite les caractères spéciaux de la recherche comme du texte', async () => {
+      await seed('a', { title: '100% motivé_' });
+      await seed('b', { title: 'Autre' });
+
+      expect(titles(await get('?q=%25'))).toEqual(['100% motivé_']);
+      expect((await get('?q=%27%20OR%20%271%27%3D%271')).body).toMatchObject({ total: 0 });
+    });
+
+    it('trie par fraîcheur (récentes d’abord, sans date à la fin) ou par distance (inconnues à la fin)', async () => {
+      const day = 86_400_000;
+      const now = Date.now();
+      await seed('vieille', { publishedAt: new Date(now - 10 * day), distanceKm: 5 });
+      await seed('recente', { publishedAt: new Date(now - day), distanceKm: 40 });
+      await seed('sans-date', { distanceKm: null });
+
+      expect(titles(await get('?sort=fresh'))).toEqual([
+        'Offre recente',
+        'Offre vieille',
+        'Offre sans-date',
+      ]);
+      expect(titles(await get('?sort=distance'))).toEqual([
+        'Offre vieille',
+        'Offre recente',
+        'Offre sans-date',
       ]);
     });
 
-    it.each(['limit=0', 'limit=201', 'limit=abc', 'offset=-1', 'minScore=101'])(
-      'refuse le paramètre invalide « %s » (400)',
-      async (query) => {
-        await http.get(`/offers?${query}`).set('Cookie', cookie).expect(400);
-      },
-    );
+    it('filtre par distance maximale sans écarter les offres non localisées', async () => {
+      await seed('proche', { distanceKm: 8 });
+      await seed('loin', { distanceKm: 80 });
+      await seed('inconnue', { distanceKm: null });
+
+      expect(titles(await get('?maxDistanceKm=30&sort=distance'))).toEqual([
+        'Offre proche',
+        'Offre inconnue',
+      ]);
+    });
+
+    it('« pending » ne garde que les offres sans candidature ou à relire', async () => {
+      const sans = await seed('sans', { score: 90 });
+      const aRelire = await seed('relire', { score: 80 });
+      const validee = await seed('validee', { score: 70 });
+      await prisma.application.create({ data: { offerId: aRelire.id, subject: 'O', body: 'T' } });
+      await prisma.application.create({
+        data: { offerId: validee.id, subject: 'O', body: 'T', status: 'VALIDATED' },
+      });
+
+      expect(titles(await get('?pending=true'))).toEqual(['Offre sans', 'Offre relire']);
+      expect((await get('')).body).toMatchObject({ total: 3 });
+      expect(sans.id).toBeTruthy();
+    });
+
+    it.each([
+      'limit=0',
+      'limit=101',
+      'limit=abc',
+      'offset=-1',
+      'minScore=101',
+      'sort=hasard',
+      'source=INCONNUE',
+      'contract=CDI,PIRATE',
+      'channel=FAX',
+      'pending=peutetre',
+      `q=${'x'.repeat(101)}`,
+    ])('refuse le paramètre invalide « %s » (400)', async (query) => {
+      await http.get(`/offers?${query}`).set('Cookie', cookie).expect(400);
+    });
 
     it('indique pour chaque offre si une candidature existe et à quel stade', async () => {
       const withLetter = await seed('avec', { score: 80 });
@@ -185,7 +389,7 @@ describe('Offres et scoring (e2e, base réelle)', () => {
         data: { offerId: withLetter.id, subject: 'Objet', body: 'Texte' },
       });
 
-      const res = await http.get('/offers').set('Cookie', cookie).expect(200);
+      const res = await get('');
 
       const items = (res.body as { items: { title: string; application: unknown }[] }).items;
       expect(items.find((i) => i.title === 'Offre avec')?.application).toEqual({
@@ -196,15 +400,19 @@ describe('Offres et scoring (e2e, base réelle)', () => {
     });
 
     it('renvoie une liste vide sans erreur', async () => {
-      const res = await http.get('/offers').set('Cookie', cookie).expect(200);
-
-      expect(res.body).toEqual({ total: 0, items: [] });
+      expect((await get('')).body).toEqual({ total: 0, limit: 20, offset: 0, items: [] });
     });
   });
 
   describe('GET /offers/:id', () => {
-    it('renvoie le détail complet, description comprise', async () => {
-      const offer = await seed('une', { score: 70, scoreDetail: { total: 70 } });
+    it('renvoie le détail complet : description, analyse, contrat, distance', async () => {
+      const offer = await seed('une', {
+        score: 70,
+        contractType: 'ALTERNANCE',
+        distanceKm: 12.5,
+        analysis: { verdict: 'good', brief: { stack: ['React'] } },
+        profileHash: 'secret-interne',
+      });
 
       const res = await http.get(`/offers/${offer.id}`).set('Cookie', cookie).expect(200);
 
@@ -212,9 +420,12 @@ describe('Offres et scoring (e2e, base réelle)', () => {
         id: offer.id,
         title: 'Offre une',
         description: 'Longue description confidentielle',
-        scoreDetail: { total: 70 },
+        contractType: 'ALTERNANCE',
+        distanceKm: 12.5,
+        analysis: { verdict: 'good', brief: { stack: ['React'] } },
       });
       expect(res.body).not.toHaveProperty('dedupKey');
+      expect(res.body).not.toHaveProperty('profileHash');
     });
 
     it('répond 404 pour une offre inconnue et 400 pour un identifiant mal formé', async () => {

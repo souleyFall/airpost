@@ -169,7 +169,7 @@ export function SourcesPage() {
               ? `Dernière collecte à ${new Date(report.finishedAt).toLocaleTimeString('fr-FR', {
                   hour: '2-digit',
                   minute: '2-digit',
-                })} : ${totals.fetched} éléments lus, ${totals.created} nouveaux, ${report.scored} offres notées, ${report.purged} purgées.`
+                })} : ${totals.fetched} éléments lus, ${totals.created} nouveaux, ${report.analyzed} offres analysées par l’IA (${report.pendingAnalysis} en attente), ${report.purged} purgées.`
               : 'Aucune collecte depuis le démarrage. Lance-en une depuis la barre latérale.'}
           </p>
 

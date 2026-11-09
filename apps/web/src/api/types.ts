@@ -14,18 +14,25 @@ export type ApplicationStatus =
   | 'REJECTED'
   | 'WITHDRAWN';
 
-export interface ScoreDetail {
-  total: number;
-  freshness: number;
-  stack: number;
-  rhythm: number;
-  commute: number;
-  competition: number;
-  channel: number;
-  matchedTerms: string[];
-  detectedRhythm: string | null;
-  distanceKm: number | null;
-  estimatedMinutes: number | null;
+export type ContractType = 'ALTERNANCE' | 'STAGE' | 'CDI' | 'CDD' | 'AUTRE';
+
+export type Verdict = 'excellent' | 'good' | 'fair' | 'weak' | 'off_target';
+
+/** Analyse de l'offre par le modèle de langage, validée côté API. */
+export interface Analysis {
+  verdict: Verdict;
+  /** Une phrase qui justifie le score. */
+  summary: string;
+  /** Raison d'écarter l'offre (hors métier, contrat incompatible...), sinon null. */
+  disqualifier: string | null;
+  strengths: string[];
+  gaps: string[];
+  brief: {
+    company: string | null;
+    stack: string[];
+    wantedProfile: string | null;
+    rhythm: string | null;
+  };
 }
 
 export interface ApplicationRef {
@@ -41,21 +48,28 @@ export interface OfferSummary {
   city: string | null;
   postcode: string | null;
   channel: ApplyChannel;
+  contractType: ContractType;
+  /** Distance à vol d'oiseau depuis ton domicile, en km ; null si l'offre n'est pas localisée. */
+  distanceKm: number | null;
   applyUrl: string | null;
   publishedAt: string | null;
   firstSeenAt: string;
+  /** Taux de compatibilité calculé par l'IA ; null tant que l'offre n'est pas analysée. */
   score: number | null;
-  scoreDetail: ScoreDetail | null;
   application: ApplicationRef | null;
 }
 
 export interface OfferDetail extends OfferSummary {
   description: string | null;
   contactEmail: string | null;
+  analysis: Analysis | null;
+  analyzedAt: string | null;
 }
 
 export interface OfferList {
   total: number;
+  limit: number;
+  offset: number;
   items: OfferSummary[];
 }
 
@@ -78,7 +92,8 @@ export interface RunReport {
   startedAt: string;
   finishedAt: string;
   purged: number;
-  scored: number;
+  analyzed: number;
+  pendingAnalysis: number;
 }
 
 export interface ApplicationRow {
@@ -114,6 +129,7 @@ export interface SourceReport {
   fetched: number;
   skipped: number;
   excluded: number;
+  irrelevant: number;
   duplicates: number;
   created: number;
   updated: number;

@@ -19,6 +19,14 @@ enum OfferSource {
   ADZUNA
 }
 
+enum ContractType {
+  ALTERNANCE
+  STAGE
+  CDI
+  CDD
+  AUTRE
+}
+
 /// Comment la candidature part : par e-mail (brouillon Gmail) ou sur le site de l'entreprise.
 enum ApplyChannel {
   EMAIL
@@ -105,15 +113,25 @@ model Offer {
   publishedAt  DateTime?
   firstSeenAt  DateTime     @default(now())
   lastSeenAt   DateTime     @default(now())
-  /// Score sur 100 et détail par critère (fraîcheur, stack, rythme, trajet, concurrence, canal).
+  /// Type de contrat déduit de l'intitulé et de la description (aucune source ne le publie de façon fiable).
+  contractType ContractType  @default(AUTRE)
+  /// Distance à vol d'oiseau depuis le domicile du profil (km), recalculée à chaque collecte.
+  distanceKm   Float?
+  /// Taux de compatibilité sur 100, calculé par le modèle de langage (voir src/matching). Nul tant que non analysée.
   score        Int?
-  scoreDetail  Json?
+  /// Analyse du modèle : verdict, points forts et manques, brief de l'offre. Validée par un schéma Zod.
+  analysis     Json?
+  analyzedAt   DateTime?
+  /// Empreinte du profil et du prompt au moment de l'analyse : si elle change, l'analyse est refaite.
+  profileHash  String?
 
   application Application?
 
   @@unique([source, externalId])
   @@index([dedupKey])
   @@index([score])
+  @@index([source])
+  @@index([contractType])
   /// Sert à la purge des offres qui ne sont plus publiées (durée de conservation).
   @@index([lastSeenAt])
 }

@@ -112,8 +112,8 @@ export function AppShell() {
   const context = useMemo<ShellContext>(() => ({ version, setCount }), [version, setCount]);
 
   return (
-    <div className="flex min-h-screen flex-wrap items-stretch">
-      <aside className="flex flex-[1_1_100%] flex-col gap-6 border-b border-line bg-sidebar px-3 py-5 md:max-w-[232px] md:flex-[0_0_232px] md:border-r md:border-b-0">
+    <div className="flex min-h-screen flex-wrap items-stretch md:h-screen md:overflow-hidden">
+      <aside className="flex flex-[1_1_100%] flex-col gap-6 border-b border-line bg-sidebar px-3 py-5 md:max-w-[232px] md:flex-[0_0_232px] md:overflow-y-auto md:border-r md:border-b-0">
         <div className="flex items-center gap-2.5 px-2.5">
           <Logo />
           <span className="text-lg font-semibold tracking-tight">airpost</span>
@@ -160,7 +160,7 @@ export function AppShell() {
           </button>
         </div>
       </aside>
-      <main className="min-w-0 flex-[999_1_560px]">
+      <main className="min-w-0 flex-[999_1_560px] md:h-screen md:overflow-y-auto">
         <Outlet context={context} />
       </main>
     </div>

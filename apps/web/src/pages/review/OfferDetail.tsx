@@ -1,18 +1,21 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, api } from '../../api/client';
 import type {
   ApplicationDetail,
   LetterResult,
   OfferDetail as OfferDetailData,
-  ScoreDetail,
 } from '../../api/types';
 import {
+  CONTRACT_LABEL,
   MAX_WORDS,
   MIN_WORDS,
   SOURCE_LABEL,
+  VERDICT_LABEL,
   ageLabel,
+  distanceLabel,
   hasPlaceholder,
   place,
+  scoreTone,
   wordCount,
 } from '../../lib/format';
 
@@ -20,6 +23,33 @@ interface Props {
   offerId: string;
   /** Appelé après toute action : `done` = la candidature quitte l'écran « À valider ». */
   onChanged: (done: boolean) => void;
+  /** Appelé quand l'IA vient de noter l'offre : la liste met son badge à jour sans se recharger. */
+  onAnalyzed?: (offerId: string, score: number | null) => void;
+}
+
+function analysisErrorText(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 429) return 'Quota du modèle atteint : réessaie dans quelques minutes.';
+    if (error.status === 503)
+      return 'Analyse indisponible : la clé Gemini est à vérifier (page Sources).';
+    if (error.status === 400) return error.message;
+  }
+  return 'L’analyse a échoué.';
+}
+
+const TONE_CLASS = {
+  high: 'border-ink bg-ink text-paper',
+  mid: 'border-ink bg-transparent text-ink',
+  low: 'border-line-strong bg-transparent text-muted',
+} as const;
+
+function Brief({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <dt className="text-xs font-medium text-muted">{label}</dt>
+      <dd className="m-0">{children}</dd>
+    </div>
+  );
 }
 
 function errorText(error: unknown): string {
@@ -32,51 +62,17 @@ function errorText(error: unknown): string {
   return 'Action impossible pour le moment.';
 }
 
-const CRITERIA: {
-  key: keyof Pick<
-    ScoreDetail,
-    'freshness' | 'stack' | 'rhythm' | 'commute' | 'competition' | 'channel'
-  >;
-  label: string;
-  max: number;
-  note: (detail: ScoreDetail, offer: OfferDetailData) => string;
-}[] = [
-  {
-    key: 'freshness',
-    label: 'Fraîcheur',
-    max: 25,
-    note: (_d, offer) => ageLabel(offer.publishedAt ?? offer.firstSeenAt),
-  },
-  {
-    key: 'stack',
-    label: 'Stack',
-    max: 25,
-    note: (d) =>
-      d.matchedTerms.length > 0 ? d.matchedTerms.slice(0, 3).join(', ') : 'aucune trouvée',
-  },
-  {
-    key: 'rhythm',
-    label: 'Rythme',
-    max: 15,
-    note: (d) => d.detectedRhythm?.replace('_', ' / ') ?? 'non précisé',
-  },
-  {
-    key: 'commute',
-    label: 'Trajet',
-    max: 15,
-    note: (d) => (d.estimatedMinutes === null ? 'inconnu' : `≈ ${d.estimatedMinutes} min`),
-  },
-  { key: 'competition', label: 'Concurrence', max: 10, note: () => 'estimée' },
-  {
-    key: 'channel',
-    label: 'Canal',
-    max: 10,
-    note: (_d, offer) => (offer.channel === 'EMAIL' ? 'e-mail direct' : 'site de l’entreprise'),
-  },
-];
-
-export function OfferDetail({ offerId, onChanged }: Props) {
+export function OfferDetail({ offerId, onChanged, onAnalyzed }: Props) {
   const [offer, setOffer] = useState<OfferDetailData | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const [application, setApplication] = useState<ApplicationDetail | null>(null);
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
@@ -92,6 +88,38 @@ export function OfferDetail({ offerId, onChanged }: Props) {
     setBody(data.body ?? '');
     setSaved(true);
   }, []);
+
+  /** Demande l'analyse à l'IA (ou la refait si `force`) et met l'offre à jour. */
+  const analyze = useCallback(
+    async (force: boolean) => {
+      setAnalyzing(true);
+      setAnalysisError(null);
+      try {
+        const fresh = await api<OfferDetailData>(
+          'POST',
+          `/offers/${offerId}/analyze${force ? '?force=true' : ''}`,
+        );
+        if (!mounted.current) return;
+        setOffer((current) => (current ? { ...current, ...fresh } : current));
+        onAnalyzed?.(offerId, fresh.score);
+      } catch (error) {
+        if (mounted.current) setAnalysisError(analysisErrorText(error));
+      } finally {
+        if (mounted.current) setAnalyzing(false);
+      }
+    },
+    [offerId, onAnalyzed],
+  );
+
+  // Une offre jamais analysée l'est dès qu'on l'ouvre (une seule fois par offre ouverte).
+  const needsAnalysis = offer !== null && offer.analysis === null;
+  const autoAnalyzed = useRef(false);
+  useEffect(() => {
+    if (needsAnalysis && !autoAnalyzed.current) {
+      autoAnalyzed.current = true;
+      void analyze(false);
+    }
+  }, [needsAnalysis, analyze]);
 
   useEffect(() => {
     let cancelled = false;
@@ -185,7 +213,13 @@ export function OfferDetail({ offerId, onChanged }: Props) {
   const wordsOk = words >= MIN_WORDS && words <= MAX_WORDS;
   const placeholder = hasPlaceholder(body) || hasPlaceholder(subject);
   const canValidate = application !== null && wordsOk && !placeholder && subject.trim() !== '';
-  const detail = offer.scoreDetail;
+  const analysis = offer.analysis;
+  const meta = [
+    offer.company,
+    place(offer.city, offer.postcode),
+    distanceLabel(offer.distanceKm),
+    CONTRACT_LABEL[offer.contractType],
+  ].filter(Boolean);
 
   return (
     <section aria-label="Détail de l’offre" className="flex min-h-full flex-col">
@@ -195,8 +229,8 @@ export function OfferDetail({ offerId, onChanged }: Props) {
             {offer.title}
           </h2>
           <p className="mt-1.5 mb-0 text-muted">
-            {offer.company} · {place(offer.city, offer.postcode)} ·{' '}
-            {ageLabel(offer.publishedAt ?? offer.firstSeenAt)} · {SOURCE_LABEL[offer.source]}
+            {meta.join(' · ')} · {ageLabel(offer.publishedAt ?? offer.firstSeenAt)} ·{' '}
+            {SOURCE_LABEL[offer.source]}
             {offer.applyUrl ? (
               <>
                 {' · '}
@@ -208,26 +242,129 @@ export function OfferDetail({ offerId, onChanged }: Props) {
           </p>
         </header>
 
-        {detail ? (
-          <div className="rounded-md border border-line bg-surface">
-            <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-4 py-3">
-              <span className="text-base font-semibold">Score {offer.score} / 100</span>
-            </div>
-            <dl className="m-0 grid grid-cols-[repeat(auto-fit,minmax(104px,1fr))]">
-              {CRITERIA.map((criterion, index) => (
-                <div
-                  key={criterion.key}
-                  className={`px-4 py-2.5 ${index > 0 ? 'border-l border-line' : ''}`}
+        <section aria-label="Brief de l’offre" className="rounded-md border border-line bg-surface">
+          {analysis ? (
+            <>
+              <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3">
+                <span
+                  className={`inline-flex h-9 min-w-12 items-center justify-center rounded-md border px-2 text-base font-semibold ${TONE_CLASS[scoreTone(offer.score)]}`}
                 >
-                  <dt className="text-xs text-muted">{criterion.label}</dt>
-                  <dd className="m-0 font-semibold">
-                    {detail[criterion.key]}/{criterion.max}
-                  </dd>
-                  <dd className="m-0 text-xs text-muted">{criterion.note(detail, offer)}</dd>
+                  {offer.score}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="m-0 font-semibold">
+                    Compatibilité {offer.score} / 100 · {VERDICT_LABEL[analysis.verdict]}
+                  </p>
+                  <p className="m-0 text-[13px] text-muted">{analysis.summary}</p>
                 </div>
-              ))}
-            </dl>
-          </div>
+                <button
+                  type="button"
+                  className="btn btn-quiet !h-8 !text-[13px]"
+                  onClick={() => void analyze(true)}
+                  disabled={analyzing}
+                >
+                  {analyzing ? 'Analyse…' : 'Réanalyser'}
+                </button>
+              </div>
+
+              {analysis.disqualifier ? (
+                <p
+                  role="note"
+                  className="m-0 border-b border-warn-line bg-warn-bg px-4 py-2.5 text-warn-ink"
+                >
+                  <strong>Offre écartée :</strong> {analysis.disqualifier}
+                </p>
+              ) : null}
+
+              <dl className="m-0 grid gap-x-6 gap-y-3 px-4 py-3 sm:grid-cols-2">
+                <Brief label="L’entreprise">
+                  {analysis.brief.company ?? (
+                    <span className="text-muted">Non précisé dans l’offre.</span>
+                  )}
+                </Brief>
+                <Brief label="Profil recherché">
+                  {analysis.brief.wantedProfile ?? (
+                    <span className="text-muted">Non précisé dans l’offre.</span>
+                  )}
+                </Brief>
+                <Brief label="Stack demandée">
+                  {analysis.brief.stack.length > 0 ? (
+                    <ul className="m-0 flex list-none flex-wrap gap-1.5 p-0">
+                      {analysis.brief.stack.map((tech) => (
+                        <li
+                          key={tech}
+                          className="rounded border border-line-strong px-2 py-0.5 text-[13px]"
+                        >
+                          {tech}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <span className="text-muted">Non précisée dans l’offre.</span>
+                  )}
+                </Brief>
+                <Brief label="Rythme">
+                  {analysis.brief.rhythm ?? <span className="text-muted">Non précisé.</span>}
+                </Brief>
+              </dl>
+
+              {analysis.strengths.length > 0 || analysis.gaps.length > 0 ? (
+                <div className="grid gap-x-6 gap-y-3 border-t border-line px-4 py-3 sm:grid-cols-2">
+                  <div>
+                    <h3 className="m-0 mb-1 text-xs font-medium text-muted">Points forts</h3>
+                    <ul className="m-0 pl-[18px]">
+                      {analysis.strengths.map((point) => (
+                        <li key={point}>{point}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <h3 className="m-0 mb-1 text-xs font-medium text-muted">À vérifier</h3>
+                    <ul className="m-0 pl-[18px]">
+                      {analysis.gaps.map((point) => (
+                        <li key={point}>{point}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+              {analyzing ? (
+                <p role="status" className="m-0 text-muted">
+                  Analyse de l’offre par l’IA en cours…
+                </p>
+              ) : (
+                <p className="m-0 text-muted">Cette offre n’a pas encore été analysée.</p>
+              )}
+              {!analyzing ? (
+                <button
+                  type="button"
+                  className="btn btn-quiet !h-8 !text-[13px]"
+                  onClick={() => void analyze(false)}
+                >
+                  Analyser
+                </button>
+              ) : null}
+            </div>
+          )}
+          {analysisError ? (
+            <p role="alert" className="m-0 border-t border-line px-4 py-2.5 text-danger">
+              {analysisError}
+            </p>
+          ) : null}
+        </section>
+
+        {offer.description ? (
+          <details className="rounded-md border border-line bg-surface">
+            <summary className="cursor-pointer px-4 py-2.5 text-[13px] font-semibold">
+              Texte de l’annonce
+            </summary>
+            <p className="m-0 max-h-80 overflow-y-auto px-4 pb-3 text-[13px] leading-relaxed whitespace-pre-line text-muted">
+              {offer.description}
+            </p>
+          </details>
         ) : null}
 
         {application === null ? (
@@ -347,7 +484,7 @@ export function OfferDetail({ offerId, onChanged }: Props) {
       </div>
 
       {application !== null ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line bg-paper px-8 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 sticky bottom-0 border-t border-line bg-paper px-8 py-4">
           <p className="m-0 max-w-[360px] text-[13px] text-muted">
             Rien n’est envoyé : l’envoi reste manuel.
             {!canValidate && !placeholder && !wordsOk ? ' Longueur du texte hors cible.' : ''}

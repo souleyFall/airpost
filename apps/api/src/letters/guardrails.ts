@@ -1,6 +1,17 @@
-import { fold, profileTerms } from '../scoring/scoring';
+import { fold } from '../sources/relevance';
 import type { Profile } from '../profile/profile.schema';
 import { redactPersonalData } from '../llm/redact';
+
+/** Termes techniques du profil : mots-clés de recherche et compétences, sans doublon. */
+export function profileTerms(profile: Profile): string[] {
+  const all = [
+    ...profile.search.keywords,
+    ...profile.skills.languages,
+    ...profile.skills.frameworks,
+    ...profile.skills.tools,
+  ];
+  return [...new Map(all.map((term) => [fold(term.trim()), term.trim()])).values()].filter(Boolean);
+}
 
 /**
  * Garde-fous appliqués à CHAQUE lettre générée, avant qu'un humain ne la voie. Un modèle de langage invente

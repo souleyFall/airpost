@@ -44,3 +44,7 @@
 - PR 28 : audit final (registre sans risque prevu, images figees par empreinte, sauvegarde, README).
 
 - PR 29 : ecran Profil. Profil de Souleymane renseigne via l'API depuis ses informations connues (sans e-mail de signature ni date de naissance).
+
+## 2026-11-09 : compatibilité par IA, filtres, pagination
+
+- PR 33 : fin de la grille de score. Gemini calcule la compatibilité et le brief de chaque offre ; filtre de pertinence à la collecte ; liste filtrable, triable, paginée ; liste et détail à défilement indépendant. Voir D29 et les risques R38 à R40. Après fusion : reconstruire l'API et l'interface (docker compose up -d --build), puis lancer une collecte : les offres sont analysées par lots de 4, 40 au plus par collecte.

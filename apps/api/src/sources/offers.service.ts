@@ -2,7 +2,12 @@ import { Injectable } from '@nestjs/common';
 import type { OfferSource } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { dedupKey } from './dedup';
+import { type Position, roundedDistance } from './geo';
+import { detectContractType } from './relevance';
 import type { NormalizedOffer } from './source.types';
+
+/** Mises à jour envoyées par lots : une transaction de plusieurs centaines d'écritures reste raisonnable. */
+const BATCH_SIZE = 200;
 
 export interface SaveResult {
   created: number;
@@ -46,6 +51,30 @@ export class OffersService {
     return count;
   }
 
+  /** Recalcule la distance à vol d'oiseau de chaque offre localisée (le domicile peut changer avec le profil). */
+  async refreshDistances(home: Position): Promise<number> {
+    const offers = await this.prisma.offer.findMany({
+      select: { id: true, latitude: true, longitude: true, distanceKm: true },
+    });
+    const changed = offers
+      .map((o) => ({
+        id: o.id,
+        previous: o.distanceKm,
+        km: roundedDistance(home, o.latitude, o.longitude),
+      }))
+      .filter((o) => o.km !== o.previous);
+    for (let i = 0; i < changed.length; i += BATCH_SIZE) {
+      await this.prisma.$transaction(
+        changed
+          .slice(i, i + BATCH_SIZE)
+          .map((o) =>
+            this.prisma.offer.update({ where: { id: o.id }, data: { distanceKm: o.km } }),
+          ),
+      );
+    }
+    return changed.length;
+  }
+
   /**
    * Enregistre des offres. Une offre déjà connue (même source, même identifiant) est mise à jour et sa date
    * de dernière apparition rafraîchie ; le score et la candidature associée ne sont jamais touchés.
@@ -78,6 +107,7 @@ export class OffersService {
           applyUrl: o.applyUrl ?? null,
           contactEmail: o.contactEmail ?? null,
           channel: o.channel,
+          contractType: detectContractType(o.title, o.description),
           publishedAt: o.publishedAt ?? null,
           lastSeenAt: now,
         };

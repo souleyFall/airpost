@@ -46,9 +46,31 @@ export const SOURCE_LABEL = {
   ADZUNA: 'Jobs by Adzuna',
 } as const;
 
-/** Classe de couleur du badge de score, comme dans la maquette (≥85 plein, ≥70 contour, sinon discret). */
+/** Classe de couleur du badge de compatibilité (≥75 plein, ≥55 contour, sinon discret) : mêmes seuils que le verdict de l'API. */
 export function scoreTone(score: number | null): 'high' | 'mid' | 'low' {
-  if (score !== null && score >= 85) return 'high';
-  if (score !== null && score >= 70) return 'mid';
+  if (score !== null && score >= 75) return 'high';
+  if (score !== null && score >= 55) return 'mid';
   return 'low';
+}
+
+export const CONTRACT_LABEL = {
+  ALTERNANCE: 'Alternance',
+  STAGE: 'Stage',
+  CDI: 'CDI',
+  CDD: 'CDD',
+  AUTRE: 'Contrat non précisé',
+} as const;
+
+export const VERDICT_LABEL = {
+  excellent: 'Excellente piste',
+  good: 'Bonne piste',
+  fair: 'Piste possible',
+  weak: 'Peu adaptée',
+  off_target: 'Hors cible',
+} as const;
+
+/** « 12 km » ou « < 1 km » ; chaîne vide si l'offre n'est pas localisée. */
+export function distanceLabel(km: number | null): string {
+  if (km === null) return '';
+  return km < 1 ? '< 1 km' : `${Math.round(km)} km`;
 }

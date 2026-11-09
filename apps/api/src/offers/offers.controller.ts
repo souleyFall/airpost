@@ -1,36 +1,109 @@
-import { Controller, Get, NotFoundException, Param, ParseUUIDPipe, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  HttpCode,
+  NotFoundException,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
+import type { AuthenticatedRequest } from '../auth/auth.guard';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
+import type { Prisma } from '../generated/prisma/client';
+import { MatchService } from '../matching/match.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ProfileService } from '../profile/profile.service';
+
+const SOURCES = ['LBA', 'LBB', 'ADZUNA'] as const;
+const CONTRACTS = ['ALTERNANCE', 'STAGE', 'CDI', 'CDD', 'AUTRE'] as const;
+
+/** « A,B » → ['A', 'B'] ; vide ou absent → []. Les valeurs inconnues sont refusées par l'énumération. */
+const csv = <T extends readonly [string, ...string[]]>(values: T) =>
+  z
+    .string()
+    .max(100)
+    .optional()
+    .transform((value) => (value ? value.split(',').filter(Boolean) : []))
+    .pipe(z.array(z.enum(values)).max(values.length));
 
 const listQuery = z.object({
-  limit: z.coerce.number().int().min(1).max(200).default(50),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).max(100_000).default(0),
   minScore: z.coerce.number().int().min(0).max(100).default(0),
+  maxDistanceKm: z.coerce.number().min(0).max(1000).optional(),
+  /** Recherche libre dans l'intitulé, l'entreprise, la ville et la description. */
+  q: z.string().trim().max(100).optional(),
+  source: csv(SOURCES),
+  contract: csv(CONTRACTS),
+  channel: z.enum(['EMAIL', 'SITE']).optional(),
+  /** Vrai : seulement les offres à traiter (sans candidature, ou lettre à relire). */
+  pending: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  sort: z.enum(['score', 'fresh', 'distance']).default('score'),
 });
 type ListQuery = z.infer<typeof listQuery>;
 
-// Pas de @Public() : session obligatoire (garde global). Lecture seule.
+/** Protège \, % et _ pour qu'une recherche « 100% » ne soit pas un motif. */
+export const escapeLike = (value: string) => value.replace(/[\\%_]/g, '\\$&');
+
+const SORTS: Record<ListQuery['sort'], Prisma.OfferOrderByWithRelationInput[]> = {
+  score: [{ score: { sort: 'desc', nulls: 'last' } }, { firstSeenAt: 'desc' }],
+  fresh: [{ publishedAt: { sort: 'desc', nulls: 'last' } }, { firstSeenAt: 'desc' }],
+  distance: [{ distanceKm: { sort: 'asc', nulls: 'last' } }, { firstSeenAt: 'desc' }],
+};
+
+// Pas de @Public() : session obligatoire (garde global).
 @Controller('offers')
 export class OffersController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly profiles: ProfileService,
+    private readonly matching: MatchService,
+  ) {}
 
-  /** Offres classées par score décroissant (les non notées à la fin), sans la description (volumineuse). */
+  /** Offres filtrées, triées et paginées, sans la description (volumineuse). */
   @Get()
   async list(@Query(new ZodValidationPipe(listQuery)) query: ListQuery) {
-    // Sans score minimum, tout est listé, y compris les offres pas encore notées (score nul).
-    const where = query.minScore > 0 ? { score: { gte: query.minScore } } : {};
+    const and: Prisma.OfferWhereInput[] = [];
+    if (query.minScore > 0) and.push({ score: { gte: query.minScore } });
+    if (query.maxDistanceKm !== undefined) {
+      // Une offre non localisée n'est pas écartée : on ne sait pas qu'elle est trop loin.
+      and.push({ OR: [{ distanceKm: null }, { distanceKm: { lte: query.maxDistanceKm } }] });
+    }
+    if (query.source.length > 0) and.push({ source: { in: query.source } });
+    if (query.contract.length > 0) and.push({ contractType: { in: query.contract } });
+    if (query.channel) and.push({ channel: query.channel });
+    if (query.pending) {
+      and.push({ OR: [{ application: null }, { application: { status: 'TO_REVIEW' } }] });
+    }
+    if (query.q) {
+      // % et _ sont des jokers du LIKE de PostgreSQL : saisis par l'utilisateur, ils doivent être pris au pied de la lettre.
+      const contains = { contains: escapeLike(query.q), mode: 'insensitive' as const };
+      and.push({
+        OR: [
+          { title: contains },
+          { company: contains },
+          { city: contains },
+          { description: contains },
+        ],
+      });
+    }
+    const where: Prisma.OfferWhereInput = and.length > 0 ? { AND: and } : {};
+
     // Une seule transaction : le total et la page décrivent le même état de la base.
     const [total, items] = await this.prisma.$transaction([
       this.prisma.offer.count({ where }),
       this.prisma.offer.findMany({
         where,
         // id en dernier départage les ex æquo : sans lui, des pages successives peuvent répéter ou manquer des offres.
-        orderBy: [
-          { score: { sort: 'desc', nulls: 'last' } },
-          { firstSeenAt: 'desc' },
-          { id: 'asc' },
-        ],
+        orderBy: [...SORTS[query.sort], { id: 'asc' }],
         take: query.limit,
         skip: query.offset,
         select: {
@@ -41,24 +114,25 @@ export class OffersController {
           city: true,
           postcode: true,
           channel: true,
+          contractType: true,
+          distanceKm: true,
           applyUrl: true,
           publishedAt: true,
           firstSeenAt: true,
           score: true,
-          scoreDetail: true,
           // Permet à l'interface de savoir quelles offres ont déjà une lettre, et à quel stade.
           application: { select: { id: true, status: true } },
         },
       }),
     ]);
-    return { total, items };
+    return { total, limit: query.limit, offset: query.offset, items };
   }
 
   @Get(':id')
   async get(@Param('id', new ParseUUIDPipe()) id: string) {
     const offer = await this.prisma.offer.findUnique({
       where: { id },
-      // Champs techniques (dedupKey...) exclus : l'interface ne doit pas en dépendre.
+      // Champs techniques (dedupKey, empreinte du profil...) exclus : l'interface ne doit pas en dépendre.
       select: {
         id: true,
         source: true,
@@ -73,11 +147,14 @@ export class OffersController {
         applyUrl: true,
         contactEmail: true,
         channel: true,
+        contractType: true,
+        distanceKm: true,
         publishedAt: true,
         firstSeenAt: true,
         lastSeenAt: true,
         score: true,
-        scoreDetail: true,
+        analysis: true,
+        analyzedAt: true,
         application: { select: { id: true, status: true } },
       },
     });
@@ -85,5 +162,25 @@ export class OffersController {
       throw new NotFoundException('Offre introuvable');
     }
     return offer;
+  }
+
+  /**
+   * Analyse l'offre par le modèle si elle ne l'est pas (ou plus, le profil ayant changé) ; `force=true` la refait.
+   * Limité : chaque appel consomme le quota du modèle. Renvoie l'offre à jour.
+   */
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post(':id/analyze')
+  @HttpCode(200)
+  async analyze(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Query('force') force?: string,
+  ) {
+    const profile = await this.profiles.get(req.auth.userId);
+    if (!profile) {
+      throw new BadRequestException('Renseigne ton profil avant de lancer une analyse');
+    }
+    await this.matching.analyzeOne(profile, id, force === 'true');
+    return this.get(id);
   }
 }
