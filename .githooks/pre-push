@@ -18,6 +18,12 @@ if [ "$a_controler" -eq 0 ]; then
   exit 0
 fi
 
+if ! command -v pnpm >/dev/null 2>&1; then
+  echo "pre-push : la commande pnpm est introuvable dans le PATH de Git."
+  echo "           Lance l'envoi depuis un terminal où pnpm fonctionne (par exemple celui de VS Code)."
+  exit 1
+fi
+
 echo "pre-push : pnpm check (lint, formatage, types, tests, build)..."
 if ! pnpm check; then
   echo "pre-push : échec. L'envoi est annulé : corrige, puis recommence."
