@@ -2,7 +2,8 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth/AuthProvider';
 import { AppShell } from './components/AppShell';
 import { LoginPage } from './pages/LoginPage';
-import { Placeholder } from './pages/Placeholder';
+import { SourcesPage } from './pages/sources/SourcesPage';
+import { TrackingPage } from './pages/tracking/TrackingPage';
 import { ReviewPage } from './pages/review/ReviewPage';
 
 /** Écrans réservés : sans session, retour à la connexion (l'API refuse de toute façon les données). */
@@ -27,8 +28,8 @@ export function AppRoutes() {
       <Route path="/connexion" element={<LoginPage />} />
       <Route element={<RequireAuth />}>
         <Route index element={<ReviewPage />} />
-        <Route path="suivi" element={<Placeholder title="Suivi" />} />
-        <Route path="sources" element={<Placeholder title="Sources" />} />
+        <Route path="suivi" element={<TrackingPage />} />
+        <Route path="sources" element={<SourcesPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
