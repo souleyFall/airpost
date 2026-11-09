@@ -73,7 +73,11 @@ const skills = z.strictObject({
 /** Rythmes d'alternance acceptés : 1 semaine / 1 semaine, 2 jours / 3 jours, 3 jours / 2 jours. */
 export const RHYTHMS = ['1S_1S', '2J_3J', '3J_2J', 'AUTRE'] as const;
 
+/** Contrats recherchés : alternance et/ou stage. Les profils enregistrés avant ce champ restent en alternance. */
+export const CONTRACTS = ['ALTERNANCE', 'STAGE'] as const;
+
 const search = z.strictObject({
+  contracts: z.array(z.enum(CONTRACTS)).min(1).max(CONTRACTS.length).default(['ALTERNANCE']),
   rhythms: z.array(z.enum(RHYTHMS)).max(RHYTHMS.length),
   // « asap » ou une date précise (AAAA-MM-JJ).
   startDate: z.union([z.literal('asap'), z.iso.date()]).default('asap'),

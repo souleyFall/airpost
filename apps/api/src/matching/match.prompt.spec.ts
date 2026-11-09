@@ -51,6 +51,10 @@ describe('matchFingerprint', () => {
     ['les mots-clés', (p: ReturnType<typeof exampleProfile>) => p.search.keywords.push('Rust')],
     ['une compétence', (p: ReturnType<typeof exampleProfile>) => p.skills.languages.push('Go')],
     [
+      'les contrats recherchés',
+      (p: ReturnType<typeof exampleProfile>) => (p.search.contracts = ['ALTERNANCE', 'STAGE']),
+    ],
+    [
       'le trajet maximal',
       (p: ReturnType<typeof exampleProfile>) => (p.search.maxCommuteMinutes = 30),
     ],
@@ -116,6 +120,14 @@ describe('buildMatchPrompt', () => {
     expect(text).not.toContain(profile.identity.lastName);
     expect(text).not.toContain(profile.identity.postcode);
     if (profile.identity.phone) expect(text).not.toContain(profile.identity.phone);
+  });
+
+  it('transmet les contrats recherchés pour que le stage ne soit pas écarté', () => {
+    const profile = exampleProfile();
+    profile.search.contracts = ['ALTERNANCE', 'STAGE'];
+    const text = buildMatchPrompt(profile, [offer()], NOW);
+    expect(text).toContain('"contratsRecherches":["ALTERNANCE","STAGE"]');
+    expect(MATCH_SYSTEM).toContain('contratsRecherches');
   });
 
   it('transmet le profil et les critères de recherche', () => {

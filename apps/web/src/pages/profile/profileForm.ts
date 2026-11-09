@@ -10,6 +10,11 @@ export const RHYTHMS = [
   { id: 'AUTRE', label: 'Autre (3 semaines / 1 semaine, etc.)' },
 ] as const;
 
+export const CONTRACTS = [
+  { id: 'ALTERNANCE', label: 'Alternance' },
+  { id: 'STAGE', label: 'Stage' },
+] as const;
+
 export interface Profile {
   identity: {
     firstName: string;
@@ -32,6 +37,7 @@ export interface Profile {
   }[];
   skills: { languages: string[]; frameworks: string[]; tools: string[]; other: string[] };
   search: {
+    contracts: string[];
     rhythms: string[];
     startDate: string;
     maxCommuteMinutes: number;
@@ -64,6 +70,7 @@ export interface ProfileForm {
   frameworks: string;
   tools: string;
   other: string;
+  contracts: string[];
   rhythms: string[];
   startDate: string;
   maxCommuteMinutes: string;
@@ -88,6 +95,7 @@ export const emptyForm = (): ProfileForm => ({
   frameworks: '',
   tools: '',
   other: '',
+  contracts: ['ALTERNANCE'],
   rhythms: [],
   startDate: 'asap',
   maxCommuteMinutes: '60',
@@ -132,6 +140,7 @@ export function toForm(profile: Profile): ProfileForm {
     frameworks: join(profile.skills.frameworks),
     tools: join(profile.skills.tools),
     other: join(profile.skills.other),
+    contracts: profile.search.contracts ?? ['ALTERNANCE'],
     rhythms: profile.search.rhythms,
     startDate: profile.search.startDate,
     maxCommuteMinutes: String(profile.search.maxCommuteMinutes),
@@ -184,6 +193,7 @@ export function toPayload(form: ProfileForm): Profile {
       other: splitList(form.other),
     },
     search: {
+      contracts: form.contracts,
       rhythms: form.rhythms,
       startDate: form.startDate.trim() || 'asap',
       maxCommuteMinutes: toNumber(form.maxCommuteMinutes),

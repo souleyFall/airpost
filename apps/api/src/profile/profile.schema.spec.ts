@@ -23,6 +23,26 @@ describe('profileSchema', () => {
     });
   });
 
+  it('un profil enregistré avant le champ « contrats » reste en alternance', () => {
+    const { search, ...rest } = exampleProfile();
+    const { contracts, ...searchRest } = search;
+    void contracts;
+
+    const parsed = profileSchema.parse({ ...rest, search: searchRest });
+
+    expect(parsed.search.contracts).toEqual(['ALTERNANCE']);
+  });
+
+  it('accepte alternance et stage ensemble, refuse un contrat inconnu, doublon ou une liste vide', () => {
+    const both = exampleProfile();
+    both.search.contracts = ['ALTERNANCE', 'STAGE'];
+    expect(profileSchema.safeParse(both).success).toBe(true);
+    for (const contracts of [[], ['CDI'], ['ALTERNANCE', 'STAGE', 'ALTERNANCE']]) {
+      const bad = { ...exampleProfile(), search: { ...exampleProfile().search, contracts } };
+      expect(profileSchema.safeParse(bad).success).toBe(false);
+    }
+  });
+
   it('refuse un champ inconnu, à la racine comme en profondeur', () => {
     expect(profileSchema.safeParse({ ...exampleProfile(), admin: true }).success).toBe(false);
     const profile = exampleProfile();

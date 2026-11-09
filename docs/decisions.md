@@ -226,3 +226,7 @@ En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans N
 - Une offre que l'IA juge hors cible (hors métier, contrat incompatible) est **masquée du fil « À valider »**, pas supprimée : supprimée, elle serait réimportée puis réanalysée à chaque collecte (quota du modèle). Colonne `excluded`, recalculée à chaque analyse (un profil modifié peut la remettre dans le fil).
 - Exception : une offre écartée sur laquelle une candidature existe déjà reste visible (le travail commencé ne disparaît pas).
 - Les offres moins bien notées mais pas écartées (verdict « peu adaptée ») restent dans le fil ; le filtre de compatibilité minimale les masque au besoin.
+
+### D29 (suite 3) : contrats recherchés dans le profil
+
+- Le profil porte search.contracts (alternance, stage ou les deux ; un profil plus ancien reste en alternance). L'IA s'en sert pour juger la compatibilité du contrat : un stage n'est plus écarté quand le candidat cherche aussi des stages. Version du prompt passée à 2 : les analyses sont refaites avec le nouveau critère.

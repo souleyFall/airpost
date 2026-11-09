@@ -4,6 +4,7 @@ import { ApiError, type ApiIssue, api } from '../../api/client';
 import {
   type Profile,
   type ProfileForm,
+  CONTRACTS,
   RHYTHMS,
   emptyForm,
   toForm,
@@ -451,6 +452,29 @@ export function ProfilePage() {
       </Section>
 
       <Section title="Recherche">
+        <fieldset className="m-0 border-0 p-0">
+          <legend className="mb-1 text-xs font-medium text-muted">Contrats recherchés</legend>
+          <div className="flex gap-6">
+            {CONTRACTS.map((contract) => (
+              <label key={contract.id} className="flex min-h-8 items-center gap-3">
+                <input
+                  type="checkbox"
+                  className="h-[18px] w-[18px] accent-accent"
+                  checked={form.contracts.includes(contract.id)}
+                  onChange={(e) =>
+                    set(
+                      'contracts',
+                      e.target.checked
+                        ? [...form.contracts, contract.id]
+                        : form.contracts.filter((c) => c !== contract.id),
+                    )
+                  }
+                />
+                {contract.label}
+              </label>
+            ))}
+          </div>
+        </fieldset>
         <fieldset className="m-0 border-0 p-0">
           <legend className="mb-1 text-xs font-medium text-muted">
             Rythmes d’alternance acceptés

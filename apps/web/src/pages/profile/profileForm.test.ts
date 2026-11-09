@@ -32,6 +32,7 @@ const profile: Profile = {
     other: [],
   },
   search: {
+    contracts: ['ALTERNANCE', 'STAGE'],
     rhythms: ['AUTRE'],
     startDate: 'asap',
     maxCommuteMinutes: 75,
@@ -44,6 +45,14 @@ const profile: Profile = {
 describe('profileForm', () => {
   it('aller-retour : le formulaire redonne exactement le profil de l’API', () => {
     expect(toPayload(toForm(profile))).toEqual(profile);
+  });
+
+  it('un profil enregistré avant le champ « contrats » reste en alternance', () => {
+    const { contracts, ...searchWithout } = profile.search;
+    void contracts;
+    const old = { ...profile, search: searchWithout } as unknown as Profile;
+    expect(toForm(old).contracts).toEqual(['ALTERNANCE']);
+    expect(emptyForm().contracts).toEqual(['ALTERNANCE']);
   });
 
   it('omet les champs facultatifs vides', () => {
