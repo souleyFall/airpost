@@ -75,6 +75,16 @@ En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans N
 - Vérifié : image de ~246 Mo, uid 1000, healthcheck vert, aucun fichier secret, valeur invalide jamais affichée.
 - Reste à faire : épingler l'image de base par empreinte (digest) avec Dependabot (PR n°24), et le proxy de confiance avec le déploiement (R8).
 
+## D26. Candidatures, export et effacement
+
+- **Cycle de vie défini une fois** ( ransitions.ts, testé en entier) : à valider ⇄ validée → brouillon Gmail → postulée → accusé → entretien, avec refus et retrait définitifs. Pas de « postulée » sans validation, pas d'entretien avant d'avoir postulé, pas de retour en arrière après l'envoi. **« Brouillon créé » est réservé au module Gmail** : l'utilisateur ne peut pas prétendre qu'un brouillon existe (409).
+- **Aucune écriture sans condition** : les changements de statut et les modifications passent par updateMany conditionné au statut lu. Deux requêtes concurrentes ne peuvent pas toutes les deux réussir (la seconde reçoit 409, testé) ; une candidature validée n'est jamais modifiée.
+- **Valider exige un objet et un texte** (422 sinon) : ce qui part doit avoir été relu. L'objet est remis sur une seule ligne à chaque modification (en-tête de message).
+- **Lecture** : GET /applications (résumé de l'offre, sans description ni texte), filtre par statut, GET /applications/:id (lettre, offre complète, réponses). Écritures : PATCH (objet, texte), POST /:id/status, DELETE, toutes avec CSRF, champs inconnus refusés, tailles bornées.
+- **Suppression d'une candidature (RGPD)** : candidature et réponses supprimées, **contact du recruteur retiré de l'offre** (il n'était conservé que pour elle) ; l'offre publique reste jusqu'à sa purge.
+- **Export** (GET /account/export, accès et portabilité) : profil, candidatures avec lettres, offres liées et réponses, en pièce jointe JSON non mise en cache ; **jamais** l'empreinte du mot de passe, les jetons de session ni le jeton CSRF (testé sur le contenu).
+- **Effacement** (POST /account/erase) : compte, profil, sessions, offres, candidatures et réponses, en une transaction. **Mot de passe exigé** (une session volée ne suffit pas à tout détruire), 3 essais par minute, cookie effacé ; la session ne sert plus ensuite. Pour retrouver un compte, relancer user:create.
+
 ## D25. Génération des lettres et garde-fous
 
 - **POST /offers/:id/letter** (session et CSRF, 5 par minute) : profil + offre → lettre (objet, corps, citations utilisées) → garde-fous → brouillon enregistré dans Application (statut « à valider »). Une candidature **déjà validée n'est jamais régénérée** (409, le modèle n'est pas appelé). La réponse contient le corps généré, des avertissements et un aperçu de la lettre complète.

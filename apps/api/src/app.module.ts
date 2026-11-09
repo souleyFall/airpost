@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { AccountModule } from './account/account.module';
+import { ApplicationsModule } from './applications/applications.module';
 import { AuthModule } from './auth/auth.module';
 import { CollectionModule } from './collection/collection.module';
 import { ConfigModule, ENV } from './config/config.module';
@@ -26,6 +28,8 @@ import { SourcesModule } from './sources/sources.module';
     PrismaModule,
     HttpModule,
     AuthModule,
+    AccountModule,
+    ApplicationsModule,
     ProfileModule,
     SourcesModule,
     CollectionModule,

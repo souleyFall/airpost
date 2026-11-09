@@ -49,7 +49,7 @@ La purge des offres est en place (PR n°12) : après chaque collecte, les offres
 
 ## Droits des personnes
 
-- **Le candidat** (accès, rectification, effacement, portabilité) : exerce ses droits directement dans l'application ; prévoir un export JSON de ses données et un bouton de suppression complète (PR n°16).
+- **Le candidat** (accès, rectification, effacement, portabilité) : exerce ses droits directement dans l'application ; export JSON (GET /account/export) et effacement complet (POST /account/erase, mot de passe exigé), en place depuis la PR n°16.
 - **Un recruteur** dont l'adresse est conservée : peut demander l'accès ou l'effacement ; la suppression de la candidature supprime son contact. La demande se fait via le contact indiqué plus haut. Le candidat peut aussi supprimer un contact à la main.
 - **Information** : le premier message à un recruteur ne contient pas d'information RGPD complète, mais une demande d'effacement est honorée sans délai (un mois maximum).
 
@@ -65,4 +65,4 @@ Non requise : traitement à petite échelle, usage personnel, aucune donnée sen
 
 1. Confirmer la politique de données de l'offre Gemini utilisée (gratuite ou payante) avant le premier envoi réel ; passer à une offre sans entraînement sur les données si le profil devient plus détaillé.
 2. Décider de l'hébergement : tant que tout reste local, aucun sous-traitant d'hébergement.
-3. Écrire l'export et la suppression complète (PR n°16) et les purges planifiées (PR n°12 et n°16).
+3. Purge automatique des candidatures anciennes (6 mois après la fin de la recherche) : à écrire ; l'export, l'effacement complet et la suppression d'une candidature sont en place (PR n°16).
