@@ -9,7 +9,7 @@ import { PasswordService } from '../auth/password.service';
 import { parseEnv } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 import { exampleProfile } from '../profile/profile.fixture';
-import { HTTP_FETCH, type HttpFetch } from '../sources/http-fetch';
+import { HTTP_FETCH, type HttpFetch } from '../http/http-fetch';
 
 // Pipeline complet : session, CSRF, profil, trois sources simulées, vraie base PostgreSQL.
 describe('Collecte (e2e, base réelle, API simulées)', () => {

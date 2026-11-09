@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Env } from '../../config/env';
-import type { HttpFetch } from '../http-fetch';
+import type { HttpFetch } from '../../http/http-fetch';
 import { SourceError } from '../source.types';
 import { LbbConnector } from './lbb.connector';
 

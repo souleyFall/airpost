@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { ENV } from '../../config/config.module';
 import type { Env } from '../../config/env';
-import { HTTP_FETCH, type HttpFetch } from '../http-fetch';
+import { HTTP_FETCH, type HttpFetch } from '../../http/http-fetch';
 import { assertOk } from '../http-errors';
 import {
   MAX_COMPANY,

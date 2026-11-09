@@ -7,6 +7,8 @@ import { ConfigModule, ENV } from './config/config.module';
 import type { Env } from './config/env';
 import { HealthModule } from './health/health.module';
 import { OffersModule } from './offers/offers.module';
+import { HttpModule } from './http/http.module';
+import { LlmModule } from './llm/llm.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProfileModule } from './profile/profile.module';
 import { SourcesModule } from './sources/sources.module';
@@ -21,11 +23,13 @@ import { SourcesModule } from './sources/sources.module';
       useFactory: (env: Env) => [{ ttl: env.RATE_LIMIT_WINDOW_MS, limit: env.RATE_LIMIT_MAX }],
     }),
     PrismaModule,
+    HttpModule,
     AuthModule,
     ProfileModule,
     SourcesModule,
     CollectionModule,
     OffersModule,
+    LlmModule,
     HealthModule,
   ],
   // Le garde est global : il s'applique à toutes les routes, y compris celles des futurs modules.

@@ -31,7 +31,7 @@ Le RGPD s'applique à toute donnée relative à une personne identifiable, même
 
 ## Minimisation envoyée à Gemini
 
-Règle de conception (appliquée en PR n°14) : le prompt ne contient **ni adresse e-mail, ni numéro de téléphone, ni adresse postale, ni nom de contact recruteur**. Il contient seulement le texte de l'offre et les éléments de parcours utiles à la lettre. Les coordonnées sont ajoutées localement après la génération. Un test vérifie qu'aucune coordonnée ne part dans la requête.
+Règle de conception (appliquée et testée en PR n°14) : le prompt ne contient **ni adresse e-mail, ni numéro de téléphone, ni adresse postale, ni nom de contact recruteur**. Il contient seulement le texte de l'offre et les éléments de parcours utiles à la lettre. Les coordonnées sont ajoutées localement après la génération. Un test vérifie qu'aucune coordonnée ne part dans la requête.
 
 ## Durées de conservation
 

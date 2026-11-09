@@ -42,6 +42,8 @@ services:
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
       # Secrets des sources d'offres, transmis à l'API un par un. Facultatifs : une source sans clé reste désactivée.
       LBA_API_KEY: ${LBA_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
       FT_CLIENT_ID: ${FT_CLIENT_ID:-}
       FT_CLIENT_SECRET: ${FT_CLIENT_SECRET:-}
       ADZUNA_APP_ID: ${ADZUNA_APP_ID:-}
