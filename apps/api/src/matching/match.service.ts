@@ -58,9 +58,15 @@ export class MatchService {
    * Analyse les offres qui n'ont pas d'analyse à jour, les plus récentes d'abord. Une erreur du modèle n'interrompt
    * pas la collecte : un quota atteint ou une clé invalide arrête la boucle, une réponse inexploitable passe au lot suivant.
    */
-  async analyzePending(profile: Profile, max = MAX_ANALYSES_PER_RUN): Promise<AnalysisReport> {
+  async analyzePending(
+    profile: Profile,
+    max = MAX_ANALYSES_PER_RUN,
+    /** Se limiter à ces offres (celles que l'utilisateur voit à l'écran). */
+    ids?: string[],
+  ): Promise<AnalysisReport> {
     const fingerprint = matchFingerprint(profile);
-    const where = this.pendingWhere(fingerprint);
+    const pending = this.pendingWhere(fingerprint);
+    const where: Prisma.OfferWhereInput = ids ? { AND: [pending, { id: { in: ids } }] } : pending;
     const offers = await this.prisma.offer.findMany({
       where,
       orderBy: [{ firstSeenAt: 'desc' }, { id: 'asc' }],

@@ -14,6 +14,7 @@ describe('isRelevantOffer', () => {
     'Alternance développeur PHP Symfony',
     'Responsable SI en alternance',
     'Alternant développeur mobile',
+    'STAGE - Automatisation des tests applicatifs par l’IA - F/H',
   ])('garde « %s »', (title) => {
     expect(isRelevantOffer(title)).toBe(true);
   });
@@ -30,8 +31,23 @@ describe('isRelevantOffer', () => {
     // Un mot technique ne suffit pas à faire un poste de développeur.
     'Commercial web en alternance',
     'Chargé de marketing digital',
+    'Chargé / Chargée de communication',
+    'Account Executive terrain H/F - Services BtoB - CDI',
+    'STAGE - Chargé de Projets RH - F/H',
+    'Assistant analyste stratégie crédit H/F',
+    'Scientifique de ligne de lumière (DIFFABS)',
+    'Stage Auditeur des systèmes d’information - F/H',
+    'Internship',
   ])('écarte « %s »', (title) => {
     expect(isRelevantOffer(title)).toBe(false);
+  });
+
+  it('La Bonne Alternance et La Bonne Boîte sont des alternances, quel que soit le texte', () => {
+    expect(detectContractType('Stage de fin d’études', undefined, 'LBA')).toBe('ALTERNANCE');
+    expect(
+      detectContractType('Candidature spontanée : édition de logiciels', undefined, 'LBB'),
+    ).toBe('ALTERNANCE');
+    expect(detectContractType('Développeur React', undefined, 'ADZUNA')).toBe('AUTRE');
   });
 
   it('l’intitulé « développeur » l’emporte sur un mot hors sujet', () => {

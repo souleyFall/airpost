@@ -125,6 +125,9 @@ export function ReviewPage() {
   const [searchText, setSearchText] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [analyzingCount, setAnalyzingCount] = useState(0);
+  // Offres déjà soumises à l'analyse : un échec (quota) ne doit pas relancer la demande en boucle.
+  const attempted = useRef(new Set<string>());
   const listRef = useRef<HTMLDivElement>(null);
   const detailRef = useRef<HTMLDivElement>(null);
   // Une réponse tardive d'une requête périmée (filtre changé entre-temps) ne doit pas écraser la bonne.
@@ -163,6 +166,37 @@ export function ReviewPage() {
   useEffect(() => {
     void refreshBadge();
   }, [refreshBadge, version]);
+
+  // Dès que des offres sans note s'affichent, l'IA les analyse (pas besoin d'ouvrir le détail).
+  useEffect(() => {
+    if (!items) return;
+    const ids = items
+      .filter((o) => o.score === null && !attempted.current.has(o.id))
+      .map((o) => o.id);
+    if (ids.length === 0) return;
+    for (const id of ids) attempted.current.add(id);
+    setAnalyzingCount((count) => count + ids.length);
+    void (async () => {
+      try {
+        const result = await api<{
+          analyzed: number;
+          items: { id: string; score: number | null }[];
+        }>('POST', '/offers/analyze', { ids });
+        const scores = new Map(result.items.map((o) => [o.id, o.score]));
+        setItems((current) =>
+          current
+            ? current.map((o) => (scores.has(o.id) ? { ...o, score: scores.get(o.id) ?? null } : o))
+            : current,
+        );
+        // Le tri par compatibilité doit tenir compte des nouvelles notes.
+        if (result.analyzed > 0 && filters.sort === 'score') void load();
+      } catch {
+        // Quota ou service indisponible : les offres restent sans note, l'ouverture du détail réessaiera.
+      } finally {
+        setAnalyzingCount((count) => Math.max(0, count - ids.length));
+      }
+    })();
+  }, [items, filters.sort, load]);
 
   // Recherche : on attend la fin de la frappe avant d'interroger l'API.
   useEffect(() => {
@@ -248,6 +282,11 @@ export function ReviewPage() {
             <span className="text-muted" aria-live="polite">
               {total} offre{total > 1 ? 's' : ''}
             </span>
+            {analyzingCount > 0 ? (
+              <span role="status" className="text-[13px] text-muted">
+                · analyse IA en cours…
+              </span>
+            ) : null}
           </div>
 
           <input

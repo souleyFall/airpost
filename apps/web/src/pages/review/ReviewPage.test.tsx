@@ -69,6 +69,8 @@ interface Options {
   analyzeStatus?: number;
   /** Analyse dont le brief ne contient rien (annonce sans information). */
   emptyBrief?: boolean;
+  /** La liste renvoie des offres sans note (jamais analysées). */
+  unscored?: boolean;
 }
 
 /** Fausse API avec un petit état : la lettre n'existe qu'après génération ; la liste honore limit/offset/source. */
@@ -77,6 +79,8 @@ function fakeApi(options: Options = {}) {
   let hasLetter = options.generated ?? false;
   let status = 'TO_REVIEW';
   let analyzed = options.analyzed ?? true;
+  // Notes de la liste : absentes tant que l'analyse des offres affichées n'a pas eu lieu (option unscored).
+  let scored = !options.unscored;
   const json = (data: unknown, code = 200) => new Response(JSON.stringify(data), { status: code });
   const appRef = () => (hasLetter ? { id: 'a1', status } : null);
   const catalogue = () =>
@@ -122,7 +126,22 @@ function fakeApi(options: Options = {}) {
           total: visible.length,
           limit,
           offset,
-          items: visible.slice(offset, offset + limit),
+          items: visible
+            .slice(offset, offset + limit)
+            .map((o) => (scored ? o : { ...o, score: null })),
+        });
+      }
+      if (path === '/offers/analyze' && method === 'POST') {
+        const ids = (body as { ids: string[] }).ids;
+        if (options.analyzeStatus) return json({ message: 'Quota' }, options.analyzeStatus);
+        scored = true;
+        return json({
+          analyzed: ids.length,
+          pendingBatch: ids.length,
+          items: ids.map((id) => ({
+            id,
+            score: catalogue().find((o) => o.id === id)?.score ?? null,
+          })),
         });
       }
       if (/^\/offers\/o\d+\/analyze/.test(path) && method === 'POST') {
@@ -278,6 +297,34 @@ describe('écran À valider', () => {
     const analyses = calls.filter((c) => c.method === 'POST' && c.path.includes('/analyze'));
     expect(analyses.map((c) => c.path)).toEqual(['/offers/o2/analyze']);
   });
+  it('analyse dès l’affichage les offres de la liste qui n’ont pas de note, sans ouvrir le détail', async () => {
+    const calls = fakeApi({ unscored: true });
+    renderApp();
+    const list = await findList();
+    await waitFor(() => expect(within(list).getAllByRole('button')[0]).toHaveTextContent('91'));
+    const analyses = calls.filter((c) => c.method === 'POST' && c.path === '/offers/analyze');
+    expect(analyses).toHaveLength(1);
+    expect(analyses[0]?.body).toEqual({ ids: ['o1', 'o2'] });
+    // La liste est rechargée pour que le tri tienne compte des notes, sans redemander l’analyse.
+    await waitFor(() =>
+      expect(
+        calls.filter((c) => c.path.startsWith('/offers?') && c.path.includes('limit=20')).length,
+      ).toBeGreaterThan(1),
+    );
+    expect(calls.filter((c) => c.method === 'POST' && c.path === '/offers/analyze')).toHaveLength(
+      1,
+    );
+  });
+
+  it('un quota atteint pendant l’analyse de la liste ne bloque pas l’écran et ne boucle pas', async () => {
+    const calls = fakeApi({ unscored: true, analyzeStatus: 429 });
+    renderApp();
+    const list = await findList();
+    expect(within(list).getAllByRole('button')[0]).toHaveTextContent('–');
+    await waitFor(() => expect(screen.queryByText(/analyse IA en cours/)).not.toBeInTheDocument());
+    expect(calls.filter((c) => c.path === '/offers/analyze')).toHaveLength(1);
+  });
+
   it('indique l’échec de l’analyse (quota) et permet de réessayer', async () => {
     fakeApi({ analyzed: false, analyzeStatus: 429 });
     renderApp();
