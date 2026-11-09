@@ -13,3 +13,4 @@ token.json
 apps/api/src/generated
 docs/cours
 *.log
+docs/revues

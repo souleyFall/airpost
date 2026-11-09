@@ -97,6 +97,29 @@ describe('Durcissement HTTP (e2e)', () => {
     expect(res.headers['access-control-allow-headers']).toBe('Content-Type,X-CSRF-Token');
   });
 
+  it('derrière un proxy de confiance, la limite de débit s’applique par client réel', async () => {
+    const http = await startApp({
+      RATE_LIMIT_MAX: '2',
+      RATE_LIMIT_WINDOW_MS: '60000',
+      TRUST_PROXY: '1',
+    });
+
+    for (let i = 0; i < 2; i++) {
+      await http.get('/health').set('X-Forwarded-For', '203.0.113.1').expect(200);
+    }
+    await http.get('/health').set('X-Forwarded-For', '203.0.113.1').expect(429);
+    // Un autre client, derrière le même proxy, n'est pas pénalisé.
+    await http.get('/health').set('X-Forwarded-For', '203.0.113.2').expect(200);
+  });
+
+  it('sans proxy déclaré, X-Forwarded-For est ignoré (non falsifiable)', async () => {
+    const http = await startApp({ RATE_LIMIT_MAX: '2', RATE_LIMIT_WINDOW_MS: '60000' });
+
+    await http.get('/health').set('X-Forwarded-For', '203.0.113.1').expect(200);
+    await http.get('/health').set('X-Forwarded-For', '203.0.113.2').expect(200);
+    await http.get('/health').set('X-Forwarded-For', '203.0.113.3').expect(429);
+  });
+
   it('limite le débit : 429 au-delà du seuil, avec Retry-After', async () => {
     const http = await startApp({ RATE_LIMIT_MAX: '3', RATE_LIMIT_WINDOW_MS: '60000' });
 

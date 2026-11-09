@@ -81,6 +81,13 @@ export const envSchema = z
      */
     RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).max(86_400_000).default(60_000),
     RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(10_000).default(100),
+    /**
+     * Nombre de proxys de confiance devant l'API (0 = aucun). Derrière le serveur web de l'application, mettre 1 :
+     * sans cela toutes les requêtes semblent venir de l'adresse du proxy et la limitation de débit (donc la
+     * protection contre la force brute) s'applique à tout le monde à la fois. Ne jamais mettre plus que le
+     * nombre réel de proxys : l'en-tête X-Forwarded-For est alors falsifiable par l'appelant.
+     */
+    TRUST_PROXY: z.coerce.number().int().min(0).max(5).default(0),
   })
   .superRefine((env, ctx) => {
     // CORS avec cookies de session : en production, l'origine du front doit être servie en HTTPS.

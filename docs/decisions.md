@@ -194,3 +194,10 @@ En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans N
 - **Polices servies par l'application** (`@fontsource`), pas Google Fonts : charger une police depuis Google enverrait l'adresse IP de l'utilisateur à un tiers.
 - **Accent `#1E3FA8`** (celui de la maquette). Tous les jetons de couleur sont dans `apps/web/src/styles.css`, source unique.
 - Pas de case « Rester connecté » ni de « Mot de passe oublié » : l'API ne les supporte pas et le compte se gère en ligne de commande ; un contrôle factice serait trompeur.
+
+## D28. Déploiement de l'interface
+
+- **nginx sans privilèges** sert les fichiers statiques et relaie `/api` vers l'API : une seule origine pour le navigateur (pas de CORS, cookie `SameSite=Strict` valable).
+- **CSP stricte** posée par nginx (aucun script ni style en ligne, aucune ressource tierce) ; `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, pas de cache sur `/api`.
+- **`TRUST_PROXY`** (API) : nombre de proxys de confiance. nginx _remplace_ `X-Forwarded-For` par l'adresse réelle ; sans cela la limite de débit de la connexion s'appliquerait à tout le monde à la fois. Avec une valeur > 0, le port de l'API ne doit pas être joignable depuis le réseau (en-tête falsifiable) : il n'est publié que sur 127.0.0.1.
+- Application disponible sur `http://localhost:8080` après `docker compose up -d --build`.
