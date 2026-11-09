@@ -38,12 +38,21 @@ importers:
       '@nestjs/platform-express':
         specifier: ^12.4.0
         version: 12.4.0(@nestjs/common@12.4.0(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@12.4.0)(rxjs@7.8.2)
+      '@nestjs/throttler':
+        specifier: ^6.7.1
+        version: 6.7.1(@nestjs/common@12.4.0(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@12.4.0)(reflect-metadata@0.2.2)
+      helmet:
+        specifier: ^8.3.0
+        version: 8.3.0
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
       rxjs:
         specifier: ^7.8.2
         version: 7.8.2
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
     devDependencies:
       '@nestjs/cli':
         specifier: ^12.0.12
@@ -431,6 +440,14 @@ packages:
         optional: true
       '@nestjs/platform-express':
         optional: true
+
+  '@nestjs/throttler@6.7.1':
+    resolution: {integrity: sha512-gAyY1AkU+cSK5DCjFOB43xax9oakameH4xZa9kAgqBqSBQZgmv3DZylLV8KyZNzOGhceL3kDVtby+CF8VAdmEA==}
+    engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0}
+    peerDependencies:
+      '@nestjs/common': ^7.0.0 || ^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0 || ^12.0.0
+      '@nestjs/core': ^7.0.0 || ^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0 || ^12.0.0
+      reflect-metadata: ^0.1.13 || ^0.2.0
 
   '@noble/hashes@1.8.0':
     resolution: {integrity: sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==}
@@ -1183,6 +1200,10 @@ packages:
     resolution: {integrity: sha512-T2UbfbBEF32wiepXIsMlTW9+dDYC6wMh/t/vYA4tuOMKqWz/n3vr1NFSxQiyP+zk2mXsoMA/i/7qV6LKut1t1A==}
     engines: {node: '>= 0.4'}
 
+  helmet@8.3.0:
+    resolution: {integrity: sha512-Qgpiaws3Sm30Av8Eah6sjMCZZwjlBu+E68rhpCWBshY1lb09HtLwj5GviX0OyQIn+ulUS0iX0AxN5n3tLZzz1w==}
+    engines: {node: '>=18.0.0'}
+
   hookified@1.15.1:
     resolution: {integrity: sha512-MvG/clsADq1GPM2KGo2nyfaWVyn9naPiXrqIe4jYjXNZQt238kWyOGrsyc/DmRAQ+Re6yeo6yX/yoNCG5KAEVg==}
 
@@ -1929,6 +1950,9 @@ packages:
     resolution: {integrity: sha512-xYqdZFUK/VYazNl/oCDYN+3WloWQwMfZxBoiNt6qNyk+xfOdi598muWE42rNZFp1kNOiqW936q5RhUdnpqElSg==}
     engines: {node: '>=18'}
 
+  zod@4.6.7:
+    resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
+
 snapshots:
 
   '@angular-devkit/core@22.2.6(chokidar@5.0.0)':
@@ -2275,6 +2299,12 @@ snapshots:
       tslib: 2.9.1
     optionalDependencies:
       '@nestjs/platform-express': 12.4.0(@nestjs/common@12.4.0(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@12.4.0)(rxjs@7.8.2)
+
+  '@nestjs/throttler@6.7.1(@nestjs/common@12.4.0(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@12.4.0)(reflect-metadata@0.2.2)':
+    dependencies:
+      '@nestjs/common': 12.4.0(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/core': 12.4.0(@nestjs/common@12.4.0(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@12.4.0)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      reflect-metadata: 0.2.2
 
   '@noble/hashes@1.8.0': {}
 
@@ -2986,6 +3016,8 @@ snapshots:
     dependencies:
       function-bind: 1.1.2
 
+  helmet@8.3.0: {}
+
   hookified@1.15.1: {}
 
   hookified@2.2.0: {}
@@ -3606,3 +3638,5 @@ snapshots:
   yocto-queue@0.1.0: {}
 
   yoctocolors@2.2.0: {}
+
+  zod@4.6.7: {}

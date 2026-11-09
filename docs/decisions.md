@@ -57,3 +57,17 @@ Autre piège du même genre : dans une chaîne PowerShell entre guillemets doubl
 Le compte GitHub est verrouillé pour un problème de facturation : les tâches de `.github/workflows/ci.yml` sont refusées au démarrage. En attendant, un hook `pre-push` (`.githooks/pre-push`) lance `pnpm check` avant tout envoi vers GitHub. `pnpm install` l'active (`scripts/install-hooks.mjs`, via le script `prepare`).
 
 Limites connues : le hook contrôle l'arbre de travail et non le commit poussé ; `git push --no-verify` le contourne ; il n'y a ni audit planifié ni recherche de secrets automatique (GitGuardian reste actif côté GitHub). Le workflow `ci.yml` est conservé : il reprendra du service quand la facturation sera réglée.
+
+## D14. Configuration validée au démarrage
+
+Les variables d'environnement sont validées par un schéma Zod (`apps/api/src/config/env.ts`) avant tout le reste. Une valeur invalide fait échouer le démarrage avec la liste des variables en cause, **sans jamais afficher la valeur reçue** (une variable mal saisie peut être un secret). Les variables absentes du schéma sont ignorées et jamais recopiées. Les valeurs par défaut sont les plus restrictives : écoute sur `127.0.0.1`, CORS désactivé.
+
+En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans Node 24, aucune dépendance) ; jamais en production, où l'environnement fournit les variables. Piège évité : `new URL()` lève une erreur native qui contient la valeur saisie, d'où `URL.canParse` en amont.
+
+## D15. Durcissement HTTP
+
+- **Helmet** : en-têtes de sécurité (nosniff, anti-framing, HSTS, CSP) et suppression de `X-Powered-By`.
+- **CORS** désactivé par défaut ; une seule origine autorisée (`WEB_ORIGIN`), jamais `*`, car l'API portera des cookies de session.
+- **Limitation de débit** globale par adresse IP (`@nestjs/throttler`), 100 requêtes par minute par défaut. Derrière un reverse proxy, il faudra déclarer le proxy de confiance, sinon toutes les requêtes auront l'IP du proxy.
+- La route publique `/health` n'expose plus la version.
+- Les réglages communs sont dans `configureApp`, utilisée par `main.ts` **et** par les tests : on teste exactement ce qui tourne.
