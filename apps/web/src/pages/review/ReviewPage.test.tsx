@@ -167,6 +167,9 @@ function renderApp() {
   );
 }
 
+/** Marge pour les tests qui attendent l'analyse automatique différée (400 ms) sur une machine chargée. */
+const SLOW = { timeout: 4000 };
+
 const getList = () =>
   within(screen.getByRole('region', { name: 'Offres à valider' })).getByRole('list');
 /** La liste des offres (et non les listes du brief : pile technique, points forts). */
@@ -230,7 +233,7 @@ describe('écran À valider', () => {
     expect(rows[0]).toHaveTextContent('Sans lettre');
     expect(rows[1]).toHaveTextContent('Dev React');
     expect(rows[1]).toHaveTextContent('Stage');
-    expect(await screen.findByText(/Compatibilité 91 \/ 100/)).toBeInTheDocument();
+    expect(await screen.findByText(/Compatibilité 91 \/ 100/, {}, SLOW)).toBeInTheDocument();
     expect(screen.getByText('Pas encore de lettre')).toBeInTheDocument();
   });
 
@@ -258,7 +261,7 @@ describe('écran À valider', () => {
   it('analyse automatiquement une offre jamais analysée à son ouverture, et met la liste à jour', async () => {
     const calls = fakeApi({ analyzed: false });
     renderApp();
-    expect(await screen.findByText(/Compatibilité 91 \/ 100/)).toBeInTheDocument();
+    expect(await screen.findByText(/Compatibilité 91 \/ 100/, {}, SLOW)).toBeInTheDocument();
     expect(
       calls.filter((c) => c.method === 'POST' && c.path === '/offers/o1/analyze'),
     ).toHaveLength(1);
@@ -271,7 +274,7 @@ describe('écran À valider', () => {
     renderApp();
     await findList();
     await user.keyboard('{ArrowDown}');
-    expect(await screen.findByText(/Compatibilité 80 \/ 100/)).toBeInTheDocument();
+    expect(await screen.findByText(/Compatibilité 80 \/ 100/, {}, SLOW)).toBeInTheDocument();
     const analyses = calls.filter((c) => c.method === 'POST' && c.path.includes('/analyze'));
     expect(analyses.map((c) => c.path)).toEqual(['/offers/o2/analyze']);
   });
