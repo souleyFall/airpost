@@ -3,7 +3,7 @@
 # Contexte de build : la racine du dépôt (voir docker-compose.yml).
 
 # --- Étape 1 : construction ---
-FROM node:24-slim AS build
+FROM node:24-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9 AS build
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable
@@ -20,7 +20,7 @@ RUN pnpm --filter @airpost/web build
 
 # --- Étape 2 : serveur web ---
 # Variante « unprivileged » : nginx tourne sans être root et écoute sur 8080.
-FROM nginxinc/nginx-unprivileged:1.29-alpine AS runtime
+FROM nginxinc/nginx-unprivileged:1.29-alpine@sha256:0c79d56aee561a1d81c63f00eee5fb5fe29279560cdc55e91425133104c7fbe6 AS runtime
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /repo/apps/web/dist /usr/share/nginx/html
 EXPOSE 8080

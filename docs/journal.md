@@ -40,3 +40,5 @@
 - PR 26 : brouillons Gmail (creation, suppression liee, R33 ferme). Aucun brouillon reel n'a ete cree pendant les tests (faux Gmail).
 
 - PR 27 : suivi des reponses Gmail (recherche bornee, classement par regles, correction, sans reponse a 14 jours).
+
+- PR 28 : audit final (registre sans risque prevu, images figees par empreinte, sauvegarde, README).

@@ -20,3 +20,6 @@ docs/revues/
 
 # Revues de code : journal personnel, reste sur ton ordinateur
 docs/revues/
+
+# Sauvegardes de la base (donnees personnelles)
+backups/

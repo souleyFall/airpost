@@ -66,3 +66,9 @@ Non requise : traitement à petite échelle, usage personnel, aucune donnée sen
 1. Confirmer la politique de données de l'offre Gemini utilisée (gratuite ou payante) avant le premier envoi réel ; passer à une offre sans entraînement sur les données si le profil devient plus détaillé.
 2. Décider de l'hébergement : tant que tout reste local, aucun sous-traitant d'hébergement.
 3. Purge automatique des candidatures anciennes (6 mois après la fin de la recherche) : à écrire ; l'export, l'effacement complet et la suppression d'une candidature sont en place (PR n°16).
+
+## Mise à jour 2026-11-09 : Gmail (brouillons et réponses)
+
+- **Brouillons** : la lettre validée et l'adresse du recruteur sont déposées dans les brouillons de la boîte de l'utilisateur. Supprimer une candidature, la retirer, revenir à « validée » ou effacer le compte supprime le brouillon ; si Gmail est injoignable, l'application le signale et l'utilisateur le retire lui-même.
+- **Réponses** : pour chaque candidature envoyée, une recherche bornée dans la boîte (expéditeur ou nom d'entreprise, après la date d'envoi) ; sont conservés **300 caractères d'extrait**, la date et la catégorie, jamais le corps ni l'adresse de l'expéditeur. Ces extraits peuvent contenir des données de tiers (le recruteur) : ils sont effacés avec la candidature, exportés avec les données de l'utilisateur, et ne sont envoyés à aucun service externe (classement par règles locales).
+- **Sauvegardes** (`pnpm db:backup`) : fichier local contenant toutes ces données ; à garder sur l'ordinateur de l'utilisateur, chiffré s'il en sort.

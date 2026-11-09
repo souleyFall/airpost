@@ -16,3 +16,17 @@ updates:
     directory: /
     schedule:
       interval: weekly
+
+  # Images de base Docker (figees par empreinte : Dependabot propose les mises a jour).
+  - package-ecosystem: docker
+    directory: /apps/api
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /apps/web
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
