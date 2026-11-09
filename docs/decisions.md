@@ -186,3 +186,11 @@ En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans N
 - **Limitation de débit** globale par adresse IP (`@nestjs/throttler`), 100 requêtes par minute par défaut. Derrière un reverse proxy, il faudra déclarer le proxy de confiance, sinon toutes les requêtes auront l'IP du proxy.
 - La route publique `/health` n'expose plus la version.
 - Les réglages communs sont dans `configureApp`, utilisée par `main.ts` **et** par les tests : on teste exactement ce qui tourne.
+
+## D27. Interface web : socle
+
+- **Même origine** : l'interface appelle l'API sous `/api` (proxy Vite en développement, reverse proxy en production). Le cookie de session `SameSite=Strict` fonctionne alors sans CORS.
+- **Jeton CSRF en mémoire** uniquement (jamais `localStorage`) ; retrouvé au rechargement via `GET /auth/me`.
+- **Polices servies par l'application** (`@fontsource`), pas Google Fonts : charger une police depuis Google enverrait l'adresse IP de l'utilisateur à un tiers.
+- **Accent `#1E3FA8`** (celui de la maquette). Tous les jetons de couleur sont dans `apps/web/src/styles.css`, source unique.
+- Pas de case « Rester connecté » ni de « Mot de passe oublié » : l'API ne les supporte pas et le compte se gère en ligne de commande ; un contrôle factice serait trompeur.

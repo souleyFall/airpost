@@ -20,7 +20,7 @@ Une ligne par pull request prévue. L'ordre peut évoluer ; l'état est mis à j
 | 14  | `feat(llm)` : service Gemini (réponses validées, cache, minimisation des données envoyées)       | fusionnée |
 | 15  | `feat(generation)` : lettres, objets et garde-fous                                               | fusionnée |
 | 16  | `feat(applications)` : cycle de vie des candidatures et validation                               | ouverte   |
-| 17  | `feat(web)` : socle React, tokens du design, page de connexion                                   | à faire   |
+| 17  | `feat(web)` : socle React, tokens du design, page de connexion                                   | fusionnée |
 | 18  | `feat(web)` : écran « À valider »                                                                | à faire   |
 | 19  | `feat(web)` : écrans « Suivi » et « Sources »                                                    | à faire   |
 | 20  | `feat(gmail)` : autorisation OAuth et brouillons                                                 | à faire   |

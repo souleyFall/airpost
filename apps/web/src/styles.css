@@ -1,0 +1,171 @@
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/source-serif-4/400.css';
+@import '@fontsource/source-serif-4/600.css';
+@import 'tailwindcss';
+
+/*
+ * Jetons de la maquette (Claude Design). Une seule source : toute couleur de l'interface vient d'ici.
+ * Les polices sont servies par l'application (pas de Google Fonts : cela enverrait l'adresse IP à Google).
+ */
+@theme {
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+
+  --color-paper: #f6f4ef;
+  --color-surface: #fdfcfa;
+  --color-sidebar: #edeae2;
+  --color-hover: #efede6;
+  --color-pressed: #e6e2d7;
+  --color-nav-hover: #e3dfd4;
+  --color-badge: #ddd8cb;
+  --color-line: #d9d4c7;
+  --color-line-strong: #bdb6a5;
+  --color-field: #8f8878;
+  --color-ink: #17191f;
+  --color-muted: #565b66;
+  --color-placeholder: #6b6f7a;
+
+  --color-accent: #1e3fa8;
+  --color-accent-hover: #17338a;
+  --color-accent-active: #122a74;
+  --color-selected: #e4e9f6;
+  --color-selection: #c9d3f0;
+
+  --color-warn-bg: #fbf1dc;
+  --color-warn-line: #e2c887;
+  --color-warn-ink: #4a2c00;
+  --color-warn-text: #7a4a00;
+  --color-mark: #f7dc96;
+  --color-ok: #14602f;
+  --color-danger: #8f1d1d;
+  --color-danger-bg: #fbe9e7;
+  --color-danger-line: #e5b4ae;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.45;
+    color: var(--color-ink);
+    background: var(--color-paper);
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  a {
+    color: var(--color-accent);
+    text-underline-offset: 3px;
+  }
+  a:hover {
+    color: var(--color-accent-hover);
+  }
+  ::selection {
+    background: var(--color-selection);
+    color: var(--color-ink);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  * {
+    scrollbar-color: var(--color-line-strong) transparent;
+  }
+}
+
+@layer components {
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 16px;
+    border-radius: 6px;
+    border: 1px solid var(--color-line-strong);
+    background: var(--color-surface);
+    color: var(--color-ink);
+    font: inherit;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .btn:hover {
+    background: var(--color-hover);
+    color: var(--color-ink);
+  }
+  .btn:active {
+    background: var(--color-pressed);
+  }
+  .btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  .btn-primary {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: #fff;
+    font-weight: 600;
+  }
+  .btn-primary:hover {
+    background: var(--color-accent-hover);
+    color: #fff;
+  }
+  .btn-primary:active {
+    background: var(--color-accent-active);
+  }
+  .btn-quiet {
+    border-color: transparent;
+    background: transparent;
+  }
+  .btn-quiet:hover {
+    background: var(--color-pressed);
+  }
+  .field {
+    width: 100%;
+    height: 44px;
+    padding: 0 12px;
+    border: 1px solid var(--color-field);
+    border-radius: 6px;
+    background: var(--color-surface);
+    color: var(--color-ink);
+    font: inherit;
+    font-size: 15px;
+  }
+  .field::placeholder {
+    color: var(--color-placeholder);
+  }
+  .nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 36px;
+    padding: 0 10px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    color: var(--color-ink);
+    text-decoration: none;
+    font-weight: 500;
+  }
+  .nav:hover {
+    background: var(--color-nav-hover);
+    color: var(--color-ink);
+  }
+  .nav[aria-current='page'] {
+    background: var(--color-surface);
+    border-color: var(--color-line);
+    font-weight: 600;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .btn,
+  .nav {
+    transition: background-color 0.15s cubic-bezier(0.2, 0, 0, 1);
+  }
+}

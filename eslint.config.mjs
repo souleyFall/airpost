@@ -33,7 +33,7 @@ export default defineConfig(
   // Tests : les doublures renvoient souvent une promesse sans rien attendre (`async () => valeur`) ; la règle
   // `require-await` n'y apporte que du bruit. Elle reste active pour le code de l'application.
   {
-    files: ['**/*.spec.ts', '**/*.e2e-spec.ts', '**/*.db-spec.ts'],
+    files: ['**/*.spec.ts', '**/*.e2e-spec.ts', '**/*.db-spec.ts', '**/*.test.ts', '**/*.test.tsx'],
     rules: { '@typescript-eslint/require-await': 'off' },
   },
   // Les fichiers JavaScript de configuration ne sont pas dans un tsconfig : pas de règles typées.
