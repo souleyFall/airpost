@@ -1,0 +1,82 @@
+import { describe, expect, it } from 'vitest';
+import { EnvError, parseEnv } from './env';
+
+describe('parseEnv', () => {
+  it('applique des valeurs par défaut sûres : écoute locale, CORS désactivé', () => {
+    const env = parseEnv({});
+
+    expect(env).toMatchObject({
+      NODE_ENV: 'development',
+      API_HOST: '127.0.0.1',
+      API_PORT: 3000,
+      RATE_LIMIT_WINDOW_MS: 60_000,
+      RATE_LIMIT_MAX: 100,
+    });
+    expect(env.WEB_ORIGIN).toBeUndefined();
+  });
+
+  it('convertit le port en nombre', () => {
+    expect(parseEnv({ API_PORT: '4000' }).API_PORT).toBe(4000);
+  });
+
+  it.each(['abc', '0', '70000', '3000.5'])('refuse le port invalide « %s »', (port) => {
+    expect(() => parseEnv({ API_PORT: port })).toThrow(EnvError);
+    expect(() => parseEnv({ API_PORT: port })).toThrow(/API_PORT/);
+  });
+
+  it("n'affiche jamais la valeur reçue dans le message d'erreur", () => {
+    const secret = 'valeur-secrete-123456';
+    let message = '';
+    try {
+      parseEnv({ API_PORT: secret });
+    } catch (error) {
+      message = (error as Error).message;
+    }
+
+    expect(message).toContain('API_PORT');
+    expect(message).not.toContain(secret);
+  });
+
+  it('refuse un NODE_ENV inconnu', () => {
+    expect(() => parseEnv({ NODE_ENV: 'staging' })).toThrow(/NODE_ENV/);
+  });
+
+  it('accepte une origine web', () => {
+    expect(parseEnv({ WEB_ORIGIN: 'https://airpost.example' }).WEB_ORIGIN).toBe(
+      'https://airpost.example',
+    );
+  });
+
+  it.each(['https://airpost.example/', 'https://airpost.example/app', 'pas une url'])(
+    'refuse WEB_ORIGIN « %s » (ce n’est pas une origine)',
+    (value) => {
+      // EnvError et non TypeError : l'erreur native de `new URL()` embarquerait la valeur saisie.
+      expect(() => parseEnv({ WEB_ORIGIN: value })).toThrow(EnvError);
+      expect(() => parseEnv({ WEB_ORIGIN: value })).toThrow(/WEB_ORIGIN/);
+    },
+  );
+
+  it("ne laisse fuiter aucune valeur saisie, même quand ce n'est pas une URL", () => {
+    const secret = 'sk-secret-valeur-123456';
+    let error: unknown;
+    try {
+      parseEnv({ WEB_ORIGIN: secret });
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(EnvError);
+    expect(JSON.stringify(error, Object.getOwnPropertyNames(error))).not.toContain(secret);
+  });
+
+  it('traite une WEB_ORIGIN vide comme absente', () => {
+    expect(parseEnv({ WEB_ORIGIN: '' }).WEB_ORIGIN).toBeUndefined();
+  });
+
+  it("ignore les variables inconnues et ne les recopie jamais (clés d'API...)", () => {
+    const env = parseEnv({ GEMINI_API_KEY: 'secret', DATABASE_URL: 'postgresql://x' });
+
+    expect(env).not.toHaveProperty('GEMINI_API_KEY');
+    expect(env).not.toHaveProperty('DATABASE_URL');
+  });
+});
