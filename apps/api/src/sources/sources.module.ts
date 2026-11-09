@@ -15,6 +15,6 @@ import { OffersService } from './offers.service';
     OffersService,
   ],
   // Le pipeline de collecte (PR n°12) utilisera les connecteurs et OffersService.
-  exports: [LbaConnector, LbbConnector, AdzunaConnector, OffersService],
+  exports: [HTTP_FETCH, LbaConnector, LbbConnector, AdzunaConnector, OffersService],
 })
 export class SourcesModule {}

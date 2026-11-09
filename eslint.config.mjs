@@ -30,6 +30,12 @@ export default defineConfig(
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   },
+  // Tests : les doublures renvoient souvent une promesse sans rien attendre (`async () => valeur`) ; la règle
+  // `require-await` n'y apporte que du bruit. Elle reste active pour le code de l'application.
+  {
+    files: ['**/*.spec.ts', '**/*.e2e-spec.ts', '**/*.db-spec.ts'],
+    rules: { '@typescript-eslint/require-await': 'off' },
+  },
   // Les fichiers JavaScript de configuration ne sont pas dans un tsconfig : pas de règles typées.
   { files: ['**/*.{js,mjs}'], extends: [tseslint.configs.disableTypeChecked] },
   // Toujours en dernier : désactive les règles de style qui entreraient en conflit avec Prettier.

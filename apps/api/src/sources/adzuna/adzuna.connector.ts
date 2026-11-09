@@ -4,7 +4,15 @@ import { ENV } from '../../config/config.module';
 import type { Env } from '../../config/env';
 import { HTTP_FETCH, type HttpFetch } from '../http-fetch';
 import { assertOk } from '../http-errors';
-import { MAX_COMPANY, MAX_DESCRIPTION, MAX_TITLE, cleanText, safeUrl, toDate } from '../normalize';
+import {
+  MAX_COMPANY,
+  MAX_DESCRIPTION,
+  MAX_TITLE,
+  UNKNOWN_COMPANY,
+  cleanText,
+  safeUrl,
+  toDate,
+} from '../normalize';
 import {
   type NormalizedOffer,
   type SearchQuery,
@@ -50,7 +58,7 @@ export function normalizeAdzunaJob(job: Job): NormalizedOffer {
     source: 'ADZUNA',
     externalId: job.id,
     title: cleanText(job.title, MAX_TITLE) ?? 'Offre sans titre',
-    company: cleanText(job.company?.display_name, MAX_COMPANY) ?? 'Entreprise non indiquée',
+    company: cleanText(job.company?.display_name, MAX_COMPANY) ?? UNKNOWN_COMPANY,
     city: cityOf(job),
     // Adzuna ne fournit pas de code postal.
     latitude: job.latitude ?? undefined,

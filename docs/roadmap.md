@@ -14,8 +14,8 @@ Une ligne par pull request prévue. L'ordre peut évoluer ; l'état est mis à j
 | 8   | `feat(auth)` : connexion mono-utilisateur (mot de passe haché, session sécurisée)                | fusionnée |
 | 9   | `feat(profile)` : profil du candidat validé par un schéma                                        | fusionnée |
 | 10  | `feat(sources)` : connecteur La Bonne Alternance                                                 | fusionnée |
-| 11  | `feat(sources)` : connecteurs La Bonne Boîte et Adzuna                                           | ouverte   |
-| 12  | `feat(pipeline)` : collecte, dédoublonnage, tâche planifiée                                      | à faire   |
+| 11  | `feat(sources)` : connecteurs La Bonne Boîte et Adzuna                                           | fusionnée |
+| 12  | `feat(pipeline)` : collecte, dédoublonnage, tâche planifiée                                      | ouverte   |
 | 13  | `feat(scoring)` : grille de score sur 100                                                        | à faire   |
 | 14  | `feat(llm)` : service Gemini (réponses validées, cache, minimisation des données envoyées)       | à faire   |
 | 15  | `feat(generation)` : lettres, objets et garde-fous                                               | à faire   |

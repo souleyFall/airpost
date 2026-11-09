@@ -5,6 +5,9 @@ export const MAX_TITLE = 200;
 export const MAX_COMPANY = 200;
 export const MAX_DESCRIPTION = 10_000;
 
+/** Nom donné à une offre dont la source ne publie pas l'entreprise (exclu du dédoublonnage entre sources). */
+export const UNKNOWN_COMPANY = 'Entreprise non indiquée';
+
 /** Seules les URL http(s) sont conservées : un « javascript: » venu d'une source ne doit jamais atteindre l'interface. */
 export function safeUrl(value?: string | null): string | undefined {
   if (!value || !URL.canParse(value)) {

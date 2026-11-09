@@ -4,7 +4,14 @@ import { ENV } from '../../config/config.module';
 import type { Env } from '../../config/env';
 import { HTTP_FETCH, type HttpFetch } from '../http-fetch';
 import { assertOk } from '../http-errors';
-import { MAX_COMPANY, MAX_DESCRIPTION, MAX_TITLE, cleanText, isValidGeoQuery } from '../normalize';
+import {
+  MAX_COMPANY,
+  MAX_DESCRIPTION,
+  MAX_TITLE,
+  UNKNOWN_COMPANY,
+  cleanText,
+  isValidGeoQuery,
+} from '../normalize';
 import {
   type NormalizedOffer,
   type SearchQuery,
@@ -61,7 +68,7 @@ export function normalizeCompany(company: Company): NormalizedOffer {
     externalId: company.siret,
     title:
       cleanText(`Candidature spontanée : ${company.naf_label ?? 'développement'}`, MAX_TITLE) ?? '',
-    company: name ?? 'Entreprise non indiquée',
+    company: name ?? UNKNOWN_COMPANY,
     city: cleanText(company.city, 80),
     postcode: cleanText(company.postcode, 10),
     latitude: company.location?.lat,

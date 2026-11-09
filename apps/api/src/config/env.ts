@@ -38,6 +38,10 @@ export const envSchema = z
     API_HOST: z.string().min(1).default('127.0.0.1'),
     API_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
     DATABASE_URL: databaseUrl,
+    /** Collecte automatique des offres toutes les N heures (0 : désactivée, collecte à la demande seulement). */
+    COLLECT_EVERY_HOURS: z.coerce.number().int().min(0).max(168).default(0),
+    /** Durée de conservation des offres sans candidature (RGPD) : plus anciennes, elles sont supprimées. */
+    OFFER_RETENTION_DAYS: z.coerce.number().int().min(7).max(365).default(90),
     /**
      * Clé de l'API La Bonne Alternance. Facultative : sans elle, le connecteur est désactivé.
      * C'est un secret : jamais journalisée ni recopiée dans une erreur.
