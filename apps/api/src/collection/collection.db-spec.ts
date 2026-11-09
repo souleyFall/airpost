@@ -260,6 +260,7 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
       dedupKey: 'x',
       channel: 'SITE',
       firstSeenAt: old,
+      lastSeenAt: old,
     } as const;
     await prisma.offer.create({ data: { ...base, source: 'LBA', externalId: 'old-free' } });
     const kept = await prisma.offer.create({

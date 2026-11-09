@@ -55,6 +55,7 @@ export function radiusFromCommute(minutes: number): number {
 @Injectable()
 export class CollectionService {
   private readonly logger = new Logger(CollectionService.name);
+  private readonly searchers: Searcher[];
   private running = false;
   private last?: RunReport;
 
@@ -75,8 +76,6 @@ export class CollectionService {
       { source: 'LBB', search: (q) => lbb.search(q) },
     ];
   }
-
-  private readonly searchers: Searcher[];
 
   lastReport(): RunReport | undefined {
     return this.last;
@@ -168,45 +167,52 @@ export class CollectionService {
       return report;
     }
 
-    report.fetched = result.offers.length;
-    report.skipped = result.skipped;
+    try {
+      report.fetched = result.offers.length;
+      report.skipped = result.skipped;
 
-    const excludedNames = profile.search.excludedCompanies.map(normalizeText).filter(Boolean);
-    const candidates: NormalizedOffer[] = [];
-    for (const offer of result.offers) {
-      const company = normalizeText(offer.company);
-      if (excludedNames.some((name) => company.includes(name))) {
-        report.excluded++;
-      } else {
-        candidates.push(offer);
+      const excludedNames = profile.search.excludedCompanies.map(normalizeText).filter(Boolean);
+      const candidates: NormalizedOffer[] = [];
+      for (const offer of result.offers) {
+        const company = normalizeText(offer.company);
+        // Mots entiers : « sa » ne doit pas exclure « casino ». Les mots sont séparés par des tirets (normalizeText).
+        if (excludedNames.some((name) => `-${company}-`.includes(`-${name}-`))) {
+          report.excluded++;
+        } else {
+          candidates.push(offer);
+        }
       }
-    }
 
-    // Doublons entre sources : la même annonce circule chez plusieurs partenaires. Une offre dont
-    // l'entreprise est inconnue n'est jamais jugée doublon (on ne peut pas la comparer).
-    const keyOf = (o: NormalizedOffer) => dedupKey(o.company, o.title, o.city);
-    const comparable = candidates.filter((o) => o.company !== UNKNOWN_COMPANY);
-    const inDatabase = await this.offers.sourcesByDedupKey(comparable.map(keyOf));
-    const kept: NormalizedOffer[] = [];
-    for (const offer of candidates) {
-      const key = keyOf(offer);
-      const elsewhere =
-        offer.company !== UNKNOWN_COMPANY &&
-        ((seen.has(key) && seen.get(key) !== offer.source) ||
-          [...(inDatabase.get(key) ?? [])].some((s) => s !== offer.source));
-      if (elsewhere) {
-        report.duplicates++;
-        continue;
+      // Doublons entre sources : la même annonce circule chez plusieurs partenaires. Une offre dont
+      // l'entreprise est inconnue n'est jamais jugée doublon (on ne peut pas la comparer).
+      const keyOf = (o: NormalizedOffer) => dedupKey(o.company, o.title, o.city);
+      const comparable = candidates.filter((o) => o.company !== UNKNOWN_COMPANY);
+      const inDatabase = await this.offers.sourcesByDedupKey(comparable.map(keyOf));
+      const kept: NormalizedOffer[] = [];
+      for (const offer of candidates) {
+        const key = keyOf(offer);
+        const elsewhere =
+          offer.company !== UNKNOWN_COMPANY &&
+          ((seen.has(key) && seen.get(key) !== offer.source) ||
+            [...(inDatabase.get(key) ?? [])].some((s) => s !== offer.source));
+        if (elsewhere) {
+          report.duplicates++;
+          continue;
+        }
+        kept.push(offer);
       }
-      kept.push(offer);
-    }
-    for (const offer of kept) {
-      seen.set(keyOf(offer), offer.source);
-    }
+      for (const offer of kept) {
+        seen.set(keyOf(offer), offer.source);
+      }
 
-    const saved = await this.offers.saveMany(kept);
-    report.created = saved.created;
-    report.updated = saved.updated;
+      const saved = await this.offers.saveMany(kept);
+      report.created = saved.created;
+      report.updated = saved.updated;
+    } catch {
+      // Enregistrement impossible (base...) : cette source est signalée en erreur, les autres continuent.
+      report.status = 'error';
+      report.reason = 'unexpected';
+    }
     return report;
   }
 }

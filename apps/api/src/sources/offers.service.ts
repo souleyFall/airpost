@@ -32,14 +32,16 @@ export class OffersService {
   }
 
   /**
-   * Supprime les offres vues pour la première fois il y a plus de `days` jours (durée de conservation, RGPD).
+   * Supprime les offres qui ne sont plus apparues depuis plus de `days` jours (durée de conservation, RGPD).
+   * Une offre toujours publiée est revue à chaque collecte et donc conservée (purger sur la première apparition
+   * la supprimerait puis la recréerait en boucle).
    * Une offre qui a une candidature n'est JAMAIS supprimée : elle fait partie du suivi de l'utilisateur
    * (elle partira avec sa candidature). Renvoie le nombre d'offres supprimées.
    */
   async purgeStale(days: number, now = new Date()): Promise<number> {
     const limit = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
     const { count } = await this.prisma.offer.deleteMany({
-      where: { firstSeenAt: { lt: limit }, application: null },
+      where: { lastSeenAt: { lt: limit }, application: null },
     });
     return count;
   }

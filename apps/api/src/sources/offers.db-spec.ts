@@ -96,7 +96,7 @@ describe('OffersService (intégration, base réelle)', () => {
 
   describe('purgeStale (durée de conservation)', () => {
     const daysAgo = (days: number) => new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-    const seed = (id: string, firstSeenAt: Date) =>
+    const seed = (id: string, lastSeenAt: Date, firstSeenAt = lastSeenAt) =>
       prisma.offer.create({
         data: {
           source: 'LBA',
@@ -106,10 +106,11 @@ describe('OffersService (intégration, base réelle)', () => {
           company: 'C',
           channel: 'SITE',
           firstSeenAt,
+          lastSeenAt,
         },
       });
 
-    it('supprime les offres plus anciennes que la durée, garde les récentes', async () => {
+    it('supprime les offres plus revues depuis la durée, garde les autres', async () => {
       await seed('ancienne', daysAgo(91));
       await seed('limite', daysAgo(89));
       await seed('recente', daysAgo(1));
@@ -120,6 +121,15 @@ describe('OffersService (intégration, base réelle)', () => {
       expect(
         (await prisma.offer.findMany({ orderBy: { externalId: 'asc' } })).map((o) => o.externalId),
       ).toEqual(['limite', 'recente']);
+    });
+
+    it('garde une offre toujours publiée même si elle est connue depuis longtemps', async () => {
+      await seed('active', daysAgo(1), daysAgo(300));
+      await seed('disparue', daysAgo(120), daysAgo(300));
+
+      expect(await offers.purgeStale(90)).toBe(1);
+
+      expect((await prisma.offer.findMany()).map((o) => o.externalId)).toEqual(['active']);
     });
 
     it('ne supprime jamais une offre qui a une candidature, même très ancienne', async () => {

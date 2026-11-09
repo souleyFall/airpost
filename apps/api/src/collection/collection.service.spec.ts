@@ -176,6 +176,45 @@ describe('CollectionService', () => {
     expect(saveMany.mock.calls[0]?.[0].map((o) => o.externalId)).toEqual(['2']);
   });
 
+  it('exclut des mots entiers : « SA » ne retire pas « Casino »', async () => {
+    const profile = exampleProfile();
+    profile.search.excludedCompanies = ['SA'];
+    const { service, saveMany } = setup({
+      profile,
+      lba: async () => ({
+        offers: [
+          offer('LBA', '1', { company: 'Casino Informatique' }),
+          offer('LBA', '2', { company: 'Exemple SA' }),
+          offer('LBA', '3', { company: 'Sa Majesté Logiciels' }),
+        ],
+        skipped: 0,
+      }),
+    });
+
+    const report = await service.run('u1');
+
+    expect(report.sources[0]).toMatchObject({ excluded: 2, created: 1 });
+    expect(saveMany.mock.calls[0]?.[0].map((o) => o.externalId)).toEqual(['1']);
+  });
+
+  it('signale en erreur la source dont l’enregistrement échoue, sans perdre le bilan des autres', async () => {
+    const { service, saveMany, purgeStale } = setup({
+      lba: async () => ({ offers: [offer('LBA', '1')], skipped: 0 }),
+      adzuna: async () => ({ offers: [offer('ADZUNA', 'a', { company: 'Autre SA' })], skipped: 0 }),
+    });
+    saveMany.mockRejectedValueOnce(new Error('base indisponible, mot de passe SECRET'));
+
+    const report = await service.run('u1');
+
+    expect(report.sources.map((s) => [s.source, s.status, s.reason])).toEqual([
+      ['LBA', 'error', 'unexpected'],
+      ['ADZUNA', 'ok', undefined],
+      ['LBB', 'ok', undefined],
+    ]);
+    expect(JSON.stringify(report)).not.toContain('SECRET');
+    expect(purgeStale).toHaveBeenCalled();
+  });
+
   it('écarte comme doublon une offre déjà publiée par une autre source dans cette collecte', async () => {
     const { service, saveMany } = setup({
       lba: async () => ({ offers: [offer('LBA', '1')], skipped: 0 }),
