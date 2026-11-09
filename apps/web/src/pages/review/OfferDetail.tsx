@@ -24,7 +24,7 @@ interface Props {
   /** Appelé après toute action : `done` = la candidature quitte l'écran « À valider ». */
   onChanged: (done: boolean) => void;
   /** Appelé quand l'IA vient de noter l'offre : la liste met son badge à jour sans se recharger. */
-  onAnalyzed?: (offerId: string, score: number | null) => void;
+  onAnalyzed?: (offerId: string, score: number | null, excluded: boolean) => void;
 }
 
 function analysisErrorText(error: unknown): string {
@@ -104,7 +104,7 @@ export function OfferDetail({ offerId, onChanged, onAnalyzed }: Props) {
         );
         if (!mounted.current) return;
         setOffer((current) => (current ? { ...current, ...fresh } : current));
-        onAnalyzed?.(offerId, fresh.score);
+        onAnalyzed?.(offerId, fresh.score, fresh.excluded);
       } catch (error) {
         if (mounted.current) setAnalysisError(analysisErrorText(error));
       } finally {

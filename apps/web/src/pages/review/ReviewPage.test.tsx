@@ -71,6 +71,8 @@ interface Options {
   emptyBrief?: boolean;
   /** La liste renvoie des offres sans note (jamais analysées). */
   unscored?: boolean;
+  /** Offres que l'IA écarte quand on les analyse. */
+  disqualify?: string[];
 }
 
 /** Fausse API avec un petit état : la lettre n'existe qu'après génération ; la liste honore limit/offset/source. */
@@ -81,6 +83,7 @@ function fakeApi(options: Options = {}) {
   let analyzed = options.analyzed ?? true;
   // Notes de la liste : absentes tant que l'analyse des offres affichées n'a pas eu lieu (option unscored).
   let scored = !options.unscored;
+  const hidden = new Set<string>();
   const json = (data: unknown, code = 200) => new Response(JSON.stringify(data), { status: code });
   const appRef = () => (hasLetter ? { id: 'a1', status } : null);
   const catalogue = () =>
@@ -97,6 +100,7 @@ function fakeApi(options: Options = {}) {
       contactEmail: id === 'o1' ? 'rh@exemple.test' : null,
       analysis: analyzed ? (options.emptyBrief ? EMPTY_BRIEF_ANALYSIS : ANALYSIS) : null,
       analyzedAt: analyzed ? now : null,
+      excluded: hidden.has(id),
     };
   };
 
@@ -112,6 +116,7 @@ function fakeApi(options: Options = {}) {
       if (path.startsWith('/offers?')) {
         const params = new URL(path, 'http://x').searchParams;
         const visible = catalogue()
+          .filter((o) => !hidden.has(o.id))
           .filter(
             (o) => o.application?.status !== 'WITHDRAWN' && o.application?.status !== 'VALIDATED',
           )
@@ -135,12 +140,14 @@ function fakeApi(options: Options = {}) {
         const ids = (body as { ids: string[] }).ids;
         if (options.analyzeStatus) return json({ message: 'Quota' }, options.analyzeStatus);
         scored = true;
+        for (const id of ids) if (options.disqualify?.includes(id)) hidden.add(id);
         return json({
           analyzed: ids.length,
           pendingBatch: ids.length,
           items: ids.map((id) => ({
             id,
             score: catalogue().find((o) => o.id === id)?.score ?? null,
+            excluded: hidden.has(id),
           })),
         });
       }
@@ -292,6 +299,8 @@ describe('écran À valider', () => {
     const user = userEvent.setup();
     renderApp();
     await findList();
+    // Le détail de la première offre est affiché (son analyse différée est programmée) avant de la quitter.
+    await screen.findByRole('heading', { name: 'Alternance full stack' });
     await user.keyboard('{ArrowDown}');
     expect(await screen.findByText(/Compatibilité 80 \/ 100/, {}, SLOW)).toBeInTheDocument();
     const analyses = calls.filter((c) => c.method === 'POST' && c.path.includes('/analyze'));
@@ -314,6 +323,15 @@ describe('écran À valider', () => {
     expect(calls.filter((c) => c.method === 'POST' && c.path === '/offers/analyze')).toHaveLength(
       1,
     );
+  });
+
+  it('les offres que l’IA écarte quittent le fil dès l’analyse', async () => {
+    fakeApi({ unscored: true, disqualify: ['o2'] });
+    renderApp();
+    const list = await findList();
+    await waitFor(() => expect(within(list).getAllByRole('button')).toHaveLength(1));
+    expect(within(list).getByRole('button')).toHaveTextContent('Alternance full stack');
+    expect(screen.queryByText('Dev React')).not.toBeInTheDocument();
   });
 
   it('un quota atteint pendant l’analyse de la liste ne bloque pas l’écran et ne boucle pas', async () => {
