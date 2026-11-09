@@ -8,10 +8,11 @@ import {
   Req,
   Res,
   UnauthorizedException,
+  UnsupportedMediaTypeException,
   UsePipes,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { ENV } from '../config/config.module';
@@ -47,7 +48,16 @@ export class AuthController {
   @Post('login')
   @HttpCode(200)
   @UsePipes(new ZodValidationPipe(loginSchema))
-  async login(@Body() body: LoginBody, @Res({ passthrough: true }) res: Response) {
+  async login(
+    @Body() body: LoginBody,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    // JSON uniquement : un formulaire HTML posté depuis un autre site ne peut pas ouvrir une session
+    // à la place de l'utilisateur (« login CSRF »). Un navigateur ne peut pas envoyer ce type sans pré-vérification CORS.
+    if (!req.is('application/json')) {
+      throw new UnsupportedMediaTypeException('Le corps doit être du JSON');
+    }
     const session = await this.auth.login(body.login, body.password);
     if (!session) {
       // Même réponse que l'identifiant soit inconnu ou le mot de passe faux.

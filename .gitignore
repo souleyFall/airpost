@@ -14,3 +14,9 @@ dist/
 docs/cours/
 .claude/settings.local.json
 apps/api/src/generated/
+
+# Revues de code : journal personnel, reste sur ton ordinateur
+docs/revues/
+
+# Revues de code : journal personnel, reste sur ton ordinateur
+docs/revues/
