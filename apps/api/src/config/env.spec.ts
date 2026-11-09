@@ -69,6 +69,26 @@ describe('parseEnv', () => {
     expect(JSON.stringify(error, Object.getOwnPropertyNames(error))).not.toContain(secret);
   });
 
+  it('exige https pour WEB_ORIGIN en production (cookies de session)', () => {
+    expect(() =>
+      parseEnv({ NODE_ENV: 'production', WEB_ORIGIN: 'http://airpost.example' }),
+    ).toThrow(/WEB_ORIGIN : doit être en https/);
+    expect(
+      parseEnv({ NODE_ENV: 'production', WEB_ORIGIN: 'https://airpost.example' }).WEB_ORIGIN,
+    ).toBe('https://airpost.example');
+    // En développement, le front local est en http.
+    expect(
+      parseEnv({ NODE_ENV: 'development', WEB_ORIGIN: 'http://localhost:5173' }).WEB_ORIGIN,
+    ).toBe('http://localhost:5173');
+  });
+
+  it.each([
+    ['RATE_LIMIT_MAX', '10001'],
+    ['RATE_LIMIT_WINDOW_MS', '86400001'],
+  ])('plafonne %s pour qu’un zéro de trop ne désactive pas la limitation', (name, value) => {
+    expect(() => parseEnv({ [name]: value })).toThrow(new RegExp(name));
+  });
+
   it('traite une WEB_ORIGIN vide comme absente', () => {
     expect(parseEnv({ WEB_ORIGIN: '' }).WEB_ORIGIN).toBeUndefined();
   });

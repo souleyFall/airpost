@@ -35,8 +35,11 @@ describe('Durcissement HTTP (e2e)', () => {
 
     expect(res.headers['x-content-type-options']).toBe('nosniff');
     expect(res.headers['x-frame-options']).toBe('SAMEORIGIN');
-    expect(res.headers['strict-transport-security']).toBeDefined();
-    expect(res.headers['content-security-policy']).toBeDefined();
+    // On vérifie le contenu, pas seulement la présence : un Helmet affaibli doit faire échouer le test.
+    expect(res.headers['strict-transport-security']).toMatch(/max-age=\d{7,}/);
+    expect(res.headers['content-security-policy']).toContain("default-src 'self'");
+    expect(res.headers['content-security-policy']).toContain("object-src 'none'");
+    expect(res.headers['content-security-policy']).toContain("frame-ancestors 'self'");
     expect(res.headers['x-powered-by']).toBeUndefined();
   });
 
@@ -78,6 +81,19 @@ describe('Durcissement HTTP (e2e)', () => {
 
     expect(res.headers['access-control-allow-methods']).toBe('GET,POST,PATCH,PUT,DELETE');
     expect(res.headers['access-control-allow-methods']).not.toContain('TRACE');
+  });
+
+  it("n'accepte dans le préambule CORS que les en-têtes de la liste blanche", async () => {
+    const http = await startApp({ WEB_ORIGIN: 'https://airpost.example' });
+
+    const res = await http
+      .options('/health')
+      .set('Origin', 'https://airpost.example')
+      .set('Access-Control-Request-Method', 'POST')
+      .set('Access-Control-Request-Headers', 'content-type, x-en-tete-inattendu')
+      .expect(204);
+
+    expect(res.headers['access-control-allow-headers']).toBe('Content-Type');
   });
 
   it('limite le débit : 429 au-delà du seuil, avec Retry-After', async () => {

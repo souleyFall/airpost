@@ -5,22 +5,39 @@ import { AppModule } from './app.module';
 import { configureApp } from './app.setup';
 import { parseEnv } from './config/env';
 
-/** En développement, charge le .env du dépôt. En production, l'environnement fournit déjà les variables. */
-function loadDotEnv(): void {
+const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
+
+/**
+ * En développement, charge le .env du dépôt. En production, l'environnement fournit déjà les variables.
+ * Renvoie le fichier chargé, pour qu'on sache d'où vient la configuration (jamais son contenu).
+ */
+function loadDotEnv(): string | undefined {
   const candidates = [resolve(process.cwd(), '.env'), resolve(process.cwd(), '../../.env')];
   const file = candidates.find((path) => existsSync(path));
   if (file) {
     process.loadEnvFile(file);
   }
+  return file;
 }
 
 async function bootstrap() {
   if (process.env.NODE_ENV !== 'production') {
-    loadDotEnv();
+    const file = loadDotEnv();
+    console.log(
+      file
+        ? `Configuration chargée depuis ${file}`
+        : 'Aucun fichier .env trouvé : variables du processus et valeurs par défaut uniquement.',
+    );
   }
 
   // Échoue tout de suite, avec la liste des variables invalides, plutôt que de démarrer mal configuré.
   const env = parseEnv();
+
+  if (env.NODE_ENV !== 'production' && !LOCAL_HOSTS.has(env.API_HOST)) {
+    console.warn(
+      `Attention : l'API écoute sur ${env.API_HOST}, donc depuis tout le réseau, sans authentification.`,
+    );
+  }
 
   // Nest lit AppModule, construit tous les objets et leurs dépendances, puis prépare le serveur HTTP.
   const app = await NestFactory.create(AppModule);

@@ -16,6 +16,9 @@ export function configureApp(app: INestApplication, env: Env): void {
       origin: env.WEB_ORIGIN,
       credentials: true,
       methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
+      // Liste blanche d'en-têtes (sans elle, la bibliothèque accepte tout ce que le préambule demande).
+      // On y ajoutera l'en-tête du jeton anti-CSRF avec l'authentification.
+      allowedHeaders: ['Content-Type'],
       maxAge: 600,
     });
   }

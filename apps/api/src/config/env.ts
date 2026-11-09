@@ -18,16 +18,30 @@ const origin = z.url().refine((value) => URL.canParse(value) && new URL(value).o
  * Toute variable absente de ce schéma (clés d'API, mots de passe...) est ignorée et n'est jamais
  * recopiée dans l'objet renvoyé.
  */
-export const envSchema = z.object({
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  API_HOST: z.string().min(1).default('127.0.0.1'),
-  API_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
-  /** Origine du front autorisée à appeler l'API depuis un navigateur. Absente : CORS désactivé. */
-  WEB_ORIGIN: z.preprocess(emptyToUndefined, origin.optional()),
-  /** Limitation de débit : au plus RATE_LIMIT_MAX requêtes par fenêtre et par adresse IP. */
-  RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(60_000),
-  RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(100),
-});
+export const envSchema = z
+  .object({
+    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    API_HOST: z.string().min(1).default('127.0.0.1'),
+    API_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+    /** Origine du front autorisée à appeler l'API depuis un navigateur. Absente : CORS désactivé. */
+    WEB_ORIGIN: z.preprocess(emptyToUndefined, origin.optional()),
+    /**
+     * Limitation de débit : au plus RATE_LIMIT_MAX requêtes par fenêtre et par adresse IP.
+     * Des bornes hautes évitent qu'un zéro de trop ne désactive de fait la protection.
+     */
+    RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).max(86_400_000).default(60_000),
+    RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(10_000).default(100),
+  })
+  .superRefine((env, ctx) => {
+    // CORS avec cookies de session : en production, l'origine du front doit être servie en HTTPS.
+    if (env.NODE_ENV === 'production' && env.WEB_ORIGIN && !env.WEB_ORIGIN.startsWith('https://')) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['WEB_ORIGIN'],
+        message: 'doit être en https:// en production',
+      });
+    }
+  });
 
 export type Env = z.infer<typeof envSchema>;
 
