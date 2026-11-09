@@ -75,6 +75,15 @@ En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans N
 - Vérifié : image de ~246 Mo, uid 1000, healthcheck vert, aucun fichier secret, valeur invalide jamais affichée.
 - Reste à faire : épingler l'image de base par empreinte (digest) avec Dependabot (PR n°24), et le proxy de confiance avec le déploiement (R8).
 
+## D21. Connecteurs La Bonne Boîte et Adzuna
+
+- **La Bonne Boîte v2 (France Travail)** : ce ne sont pas des annonces mais des **entreprises qui recrutent souvent** (potentiel d'embauche). Chaque résultat devient une « candidature spontanée » (source = LBB, identifiant = SIRET, titre « Candidature spontanée : <activité> »), avec un lien vers la fiche labonneboite.francetravail.fr/entreprise/<siret> (200 vérifié ; SIRET validé à 14 chiffres avant d'entrer dans l'URL). L'API n'indique que « un e-mail existe » (yes), jamais l'adresse : canal « site », aucun contact enregistré. OAuth2 « client credentials » (scope pi_labonneboitev2 search), jeton gardé en mémoire jusqu'à 60 s avant son expiration, un seul appel de jeton même si deux recherches se croisent, jeton oublié après un 401. Pagination : 100 maximum par page (200 donne 422). Un appel par code ROME, l'un après l'autre : l'API répond 429 dès qu'on enchaîne trop vite.
+- **Adzuna** : vraies annonces (what = alternance, what_or = mots-clés du profil, lieu et rayon, tri par date, 50 par page). La clé voyage **dans l'URL** (méthode de l'API) : aucune erreur ni journal ne reprend l'URL (testé). Offres sans code postal. Formule gratuite limitée (≈ 25 appels/min, 250/jour). Les conditions d'Adzuna demandent d'afficher « Jobs by Adzuna » près des annonces : à faire dans l'interface (PR n°15 à n°17). what_or ramène large (268 résultats pour Paris) : c'est le scoring qui triera.
+- **Communs aux trois sources** (
+  ormalize.ts) : textes bornés, URL http(s) seulement,
+  edirect: 'error' (aucun secret ne suit une redirection), délai de 10 s, entrées illisibles comptées, requêtes absurdes refusées avant l'appel, erreurs sans secret ni corps de réponse. Clés facultatives dans la configuration : une source sans clé reste désactivée.
+- **Doublons entre sources** : les mêmes annonces circulent (France Travail est partenaire de La Bonne Alternance et d'Adzuna) ; dedupKey les rapprochera dans le pipeline (PR n°12).
+
 ## D20. Connecteur La Bonne Alternance et enregistrement des offres
 
 - **Format commun** (NormalizedOffer) pour toutes les sources, puis OffersService.saveMany : upsert par (source, externalId), le score et la candidature ne sont jamais écrasés, irstSeenAt est conservé, lastSeenAt rafraîchi, empreinte de dédoublonnage (dedupKey, partagée avec le seed) recalculée.

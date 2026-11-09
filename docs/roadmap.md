@@ -13,8 +13,8 @@ Une ligne par pull request prévue. L'ordre peut évoluer ; l'état est mis à j
 | 7   | `feat(db)` : Prisma, schéma, migrations, données de démonstration                                | fusionnée |
 | 8   | `feat(auth)` : connexion mono-utilisateur (mot de passe haché, session sécurisée)                | fusionnée |
 | 9   | `feat(profile)` : profil du candidat validé par un schéma                                        | fusionnée |
-| 10  | `feat(sources)` : connecteur La Bonne Alternance                                                 | ouverte   |
-| 11  | `feat(sources)` : connecteurs La Bonne Boîte et Adzuna                                           | à faire   |
+| 10  | `feat(sources)` : connecteur La Bonne Alternance                                                 | fusionnée |
+| 11  | `feat(sources)` : connecteurs La Bonne Boîte et Adzuna                                           | ouverte   |
 | 12  | `feat(pipeline)` : collecte, dédoublonnage, tâche planifiée                                      | à faire   |
 | 13  | `feat(scoring)` : grille de score sur 100                                                        | à faire   |
 | 14  | `feat(llm)` : service Gemini (réponses validées, cache, minimisation des données envoyées)       | à faire   |

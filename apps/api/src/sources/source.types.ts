@@ -24,6 +24,10 @@ export interface SearchQuery {
   longitude: number;
   radiusKm: number;
   romeCodes: string[];
+  /** Nom de la ville (pour les sources qui cherchent par lieu plutôt que par coordonnées). */
+  where?: string;
+  /** Mots-clés de la pile technique (pour les sources qui cherchent par texte). */
+  keywords?: string[];
 }
 
 export interface SearchResult {

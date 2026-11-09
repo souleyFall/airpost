@@ -4,6 +4,15 @@ import { ENV } from '../../config/config.module';
 import type { Env } from '../../config/env';
 import { HTTP_FETCH, type HttpFetch } from '../http-fetch';
 import {
+  MAX_COMPANY,
+  MAX_DESCRIPTION,
+  MAX_TITLE,
+  cleanText,
+  isValidGeoQuery,
+  safeUrl,
+  toDate,
+} from '../normalize';
+import {
   type NormalizedOffer,
   type SearchQuery,
   type SearchResult,
@@ -41,11 +50,6 @@ type Job = z.infer<typeof jobSchema>;
 
 const responseSchema = z.object({ jobs: z.array(z.unknown()) });
 
-// Bornes sur les textes venus de la source : ils sont stockés, puis envoyés à un modèle de langage.
-const MAX_TITLE = 200;
-const MAX_COMPANY = 200;
-const MAX_DESCRIPTION = 10_000;
-
 /**
  * « 99 RUE DE LA VERRERIE 75004 PARIS » → code postal et ville. Le préfixe gourmand fait choisir le DERNIER
  * groupe de 5 chiffres suivi d'un espace : « ZAC 12345 Bât A 75004 PARIS » donne bien 75004.
@@ -53,20 +57,6 @@ const MAX_DESCRIPTION = 10_000;
 export function parseAddress(address?: string | null): { postcode?: string; city?: string } {
   const match = /^.*\b(\d{5})\s+(\D.*)$/.exec(address?.trim() ?? '');
   return match ? { postcode: match[1], city: match[2]?.trim() } : {};
-}
-
-/** Seules les URL http(s) sont conservées : un « javascript: » venu d'une source ne doit jamais atteindre l'interface. */
-function safeUrl(value?: string | null): string | undefined {
-  if (!value || !URL.canParse(value)) {
-    return undefined;
-  }
-  const { protocol } = new URL(value);
-  return protocol === 'https:' || protocol === 'http:' ? value : undefined;
-}
-
-function toDate(value?: string | null): Date | undefined {
-  const date = value ? new Date(value) : undefined;
-  return date && !Number.isNaN(date.getTime()) ? date : undefined;
 }
 
 export function normalizeJob(job: Job): NormalizedOffer | null {
@@ -93,7 +83,7 @@ export function normalizeJob(job: Job): NormalizedOffer | null {
     // GeoJSON : [longitude, latitude].
     latitude: coordinates?.[1],
     longitude: coordinates?.[0],
-    description: job.offer.description?.trim().slice(0, MAX_DESCRIPTION) || undefined,
+    description: cleanText(job.offer.description, MAX_DESCRIPTION),
     applyUrl,
     // La Bonne Alternance ne publie ni e-mail ni téléphone de recruteur : on postule par le site.
     channel: 'SITE',
@@ -120,12 +110,7 @@ export class LbaConnector {
     }
 
     // Une requête absurde (NaN d'un géocodage raté...) ne doit pas consommer un des 60 appels par minute.
-    if (
-      !Number.isFinite(query.latitude) ||
-      !Number.isFinite(query.longitude) ||
-      !Number.isFinite(query.radiusKm) ||
-      query.radiusKm <= 0
-    ) {
+    if (!isValidGeoQuery(query)) {
       throw new SourceError(
         'LBA',
         'invalid',
