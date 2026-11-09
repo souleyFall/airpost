@@ -13,9 +13,11 @@ services:
     volumes:
       # Les données survivent à l'arrêt du conteneur.
       - airpost-db:/var/lib/postgresql/data
-    # Prêt = accepte les connexions. L'API et les migrations attendent ce signal.
+    # Prêt = accepte les connexions TCP. L'API et les migrations attendent ce signal.
+    # « -h 127.0.0.1 » est indispensable : pendant l'initialisation d'un volume vide, l'image démarre un
+    # serveur temporaire qui n'écoute que sur le socket Unix ; sans cette option le test réussirait trop tôt.
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
       interval: 5s
       timeout: 3s
       retries: 10

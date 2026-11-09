@@ -48,9 +48,14 @@ export default async function setup() {
       await client.query(`DROP DATABASE IF EXISTS "${testName}" WITH (FORCE)`);
       await client.query(`CREATE DATABASE "${testName}"`);
     });
-  } catch {
-    // Pas de valeur de l'URL dans le message : elle contient le mot de passe.
-    throw new Error('Base injoignable. Lance d’abord `pnpm db:up`.');
+  } catch (error) {
+    // Le code d'erreur (ECONNREFUSED, 42501 droits insuffisants...) aide au diagnostic ; jamais l'URL,
+    // qui contient le mot de passe.
+    const code = (error as { code?: string }).code ?? 'inconnu';
+    throw new Error(
+      `Préparation de la base de test impossible (code ${code}). Lance d’abord \`pnpm db:up\`.`,
+      { cause: error },
+    );
   }
 
   // Applique les migrations du dépôt : on teste aussi qu'elles s'exécutent sur une base vide.
