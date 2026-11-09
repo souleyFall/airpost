@@ -35,14 +35,15 @@ Règle de conception (appliquée en PR n°14) : le prompt ne contient **ni adres
 
 ## Durées de conservation
 
-| Donnée                          | Durée                                                 | Justification                                                          |
-| ------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------- |
-| Offres non retenues             | 90 jours après la collecte                            | Une offre périmée n'a plus d'utilité ; limite l'accumulation.          |
-| Candidatures et lettres         | Jusqu'à la fin de la recherche, puis 6 mois au plus   | Éviter de recontacter deux fois une entreprise ; puis suppression.     |
-| Contact recruteur (nom, e-mail) | Même durée que la candidature, supprimé avec elle     | Donnée d'un tiers : conservée seulement pour la candidature concernée. |
-| E-mails de réponse (extraits)   | Même durée que la candidature                         | Servent au suivi de statut.                                            |
-| Jeton Gmail                     | Tant que l'application sert ; révocable à tout moment | Voir `SECURITY.md` pour la révocation.                                 |
-| Journaux techniques             | 30 jours, sans contenu de lettre ni coordonnées       | Diagnostic uniquement.                                                 |
+| Donnée                          | Durée                                                                                     | Justification                                                                                  |
+| ------------------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Offres non retenues             | 90 jours après la collecte                                                                | Une offre périmée n'a plus d'utilité ; limite l'accumulation.                                  |
+| Candidatures et lettres         | Jusqu'à la fin de la recherche, puis 6 mois au plus                                       | Éviter de recontacter deux fois une entreprise ; puis suppression.                             |
+| Contact recruteur (nom, e-mail) | Même durée que la candidature, supprimé avec elle                                         | Donnée d'un tiers : conservée seulement pour la candidature concernée.                         |
+| E-mails de réponse (extraits)   | Même durée que la candidature                                                             | Servent au suivi de statut.                                                                    |
+| Jeton Gmail                     | Tant que l'application sert ; révocable à tout moment                                     | Voir `SECURITY.md` pour la révocation.                                                         |
+| Sessions de connexion           | 7 jours au plus, supprimées à la déconnexion et à chaque nouvelle connexion (si expirées) | Seule l'empreinte du jeton est conservée ; aucune adresse IP ni agent navigateur n'est stocké. |
+| Journaux techniques             | 30 jours, sans contenu de lettre ni coordonnées                                           | Diagnostic uniquement.                                                                         |
 
 La purge automatique de ces durées est une tâche planifiée à écrire (PR n°12 pour les offres, PR n°16 pour les candidatures).
 

@@ -10,8 +10,8 @@ Une ligne par pull request prévue. L'ordre peut évoluer ; l'état est mis à j
 | 4   | `feat(security)` : en-têtes de sécurité, limitation de débit, CORS strict, configuration validée | fusionnée |
 | 5   | `docs(security)` : registre des risques, registre RGPD, `SECURITY.md`                            | fusionnée |
 | 6   | `chore(docker)` : image de l'API (multi-étapes, utilisateur non-root), `docker compose` complet  | fusionnée |
-| 7   | `feat(db)` : Prisma, schéma, migrations, données de démonstration                                | ouverte   |
-| 8   | `feat(auth)` : connexion mono-utilisateur (mot de passe haché, session sécurisée)                | à faire   |
+| 7   | `feat(db)` : Prisma, schéma, migrations, données de démonstration                                | fusionnée |
+| 8   | `feat(auth)` : connexion mono-utilisateur (mot de passe haché, session sécurisée)                | ouverte   |
 | 9   | `feat(profile)` : profil du candidat validé par un schéma                                        | à faire   |
 | 10  | `feat(sources)` : connecteur La Bonne Alternance                                                 | à faire   |
 | 11  | `feat(sources)` : connecteurs La Bonne Boîte et Adzuna                                           | à faire   |

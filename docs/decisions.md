@@ -75,6 +75,17 @@ En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans N
 - Vérifié : image de ~246 Mo, uid 1000, healthcheck vert, aucun fichier secret, valeur invalide jamais affichée.
 - Reste à faire : épingler l'image de base par empreinte (digest) avec Dependabot (PR n°24), et le proxy de confiance avec le déploiement (R8).
 
+## D18. Authentification mono-utilisateur
+
+- **Privée par défaut** : un garde global (`AuthGuard`) exige une session sur toute route ; seules celles marquées `@Public()` (santé, connexion) y échappent. Oublier le décorateur ferme une porte, ne l'ouvre pas.
+- **Sessions côté serveur**, pas de JWT : un jeton aléatoire de 256 bits dans un cookie, dont seule l'empreinte SHA-256 est en base (une fuite de la base ne permet pas de se connecter). On peut révoquer une session (déconnexion, changement de mot de passe) ; un JWT ne le permet pas sans liste noire. Durée de vie absolue de 7 jours ; nouveau jeton à chaque connexion (pas de fixation) ; sessions expirées purgées à chaque connexion.
+- **Cookie** : `HttpOnly` (illisible par JavaScript, donc non volable par XSS), `SameSite=Strict`, `Path=/`, `Secure` en production avec le préfixe `__Host-` (non écrasable par un sous-domaine). `SESSION_COOKIE_SECURE=false` permet l'usage local en http (le compose le fixe par défaut : l'API n'est publiée que sur `127.0.0.1`) ; à passer à `true` dès qu'il y a HTTPS.
+- **CSRF** : en plus de `SameSite=Strict`, chaque session a un jeton, renvoyé à la connexion et par `GET /auth/me`, exigé dans l'en-tête `X-CSRF-Token` sur toute requête qui modifie (comparaison en temps constant). L'interface le garde en mémoire, pas dans un stockage persistant. 401 avant 403 : un anonyme n'apprend rien sur le jeton.
+- **Mot de passe** : argon2id (`@node-rs/argon2`, binaires précompilés, aucun script d'installation), paramètres OWASP (19 Mio, 2 passes). 12 caractères minimum à la création (longueur plutôt que complexité). Le compte se crée depuis la machine : `pnpm --filter @airpost/api user:create <identifiant>` (mot de passe saisi sans écho, jamais en argument ni en variable d'environnement). Pas d'inscription en ligne.
+- **Connexion** : message identique pour un identifiant inconnu et un mot de passe faux, et temps équivalent (empreinte factice vérifiée quand l'utilisateur n'existe pas) ; 5 essais par minute et par IP (429) ; corps validé par Zod avec bornes hautes (pas d'argon2 sur 10 Mo) ; les erreurs de validation ne recopient jamais la valeur reçue.
+- **Cookies lus à la main** (`readCookie`, testé) plutôt que par la bibliothèque `cookie`, publiée depuis quatre jours en ESM seul : une dépendance de moins pour douze lignes.
+- **`ConfigModule` global** (jeton `ENV`) : la configuration est validée une fois et injectée partout (réponse au constat de la revue de la PR n°4).
+
 ## D17. Base de données : Prisma 7, schéma et tests
 
 - **Prisma 7.10.1** (version stable ; le tag `latest` de npm pointe sur une 8.0 RC, écartée). Générateur `prisma-client` en sortie CommonJS dans `src/generated/prisma` (ignoré par Git, régénéré par `postinstall` et `build`). Connexion par l'adaptateur `@prisma/adapter-pg` : le pool `pg` ouvre la connexion à la première requête, l'API démarre même si la base tarde.
