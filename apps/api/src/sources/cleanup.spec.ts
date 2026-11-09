@@ -27,6 +27,20 @@ describe('planCleanup', () => {
     expect(plan.deleteIds).toEqual([]);
   });
 
+  it('classe La Bonne Boîte en candidature spontanée, pas en alternance', () => {
+    const plan = planCleanup(
+      [
+        stored('lbb', {
+          source: 'LBB',
+          title: 'Candidature spontanée : logiciels',
+          contractType: 'ALTERNANCE',
+        }),
+      ],
+      new Set(['LBB']),
+    );
+    expect(plan.contractUpdates).toEqual([{ id: 'lbb', contractType: 'SPONTANEE' }]);
+  });
+
   it('corrige le type de contrat, seulement quand il change', () => {
     const plan = planCleanup(
       [

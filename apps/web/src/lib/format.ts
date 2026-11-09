@@ -58,6 +58,7 @@ export const CONTRACT_LABEL = {
   STAGE: 'Stage',
   CDI: 'CDI',
   CDD: 'CDD',
+  SPONTANEE: 'Spontanée',
   AUTRE: 'Contrat non précisé',
 } as const;
 

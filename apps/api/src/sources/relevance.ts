@@ -160,9 +160,10 @@ export function detectContractType(
   description?: string | null,
   source?: OfferSource,
 ): ContractType {
-  // La Bonne Alternance ne sert que des contrats d'apprentissage ; une entreprise de La Bonne Boîte est approchée
-  // pour une alternance (c'est le but de l'application) : leur texte ne dit rien du contrat.
-  if (source === 'LBA' || source === 'LBB') return 'ALTERNANCE';
+  // La Bonne Alternance ne sert que des contrats d'apprentissage. Une entreprise de La Bonne Boîte n'est pas une annonce :
+  // on lui écrit spontanément, ce n'est pas un contrat d'alternance déjà proposé.
+  if (source === 'LBA') return 'ALTERNANCE';
+  if (source === 'LBB') return 'SPONTANEE';
   const t = fold(title);
   const d = fold(description ?? '');
   const both = `${t}

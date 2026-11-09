@@ -75,7 +75,14 @@ const SOURCE_CHOICES: { id: OfferSource; label: string }[] = [
   { id: 'LBB', label: 'La Bonne Boîte' },
 ];
 
-const CONTRACT_CHOICES: ContractType[] = ['ALTERNANCE', 'STAGE', 'CDI', 'CDD', 'AUTRE'];
+const CONTRACT_CHOICES: ContractType[] = [
+  'ALTERNANCE',
+  'STAGE',
+  'CDI',
+  'CDD',
+  'SPONTANEE',
+  'AUTRE',
+];
 
 function toggle<T>(list: T[], value: T): T[] {
   return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];

@@ -196,11 +196,13 @@ describe('Offres et analyse IA (e2e, base réelle)', () => {
       const suivie = await seed('suivie', { source: 'ADZUNA', title: 'Alternance comptable' });
       await prisma.application.create({ data: { offerId: suivie.id, subject: 'O', body: 'T' } });
 
+      await seed('lbb', { source: 'LBB', title: 'Candidature spontanée : logiciels' });
       const result = await app.get(OffersService).cleanup(['LBB', 'LBA']);
 
       expect(result.removed).toBe(1);
       const rows = await prisma.offer.findMany({ orderBy: { externalId: 'asc' } });
-      expect(rows.map((r) => r.externalId)).toEqual(['dev', 'lba', 'suivie']);
+      expect(rows.map((r) => r.externalId)).toEqual(['dev', 'lba', 'lbb', 'suivie']);
+      expect(rows.find((r) => r.externalId === 'lbb')?.contractType).toBe('SPONTANEE');
       expect(rows.find((r) => r.externalId === 'dev')?.contractType).toBe('ALTERNANCE');
       expect(rows.find((r) => r.externalId === 'lba')?.contractType).toBe('ALTERNANCE');
     });
@@ -450,6 +452,15 @@ describe('Offres et analyse IA (e2e, base réelle)', () => {
       ]);
       expect(titles(await get('?source=ADZUNA&contract=ALTERNANCE'))).toEqual(['Offre adz-alt']);
       expect(titles(await get('?channel=EMAIL'))).toEqual(['Offre lbb-stage']);
+    });
+
+    it('les candidatures spontanées ont leur propre filtre et ne sont pas des alternances', async () => {
+      await seed('annonce', { source: 'LBA', contractType: 'ALTERNANCE', score: 90 });
+      await seed('spontanee', { source: 'LBB', contractType: 'SPONTANEE', score: 50 });
+
+      expect(titles(await get('?contract=SPONTANEE'))).toEqual(['Offre spontanee']);
+      expect(titles(await get('?contract=ALTERNANCE'))).toEqual(['Offre annonce']);
+      expect(titles(await get('?contract=ALTERNANCE,SPONTANEE'))).toHaveLength(2);
     });
 
     it('recherche dans l’intitulé, l’entreprise, la ville et la description, sans tenir compte de la casse', async () => {

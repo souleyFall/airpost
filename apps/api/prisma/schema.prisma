@@ -24,6 +24,8 @@ enum ContractType {
   STAGE
   CDI
   CDD
+  /// Entreprise qui recrute souvent (La Bonne Boîte) : pas d'annonce, on postule spontanément.
+  SPONTANEE
   AUTRE
 }
 

@@ -21,7 +21,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ProfileService } from '../profile/profile.service';
 
 const SOURCES = ['LBA', 'LBB', 'ADZUNA'] as const;
-const CONTRACTS = ['ALTERNANCE', 'STAGE', 'CDI', 'CDD', 'AUTRE'] as const;
+const CONTRACTS = ['ALTERNANCE', 'STAGE', 'CDI', 'CDD', 'SPONTANEE', 'AUTRE'] as const;
 
 /** « A,B » → ['A', 'B'] ; vide ou absent → []. Les valeurs inconnues sont refusées par l'énumération. */
 const csv = <T extends readonly [string, ...string[]]>(values: T) =>
