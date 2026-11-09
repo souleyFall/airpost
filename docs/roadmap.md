@@ -16,8 +16,8 @@ Une ligne par pull request prévue. L'ordre peut évoluer ; l'état est mis à j
 | 10  | `feat(sources)` : connecteur La Bonne Alternance                                                 | fusionnée |
 | 11  | `feat(sources)` : connecteurs La Bonne Boîte et Adzuna                                           | fusionnée |
 | 12  | `feat(pipeline)` : collecte, dédoublonnage, tâche planifiée                                      | fusionnée |
-| 13  | `feat(scoring)` : grille de score sur 100                                                        | ouverte   |
-| 14  | `feat(llm)` : service Gemini (réponses validées, cache, minimisation des données envoyées)       | à faire   |
+| 13  | `feat(scoring)` : grille de score sur 100                                                        | fusionnée |
+| 14  | `feat(llm)` : service Gemini (réponses validées, cache, minimisation des données envoyées)       | ouverte   |
 | 15  | `feat(generation)` : lettres, objets et garde-fous                                               | à faire   |
 | 16  | `feat(applications)` : cycle de vie des candidatures et validation                               | à faire   |
 | 17  | `feat(web)` : socle React, tokens du design, page de connexion                                   | à faire   |

@@ -75,6 +75,19 @@ En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans N
 - Vérifié : image de ~246 Mo, uid 1000, healthcheck vert, aucun fichier secret, valeur invalide jamais affichée.
 - Reste à faire : épingler l'image de base par empreinte (digest) avec Dependabot (PR n°24), et le proxy de confiance avec le déploiement (R8).
 
+## D24. Service de modèle de langage (Gemini)
+
+- **Fournisseur interchangeable** : le reste de l'application ne connaît que LlmService.generateObject et le contrat LlmProvider ; Gemini (GeminiProvider, API REST) est une implémentation. Modèle par défaut gemini-3.5-flash-lite (GEMINI_MODEL, validé par une liste blanche de caractères car il entre dans le chemin de l'URL). **Le .env de l'auteur contient encore GEMINI_MODEL=gemini-2.5-flash, retiré par Google (404) : à corriger.**
+- **Clé en en-tête** (x-goog-api-key), jamais dans l'URL ; aucun message d'erreur ne contient la clé, le prompt ni le texte généré (testé, réseau coupé compris). Sans clé, le service refuse de s'appeler.
+- **Particularités vérifiées sur la vraie API** : une clé invalide renvoie **400** avec la raison structurée API_KEY_INVALID (et non 401) ; un modèle retiré renvoie 404 ; une sortie coupée est signalée par inishReason: MAX_TOKENS (traitée comme une erreur plutôt que de parser un JSON tronqué) ; une demande bloquée par les filtres arrive par promptFeedback.blockReason.
+- **Sortie validée** : JSON demandé (
+  esponseMimeType), validé par un schéma Zod ; en cas d'échec, **une seule** nouvelle demande avec un rappel du format, puis erreur sans recopier le contenu. Les erreurs du fournisseur (quota, clé) ne sont pas redemandées.
+- **Mémoire des réponses** : 6 heures, 100 entrées au plus, clé = empreinte SHA-256 du modèle, des consignes, du contenu et de la température ; deux demandes identiques simultanées = un seul appel (quotas gratuits serrés). Les échecs ne sont jamais gardés. Journaux : nombre de jetons seulement.
+- **Minimisation (RGPD)** (
+  edact.ts) : e-mails, téléphones (formats français et internationaux) et liens sont remplacés ([e-mail], [téléphone], [lien]) dans tout ce qui part ; profileForPrompt n'emporte **jamais** l'identité (nom, e-mail, téléphone, ville, code postal, site), qui est ajoutée localement au texte généré.
+- **Texte d'un tiers = donnée, pas consigne** : l'offre est encadrée (untrusted), l'encadré ne peut pas être refermé par le texte lui-même, la consigne système (UNTRUSTED_NOTICE) le rappelle. Ce n'est pas une garantie ; les vraies protections sont la sortie validée par schéma, l'absence d'action déclenchée par le modèle et la relecture humaine avant tout envoi. Essai réel : une offre contenant « IGNORE TOUTES TES INSTRUCTIONS » a été analysée normalement.
+- **Faille trouvée par un test** : l'expression régulière des e-mails, non bornée, devenait quadratique (7 s pour 50 000 caractères sans arobase) : une offre d'emploi malveillante pouvait bloquer l'API. Longueurs bornées partout, texte coupé avant le nettoyage (et au dernier espace, pour ne pas laisser un morceau d'adresse).
+
 ## D23. Scoring des offres
 
 - **Grille sur 100** (fraîcheur 25, pile technique 25, rythme 15, trajet 15, concurrence 10, canal 10), en **fonctions pures** (scoring.ts) : mêmes entrées, même score ; chaque critère se teste seul et chaque score garde son détail (scoreDetail, JSON) pour que l'interface explique « pourquoi 74 ? ». Les seuils sont des **réglages initiaux** à ajuster à l'usage.

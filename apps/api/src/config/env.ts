@@ -47,6 +47,21 @@ export const envSchema = z
      * C'est un secret : jamais journalisée ni recopiée dans une erreur.
      */
     LBA_API_KEY: secret(),
+    /** Clé de l'API Gemini. Secret : jamais journalisée, envoyée en en-tête (pas dans l'URL). Sans elle, la génération est désactivée. */
+    GEMINI_API_KEY: secret(),
+    /**
+     * Modèle Gemini. Il entre dans le chemin de l'URL : seuls lettres minuscules, chiffres, points et tirets sont
+     * acceptés, pour qu'une valeur fantaisiste ne puisse pas viser un autre chemin de l'API.
+     */
+    GEMINI_MODEL: z
+      .preprocess(
+        emptyToUndefined,
+        z
+          .string()
+          .regex(/^[a-z0-9][a-z0-9.-]{1,60}$/)
+          .optional(),
+      )
+      .default('gemini-3.5-flash-lite'),
     /** France Travail (La Bonne Boîte) : identifiant et secret OAuth2. Secrets, jamais journalisés. */
     FT_CLIENT_ID: secret(),
     FT_CLIENT_SECRET: secret(),

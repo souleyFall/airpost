@@ -118,6 +118,19 @@ describe('parseEnv', () => {
     expect(env.ADZUNA_APP_KEY).toBeUndefined();
   });
 
+  it('lit le modèle Gemini : défaut gemini-3.5-flash-lite, valeur vide = défaut', () => {
+    expect(parse().GEMINI_MODEL).toBe('gemini-3.5-flash-lite');
+    expect(parse({ GEMINI_MODEL: '' }).GEMINI_MODEL).toBe('gemini-3.5-flash-lite');
+    expect(parse({ GEMINI_MODEL: 'gemini-3.5-flash' }).GEMINI_MODEL).toBe('gemini-3.5-flash');
+  });
+
+  it.each(['../autre', 'modele avec espace', 'Gemini', 'm?x=1', 'a/b', 'x:generate'])(
+    'refuse le modèle « %s » : il entre dans le chemin de l’URL',
+    (value) => {
+      expect(() => parse({ GEMINI_MODEL: value })).toThrow(/GEMINI_MODEL/);
+    },
+  );
+
   it('exige DATABASE_URL', () => {
     expect(() => parseEnv({})).toThrow(/DATABASE_URL/);
   });
@@ -151,9 +164,9 @@ describe('parseEnv', () => {
   });
 
   it("ignore les variables inconnues et ne les recopie jamais (clés d'API...)", () => {
-    const env = parse({ GEMINI_API_KEY: 'secret', POSTGRES_PASSWORD: 'secret-db' });
+    const env = parse({ OPENAI_API_KEY: 'secret', POSTGRES_PASSWORD: 'secret-db' });
 
-    expect(env).not.toHaveProperty('GEMINI_API_KEY');
+    expect(env).not.toHaveProperty('OPENAI_API_KEY');
     expect(env).not.toHaveProperty('POSTGRES_PASSWORD');
   });
 });
