@@ -128,6 +128,8 @@ describe('detectRhythm / scoreRhythm', () => {
     ['Une semaine sur deux en cours', 'ONE_ONE'],
     ['4 jours en entreprise et 1 jour à l’école', 'OTHER'],
     ['Alternance de 12 mois', null],
+    ['5 jours de congés payés, 2 jours de télétravail possibles', null],
+    ['Rythme : 3 jours en entreprise. 2 jours à l’école', 'THREE_TWO'],
     ['', null],
   ])('« %s » → %s', (text, expected) => {
     expect(detectRhythm(text)).toBe(expected);

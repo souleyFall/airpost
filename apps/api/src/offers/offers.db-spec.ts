@@ -142,6 +142,22 @@ describe('Offres et scoring (e2e, base réelle)', () => {
       expect(JSON.stringify(res.body)).not.toContain('confidentielle');
     });
 
+    it('pagine de façon stable quand score et date sont identiques', async () => {
+      const same = new Date();
+      for (let i = 0; i < 6; i++) await seed(`eq${i}`, { score: 50, firstSeenAt: same });
+
+      const titles: string[] = [];
+      for (const offset of [0, 2, 4]) {
+        const res = await http
+          .get(`/offers?limit=2&offset=${offset}`)
+          .set('Cookie', cookie)
+          .expect(200);
+        titles.push(...(res.body as { items: { title: string }[] }).items.map((i) => i.title));
+      }
+
+      expect(new Set(titles).size).toBe(6);
+    });
+
     it('filtre par score minimum et pagine', async () => {
       for (let i = 1; i <= 5; i++) await seed(`o${i}`, { score: i * 10 });
 
@@ -181,6 +197,7 @@ describe('Offres et scoring (e2e, base réelle)', () => {
         description: 'Longue description confidentielle',
         scoreDetail: { total: 70 },
       });
+      expect(res.body).not.toHaveProperty('dedupKey');
     });
 
     it('répond 404 pour une offre inconnue et 400 pour un identifiant mal formé', async () => {

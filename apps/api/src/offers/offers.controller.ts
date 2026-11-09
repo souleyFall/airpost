@@ -20,11 +20,17 @@ export class OffersController {
   async list(@Query(new ZodValidationPipe(listQuery)) query: ListQuery) {
     // Sans score minimum, tout est listé, y compris les offres pas encore notées (score nul).
     const where = query.minScore > 0 ? { score: { gte: query.minScore } } : {};
-    const [total, items] = await Promise.all([
+    // Une seule transaction : le total et la page décrivent le même état de la base.
+    const [total, items] = await this.prisma.$transaction([
       this.prisma.offer.count({ where }),
       this.prisma.offer.findMany({
         where,
-        orderBy: [{ score: { sort: 'desc', nulls: 'last' } }, { firstSeenAt: 'desc' }],
+        // id en dernier départage les ex æquo : sans lui, des pages successives peuvent répéter ou manquer des offres.
+        orderBy: [
+          { score: { sort: 'desc', nulls: 'last' } },
+          { firstSeenAt: 'desc' },
+          { id: 'asc' },
+        ],
         take: query.limit,
         skip: query.offset,
         select: {
@@ -48,7 +54,30 @@ export class OffersController {
 
   @Get(':id')
   async get(@Param('id', new ParseUUIDPipe()) id: string) {
-    const offer = await this.prisma.offer.findUnique({ where: { id } });
+    const offer = await this.prisma.offer.findUnique({
+      where: { id },
+      // Champs techniques (dedupKey...) exclus : l'interface ne doit pas en dépendre.
+      select: {
+        id: true,
+        source: true,
+        externalId: true,
+        title: true,
+        company: true,
+        city: true,
+        postcode: true,
+        latitude: true,
+        longitude: true,
+        description: true,
+        applyUrl: true,
+        contactEmail: true,
+        channel: true,
+        publishedAt: true,
+        firstSeenAt: true,
+        lastSeenAt: true,
+        score: true,
+        scoreDetail: true,
+      },
+    });
     if (!offer) {
       throw new NotFoundException('Offre introuvable');
     }

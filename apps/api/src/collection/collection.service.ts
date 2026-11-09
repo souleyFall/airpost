@@ -4,6 +4,7 @@ import type { Env } from '../config/env';
 import type { OfferSource } from '../generated/prisma/enums';
 import type { Profile } from '../profile/profile.schema';
 import { ProfileService } from '../profile/profile.service';
+import { MINUTES_PER_KM } from '../scoring/scoring';
 import { ScoringService } from '../scoring/scoring.service';
 import { AdzunaConnector } from '../sources/adzuna/adzuna.connector';
 import { dedupKey, normalizeText } from '../sources/dedup';
@@ -47,12 +48,9 @@ interface Searcher {
   search(query: SearchQuery): Promise<SearchResult>;
 }
 
-/** Vitesse moyenne retenue pour passer du temps de trajet au rayon de recherche : 30 km/h. */
-const KM_PER_COMMUTE_MINUTE = 0.5;
-
 /** Rayon de recherche (km) déduit du temps de trajet accepté, borné pour rester utile et raisonnable. */
 export function radiusFromCommute(minutes: number): number {
-  return Math.min(100, Math.max(5, Math.round(minutes * KM_PER_COMMUTE_MINUTE)));
+  return Math.min(100, Math.max(5, Math.round(minutes / MINUTES_PER_KM)));
 }
 
 @Injectable()

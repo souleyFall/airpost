@@ -120,12 +120,22 @@ export function detectRhythm(text: string): Rhythm | null {
   if (/1 semaine[^.\d]{0,40}1 semaine|1s ?[/-] ?1s|une semaine sur deux|1 semaine sur 2/.test(t)) {
     return 'ONE_ONE';
   }
-  const days = /(\d) ?j(?:ours?)?\b[^.\d]{0,40}?(\d) ?j(?:ours?)?\b/.exec(t);
-  if (days) {
-    const pair = `${days[1]}${days[2]}`;
-    if (pair === '23') return 'TWO_THREE';
-    if (pair === '32') return 'THREE_TWO';
-    return 'OTHER';
+  // « N jours ... M jours » n'est un rythme que si l'entreprise, l'école ou le rythme sont évoqués tout près
+  // (fenêtre de 60 caractères autour des deux durées), ou sous la forme compacte « 2j/3j » : « 5 jours de
+  // congés, 2 jours de télétravail » n'en est pas un.
+  const context = /entreprise|ecole|cfa|cours|formation|rythme|alternance|presentiel/;
+  const pairs = /(\d) ?j(?:ours?)?\b[^\d]{0,40}?(\d) ?j(?:ours?)?\b/g;
+  for (const match of t.matchAll(pairs)) {
+    const start = match.index;
+    const window = t.slice(Math.max(0, start - 60), start + match[0].length + 60);
+    // Forme compacte : « 2j/3j », « 2 jours / 3 jours » (un séparateur entre les deux durées).
+    const compact = /\d ?j(?:ours?)?\b ?[/-] ?\d ?j(?:ours?)?\b/.test(match[0]);
+    if (compact || context.test(window)) {
+      const pair = `${match[1]}${match[2]}`;
+      if (pair === '23') return 'TWO_THREE';
+      if (pair === '32') return 'THREE_TWO';
+      return 'OTHER';
+    }
   }
   return null;
 }
@@ -158,7 +168,7 @@ export function distanceKm(a: Position, b: Position): number {
   return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(h));
 }
 
-/** Même vitesse moyenne que le rayon de recherche : 30 km/h, soit 2 minutes par kilomètre. */
+/** Vitesse moyenne retenue : 30 km/h, soit 2 minutes par kilomètre. Aussi utilisée pour le rayon de recherche. */
 export const MINUTES_PER_KM = 2;
 
 /** Trajet (15) : plein tarif sous la moitié du temps accepté, dégressif jusqu'au maximum, rien au-delà. */
