@@ -303,3 +303,12 @@ En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans N
 - **Erreur finale** : « quota atteint » l'emporte sur « surcharge », puis sur « introuvable » ; les boucles d'analyse s'arrêtent proprement et les offres restent en attente.
 - **Défaut** : `gemini-3.6-flash,gemini-3.8-flash`, déduits des libellés de la console (non vérifiés sur l'API) ; un nom faux donne un 404, puis une pause d'une heure, sans effet sur le reste.
 - **Limites** : un modèle de secours a en général un quota gratuit plus petit : c'est de la marge, pas un doublement. Le modèle qui a répondu apparaît dans le journal (« Appel modèle gemini-3.6-flash ») mais n'est pas enregistré avec la note de l'offre.
+
+### D37 : voyant de santé par connexion (sources d'offres et Gemini)
+
+- **Principe** : chaque collecte, et chaque appel à Gemini, inscrit en base le résultat de la connexion (table `ApiHealth`, une ligne par connexion : état, date de la dernière vérification, date du dernier succès). Aucun appel de test en plus, donc aucune requête de quota dépensée pour le voyant.
+- **États** : OK ; QUOTA (limite atteinte) ; AUTH (clé refusée) ; DOWN (panne ou surcharge, passagère en général) ; OFF (non configurée).
+- **Affichage** : un bandeau rouge en haut de l'application dès qu'une connexion est en QUOTA ou AUTH (ce qui ne repart pas tout seul), avec un lien vers la page Sources ; sur la page Sources, la ligne passe en rouge (« Quota atteint », « Clé refusée ») avec la date du constat et du dernier succès, en orange pour une panne. L'état survit au redémarrage de l'API, contrairement au dernier bilan de collecte.
+- **Gemini** : l'état est écrit seulement quand il change (il est appelé souvent). Une réponse inexploitable ou bloquée ne dit rien de la connexion et n'est pas inscrite.
+- **Sécurité** : jamais de message d'erreur d'origine en base ni à l'écran (il pourrait contenir une URL ou une clé) : seulement l'état.
+- **Limites** : le voyant ne reflète que le dernier appel (une panne survenue entre deux collectes n'apparaît qu'à la suivante) ; il ne distingue pas une limite par minute d'une limite par jour (les deux sont « quota atteint ») ; une source en QUOTA est quand même rappelée à la collecte suivante, il n'y a pas de saut automatique.

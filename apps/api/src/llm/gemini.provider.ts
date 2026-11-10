@@ -1,5 +1,6 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { z } from 'zod';
+import { ApiHealthService, statusFromReason } from '../api-health/api-health.service';
 import { ENV } from '../config/config.module';
 import type { Env } from '../config/env';
 import { HTTP_FETCH, type HttpFetch } from '../http/http-fetch';
@@ -86,6 +87,8 @@ export class GeminiProvider extends LlmProvider {
   constructor(
     @Inject(ENV) private readonly env: Env,
     @Inject(HTTP_FETCH) private readonly http: HttpFetch,
+    // Facultatif : sans lui (tests), le fournisseur fonctionne pareil, sans tenir le voyant de santé.
+    @Optional() private readonly health?: ApiHealthService,
   ) {
     super();
   }
@@ -101,6 +104,28 @@ export class GeminiProvider extends LlmProvider {
    * ou ne dépendent pas d'eux : elles sont renvoyées telles quelles, sans essayer les autres.
    */
   async generate(request: LlmRequest): Promise<LlmResponse> {
+    try {
+      const response = await this.generateAcrossModels(request);
+      this.report('OK');
+      return response;
+    } catch (error) {
+      // Seuls les échecs qui disent quelque chose de la connexion comptent (pas une réponse inexploitable ou bloquée).
+      if (
+        error instanceof LlmError &&
+        ['rate_limited', 'unauthorized', 'unavailable', 'model_unavailable'].includes(error.reason)
+      ) {
+        this.report(statusFromReason(error.reason));
+      }
+      throw error;
+    }
+  }
+
+  /** Inscrit l'état de la connexion, sans jamais gêner l'appel au modèle (écriture seulement si l'état change). */
+  private report(status: Parameters<ApiHealthService['record']>[1]): void {
+    void this.health?.recordIfChanged('GEMINI', status).catch(() => undefined);
+  }
+
+  private async generateAcrossModels(request: LlmRequest): Promise<LlmResponse> {
     const key = this.env.GEMINI_API_KEY;
     if (!key) {
       throw new LlmError('not_configured', 'Gemini : clé API absente (GEMINI_API_KEY).');

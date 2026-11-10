@@ -82,7 +82,9 @@ const report = {
   ],
 };
 
-function fakeApi(options: { last: boolean }) {
+import type { ApiHealthItem } from '../../api/types';
+
+function fakeApi(options: { last: boolean; health?: ApiHealthItem[] }) {
   const json = (data: unknown, code = 200) => new Response(JSON.stringify(data), { status: code });
   vi.stubGlobal(
     'fetch',
@@ -104,6 +106,7 @@ function fakeApi(options: { last: boolean }) {
         });
       }
       if (path === '/gmail/status') return json({ configured: false });
+      if (path === '/api-health') return json({ items: options.health ?? [] });
       if (path === '/collection/last') return options.last ? json(report) : json({}, 404);
       return json({}, 404);
     }),
@@ -148,6 +151,64 @@ describe('écran Sources', () => {
     expect(rowOf('^Indeed \\(alertes')).toHaveTextContent('aucun appel à Indeed');
     expect(rowOf('Gemini')).toHaveTextContent('gemini-3.5-flash-lite');
     expect(rowOf('^Gmail')).toHaveTextContent('Non configuré');
+  });
+
+  it('un quota atteint passe en rouge avec la date, une panne en orange, une clé refusée est dite', async () => {
+    fakeApi({
+      last: true,
+      health: [
+        { key: 'GLASSDOOR', status: 'QUOTA', checkedAt: '2026-11-10T07:30:00Z', lastOkAt: null },
+        {
+          key: 'GEMINI',
+          status: 'QUOTA',
+          checkedAt: '2026-11-10T07:31:00Z',
+          lastOkAt: '2026-11-09T07:00:00Z',
+        },
+        { key: 'GOOGLE_JOBS', status: 'DOWN', checkedAt: '2026-11-10T07:30:00Z', lastOkAt: null },
+        { key: 'LBA', status: 'AUTH', checkedAt: '2026-11-10T07:30:00Z', lastOkAt: null },
+        { key: 'ADZUNA', status: 'QUOTA', checkedAt: '2026-11-10T07:30:00Z', lastOkAt: null },
+      ],
+    });
+    renderApp();
+    const table = await screen.findByRole('table', { name: 'État des sources' });
+    const rowOf = (name: string) => within(table).getByRole('row', { name: new RegExp(name) });
+
+    expect(rowOf('Glassdoor')).toHaveTextContent('Quota atteint');
+    expect(rowOf('Glassdoor')).toHaveTextContent('Dernier succès : aucun');
+    expect(rowOf('Gemini')).toHaveTextContent('Quota atteint');
+    expect(rowOf('Gemini')).toHaveTextContent('Dernier succès : 09/11');
+    expect(rowOf('Google Jobs')).toHaveTextContent('Panne');
+    expect(rowOf('La Bonne Alternance')).toHaveTextContent('Clé refusée');
+    // Une source non configurée reste « Non configurée », même si la base garde un vieil état.
+    expect(rowOf('Adzuna')).toHaveTextContent('Non configurée');
+    expect(rowOf('Glassdoor').querySelector('.text-danger')).not.toBeNull();
+  });
+
+  it('affiche un bandeau rouge sur tout l’écran quand un quota est atteint ou une clé refusée', async () => {
+    fakeApi({
+      last: true,
+      health: [
+        { key: 'GLASSDOOR', status: 'QUOTA', checkedAt: '2026-11-10T07:30:00Z', lastOkAt: null },
+        { key: 'GEMINI', status: 'QUOTA', checkedAt: '2026-11-10T07:31:00Z', lastOkAt: null },
+        { key: 'LBA', status: 'AUTH', checkedAt: '2026-11-10T07:30:00Z', lastOkAt: null },
+        { key: 'LBB', status: 'DOWN', checkedAt: '2026-11-10T07:30:00Z', lastOkAt: null },
+      ],
+    });
+    renderApp();
+
+    const banner = await screen.findByRole('alert');
+    expect(banner).toHaveTextContent('Quota atteint : Glassdoor, Gemini.');
+    expect(banner).toHaveTextContent('Clé refusée : La Bonne Alternance.');
+    // Une simple panne ne déclenche pas le bandeau.
+    expect(banner).not.toHaveTextContent('La Bonne Boîte');
+  });
+
+  it('pas de bandeau quand tout va bien ou que l’état est illisible', async () => {
+    fakeApi({ last: true, health: [] });
+    renderApp();
+    await screen.findByRole('table', { name: 'État des sources' });
+
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('fonctionne sans bilan de collecte', async () => {

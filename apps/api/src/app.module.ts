@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AccountModule } from './account/account.module';
+import { ApiHealthModule } from './api-health/api-health.module';
 import { ApplicationsModule } from './applications/applications.module';
 import { AuthModule } from './auth/auth.module';
 import { CollectionModule } from './collection/collection.module';
@@ -39,6 +40,7 @@ import { SourcesModule } from './sources/sources.module';
     LettersModule,
     GmailModule,
     HealthModule,
+    ApiHealthModule,
   ],
   // Le garde est global : il s'applique à toutes les routes, y compris celles des futurs modules.
   // Il est déclaré avant celui de l'authentification (AuthModule) : on limite le débit avant tout travail.

@@ -122,6 +122,16 @@ export interface ApplicationRow {
   };
 }
 
+export type HealthStatus = 'OK' | 'QUOTA' | 'AUTH' | 'DOWN' | 'OFF';
+
+/** État d'une connexion d'après son dernier appel (clé : une source d'offres ou GEMINI). */
+export interface ApiHealthItem {
+  key: string;
+  status: HealthStatus;
+  checkedAt: string;
+  lastOkAt: string | null;
+}
+
 export interface SourcesStatus {
   sources: Record<OfferSource, boolean>;
   gemini: { configured: boolean; model: string };
