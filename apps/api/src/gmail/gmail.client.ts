@@ -27,6 +27,50 @@ export interface MessageMeta {
   receivedAt: Date;
 }
 
+export interface MessageContent {
+  id: string;
+  from: string;
+  /** En-têtes « Authentication-Results » posés par Gmail à la réception (DKIM, SPF) : l'expéditeur affiché est falsifiable, eux non. */
+  authenticationResults: string;
+  receivedAt: Date;
+  /** Corps `text/plain`, ou null si le message n'en a pas. */
+  text: string | null;
+}
+
+/** Un corps de message plus long est tronqué : borne la mémoire et le travail de l'analyse. */
+const MAX_BODY_CHARS = 500_000;
+/** Profondeur maximale de l'arbre MIME explorée : un message malveillant ne doit pas faire boucler l'analyse. */
+const MAX_MIME_DEPTH = 8;
+
+interface Part {
+  mimeType?: string;
+  headers?: { name: string; value: string }[];
+  body?: { data?: string };
+  parts?: Part[];
+}
+
+const part: z.ZodType<Part> = z.lazy(() =>
+  z.object({
+    mimeType: z.string().optional(),
+    headers: z.array(z.object({ name: z.string(), value: z.string() })).optional(),
+    body: z.object({ data: z.string().optional() }).optional(),
+    parts: z.array(part).optional(),
+  }),
+);
+
+/** Premier corps `text/plain` (encodé en base64url) de l'arbre MIME, ou null. */
+function findText(node: Part, depth: number): string | null {
+  if (depth > MAX_MIME_DEPTH) return null;
+  if (node.mimeType === 'text/plain' && node.body?.data) {
+    return node.body.data;
+  }
+  for (const child of node.parts ?? []) {
+    const found = findText(child, depth + 1);
+    if (found !== null) return found;
+  }
+  return null;
+}
+
 const API = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
@@ -134,6 +178,39 @@ export class GmailClient {
       from: header('From'),
       snippet: data.data.snippet,
       receivedAt: new Date(Number(data.data.internalDate)),
+    };
+  }
+
+  /**
+   * Contenu d'un message : expéditeur, résultat d'authentification de Gmail et corps TEXTE. À n'utiliser que pour des
+   * expéditeurs de confiance connus (alertes d'offres) : c'est la seule lecture d'un corps de message de l'application.
+   * Le corps est analysé en mémoire par l'appelant et n'est jamais stocké ni journalisé.
+   */
+  async messageContent(id: string): Promise<MessageContent> {
+    const response = await this.call('GET', `/messages/${encodeURIComponent(id)}?format=full`);
+    const data = z
+      .object({
+        id: z.string().min(1),
+        internalDate: z.string().regex(/^\d{1,16}$/),
+        payload: part.default({}),
+      })
+      .safeParse(await response.json());
+    if (!data.success) {
+      throw new GmailError('unavailable', 'Réponse Gmail inattendue.');
+    }
+    const headers = data.data.payload.headers ?? [];
+    const headerValues = (name: string) =>
+      headers.filter((h) => h.name.toLowerCase() === name.toLowerCase()).map((h) => h.value);
+    const encoded = findText(data.data.payload, 0);
+    return {
+      id: data.data.id,
+      from: headerValues('From')[0] ?? '',
+      authenticationResults: headerValues('Authentication-Results').join('\n'),
+      receivedAt: new Date(Number(data.data.internalDate)),
+      text:
+        encoded === null
+          ? null
+          : Buffer.from(encoded, 'base64url').toString('utf8').slice(0, MAX_BODY_CHARS),
     };
   }
 

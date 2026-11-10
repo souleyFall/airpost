@@ -68,6 +68,17 @@ const report = {
       created: 40,
       updated: 0,
     },
+    {
+      source: 'INDEED',
+      status: 'ok',
+      fetched: 9,
+      skipped: 0,
+      excluded: 0,
+      irrelevant: 2,
+      duplicates: 0,
+      created: 7,
+      updated: 0,
+    },
   ],
 };
 
@@ -80,7 +91,14 @@ function fakeApi(options: { last: boolean }) {
       if (path === '/auth/me') return json({ login: 'souley.fall', csrfToken: 'csrf' });
       if (path === '/collection/status') {
         return json({
-          sources: { LBA: true, LBB: true, ADZUNA: false, GOOGLE_JOBS: true, GLASSDOOR: true },
+          sources: {
+            LBA: true,
+            LBB: true,
+            ADZUNA: false,
+            GOOGLE_JOBS: true,
+            GLASSDOOR: true,
+            INDEED: true,
+          },
           gemini: { configured: true, model: 'gemini-3.5-flash-lite' },
         });
       }
@@ -124,8 +142,11 @@ describe('écran Sources', () => {
     expect(rowOf('Glassdoor')).toHaveTextContent('Connectée');
     expect(rowOf('Glassdoor')).toHaveTextContent('60 lues, 40 nouvelles');
     expect(rowOf('Glassdoor')).toHaveTextContent('extrait du texte');
+    expect(rowOf('^Indeed \\(alertes')).toHaveTextContent('Connectée');
+    expect(rowOf('^Indeed \\(alertes')).toHaveTextContent('9 lues, 7 nouvelles');
+    expect(rowOf('^Indeed \\(alertes')).toHaveTextContent('aucun appel à Indeed');
     expect(rowOf('Gemini')).toHaveTextContent('gemini-3.5-flash-lite');
-    expect(rowOf('Gmail')).toHaveTextContent('Non configuré');
+    expect(rowOf('^Gmail')).toHaveTextContent('Non configuré');
   });
 
   it('fonctionne sans bilan de collecte', async () => {

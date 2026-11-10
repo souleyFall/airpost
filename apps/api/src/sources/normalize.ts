@@ -40,3 +40,27 @@ export function isValidGeoQuery(q: {
     q.radiusKm > 0
   );
 }
+
+const DAY_MS = 86_400_000;
+
+/**
+ * « Il y a 3 jours », « il y a 8 heures », « il y a 1 mois », « 3 days ago » → date approximative.
+ * Google n'indique qu'un âge arrondi : c'est une estimation, suffisante pour trier par fraîcheur.
+ */
+export function parsePostedAt(text: string | null | undefined, now: Date): Date | undefined {
+  if (!text) return undefined;
+  const t = text.toLowerCase().replace(/[’‘]/g, "'");
+  if (/aujourd|today|à l'instant|just now/.test(t)) return now;
+  const match =
+    /(\d{1,3})\s*\+?\s*(minute|min|heure|h|hour|jour|j|day|semaine|week|mois|month)/.exec(t);
+  if (!match) return undefined;
+  const n = Number(match[1]);
+  const unit = match[2] ?? '';
+  let ms: number;
+  if (/^(minute|min)/.test(unit)) ms = n * 60_000;
+  else if (/^(heure|h|hour)/.test(unit)) ms = n * 3_600_000;
+  else if (/^(jour|j|day)/.test(unit)) ms = n * DAY_MS;
+  else if (/^(semaine|week)/.test(unit)) ms = n * 7 * DAY_MS;
+  else ms = n * 30 * DAY_MS;
+  return new Date(now.getTime() - ms);
+}

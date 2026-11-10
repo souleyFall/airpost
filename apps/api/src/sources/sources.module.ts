@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
+import { GmailModule } from '../gmail/gmail.module';
 import { AdzunaConnector } from './adzuna/adzuna.connector';
+import { IndeedAlertsConnector } from './alerts/indeed-alerts.connector';
 import { LbaConnector } from './lba/lba.connector';
 import { GeocoderService } from './geocoder.service';
 import { GlassdoorConnector } from './glassdoor/glassdoor.connector';
@@ -8,12 +10,15 @@ import { LbbConnector } from './lbb/lbb.connector';
 import { OffersService } from './offers.service';
 
 @Module({
+  // La boîte Gmail de l'utilisateur est la source des alertes d'offres (lecture seule).
+  imports: [GmailModule],
   providers: [
     LbaConnector,
     LbbConnector,
     AdzunaConnector,
     GoogleJobsConnector,
     GlassdoorConnector,
+    IndeedAlertsConnector,
     GeocoderService,
     OffersService,
   ],
@@ -24,6 +29,7 @@ import { OffersService } from './offers.service';
     AdzunaConnector,
     GoogleJobsConnector,
     GlassdoorConnector,
+    IndeedAlertsConnector,
     GeocoderService,
     OffersService,
   ],

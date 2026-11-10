@@ -10,6 +10,7 @@ import { dedupKey, normalizeText } from '../sources/dedup';
 import { MINUTES_PER_KM } from '../sources/geo';
 import { GlassdoorConnector } from '../sources/glassdoor/glassdoor.connector';
 import { GoogleJobsConnector } from '../sources/google-jobs/google-jobs.connector';
+import { IndeedAlertsConnector } from '../sources/alerts/indeed-alerts.connector';
 import { LbaConnector } from '../sources/lba/lba.connector';
 import { LbbConnector } from '../sources/lbb/lbb.connector';
 import { UNKNOWN_COMPANY } from '../sources/normalize';
@@ -83,6 +84,7 @@ export class CollectionService {
     adzuna: AdzunaConnector,
     googleJobs: GoogleJobsConnector,
     glassdoor: GlassdoorConnector,
+    indeedAlerts: IndeedAlertsConnector,
   ) {
     // L'ordre fixe la priorité en cas de doublon entre sources : de vraies annonces d'abord, les
     // entreprises « qui recrutent souvent » (candidatures spontanées) ensuite.
@@ -94,6 +96,8 @@ export class CollectionService {
       // annonces des sources précédentes.
       { source: 'GOOGLE_JOBS', search: (q) => googleJobs.search(q) },
       { source: 'GLASSDOOR', search: (q) => glassdoor.search(q) },
+      // Alertes lues dans Gmail : texte d'un tiers, donc non fiable comme les autres agrégateurs.
+      { source: 'INDEED', search: (q) => indeedAlerts.search(q) },
     ];
   }
 

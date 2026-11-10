@@ -10,6 +10,7 @@ import { parseEnv } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 import { exampleProfile } from '../profile/profile.fixture';
 import { HTTP_FETCH, type HttpFetch } from '../http/http-fetch';
+import { GmailClient, type MessageContent } from '../gmail/gmail.client';
 import { LlmProvider, type LlmRequest, type LlmResponse } from '../llm/llm.types';
 
 /** Faux modèle : note toute offre 80 et la décrit, sans réseau. */
@@ -165,6 +166,10 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
     vi.stubEnv('ADZUNA_APP_ID', 'id-adzuna');
     vi.stubEnv('ADZUNA_APP_KEY', 'cle-adzuna');
     vi.stubEnv('SERPAPI_KEY', 'cle-serpapi');
+    // Les tests ne dépendent pas de l'autorisation Gmail réelle de la machine : sans fichier, Gmail est « non configuré »
+    // (les cas avec Gmail utilisent un faux client).
+    vi.stubEnv('GMAIL_TOKEN_FILE', 'fichier-absent-pour-les-tests.json');
+    vi.stubEnv('GMAIL_CREDENTIALS_FILE', 'fichier-absent-pour-les-tests.json');
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(HTTP_FETCH)
       .useValue(fakeHttp)
@@ -245,6 +250,8 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
       ['LBB', 'ok', 1, 0],
       ['GOOGLE_JOBS', 'ok', 1, 0],
       ['GLASSDOOR', 'ok', 1, 0],
+      // Gmail n'est pas configuré dans ce test : alertes Indeed désactivées (cas testé plus bas, avec un faux Gmail).
+      ['INDEED', 'disabled', 0, 0],
     ]);
     const rows = await prisma.offer.findMany({
       orderBy: [{ source: 'asc' }, { externalId: 'asc' }],
@@ -305,6 +312,7 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
       [0, 1],
       [0, 1],
       [0, 1],
+      [0, 0],
     ]);
     expect(await prisma.offer.count()).toBe(6);
   });
@@ -386,6 +394,132 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
     ).toMatchObject({ sources: { GOOGLE_JOBS: false, GLASSDOOR: false } });
   });
 
+  describe('alertes Indeed lues dans Gmail (faux Gmail)', () => {
+    const link = (id: string) => `https://engage.indeed.com/f/a/${id}~~/AAR9hBA~/jeton-${id}~~`;
+    const BODY = [
+      '3 nouveaux emplois développeur - Paris (75)',
+      '',
+      'Alternance Développeur Web (F/H)',
+      'Maison Exemple - Versailles (78)',
+      'Candidature simplifiée',
+      'Concevoir des API REST avec NestJS.',
+      'il y a 2 jours',
+      link('A1'),
+      '',
+      'Développeur full stack (H/F)',
+      'Atelier Exemple - Nanterre (92)',
+      "Publié à l'instant",
+      link('A2'),
+      '',
+      // Annonce d'école : écartée par le filtre.
+      'Alternance Développeur Full Stack (F/H)',
+      'ISCOD - Paris (75)',
+      'Vous souhaitez préparer une formation en développement informatique.',
+      'il y a 5 jours',
+      link('A3'),
+      '',
+      'Afficher tous les emplois',
+    ].join('\n');
+    const message = (overrides: Partial<MessageContent> = {}): MessageContent => ({
+      id: 'm1',
+      from: 'Indeed <donotreply@jobalert.indeed.com>',
+      authenticationResults: 'mx.google.com; dkim=pass header.i=@jobalert.indeed.com',
+      receivedAt: new Date(),
+      text: BODY,
+      ...overrides,
+    });
+
+    type Row = {
+      source: string;
+      status: string;
+      created: number;
+      updated: number;
+      irrelevant: number;
+      skipped: number;
+    };
+    const indeedOf = (body: unknown) =>
+      (body as { sources: Row[] }).sources.find((s) => s.source === 'INDEED');
+
+    async function withFakeGmail(messages: MessageContent[]) {
+      await app.close();
+      const fakeGmail = {
+        isConfigured: () => true,
+        searchMessageIds: async () => messages.map((m) => m.id),
+        messageContent: async (id: string) => messages.find((m) => m.id === id),
+      };
+      const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+        .overrideProvider(HTTP_FETCH)
+        .useValue(fakeHttp)
+        .overrideProvider(LlmProvider)
+        .useValue(new FakeModel())
+        .overrideProvider(GmailClient)
+        .useValue(fakeGmail)
+        .compile();
+      app = moduleRef.createNestApplication();
+      configureApp(app, parseEnv());
+      await app.init();
+      prisma = app.get(PrismaService);
+      http = request(app.getHttpServer() as Server);
+      await prisma.user.deleteMany();
+      await prisma.user.create({
+        data: { login: 'alice', passwordHash: await new PasswordService().hash(PASSWORD) },
+      });
+      return withProfile();
+    }
+
+    it('enregistre les annonces des alertes, écarte l’école, et rejoue sans doublon', async () => {
+      const session = await withFakeGmail([message()]);
+
+      const res = await run(session).expect(200);
+
+      expect(indeedOf(res.body)).toMatchObject({ status: 'ok', created: 2, irrelevant: 1 });
+      const rows = await prisma.offer.findMany({
+        where: { source: 'INDEED' },
+        orderBy: { title: 'asc' },
+      });
+      expect(rows.map((r) => r.title)).toEqual([
+        'Alternance Développeur Web (F/H)',
+        'Développeur full stack (H/F)',
+      ]);
+      expect(rows[0]).toMatchObject({
+        company: 'Maison Exemple',
+        city: 'Versailles',
+        contractType: 'ALTERNANCE',
+        applyUrl: link('A1'),
+        channel: 'SITE',
+      });
+      expect(rows[0]?.latitude).not.toBeNull();
+      expect(rows[0]?.distanceKm).not.toBeNull();
+      expect(rows[0]?.externalId).toMatch(/^alert-[0-9a-f]{32}$/);
+
+      const again = await run(session).expect(200);
+      expect(indeedOf(again.body)).toMatchObject({ created: 0, updated: 2 });
+      expect(await prisma.offer.count({ where: { source: 'INDEED' } })).toBe(2);
+      // Le corps du message n'est jamais conservé : rien d'autre que les annonces extraites n'est en base.
+      const stored = JSON.stringify(await prisma.offer.findMany({ where: { source: 'INDEED' } }));
+      expect(stored).not.toContain('Afficher tous les emplois');
+    });
+
+    it('ignore un message imité (signature non validée) et l’indique dans le bilan', async () => {
+      const session = await withFakeGmail([
+        message({ authenticationResults: 'mx.google.com; dkim=fail header.d=indeed.com' }),
+      ]);
+
+      const res = await run(session).expect(200);
+
+      expect(indeedOf(res.body)).toMatchObject({ created: 0, skipped: 1 });
+      expect(await prisma.offer.count({ where: { source: 'INDEED' } })).toBe(0);
+    });
+
+    it('la source est indiquée comme configurée quand Gmail l’est', async () => {
+      const session = await withFakeGmail([message()]);
+
+      const res = await http.get('/collection/status').set('Cookie', session.cookie).expect(200);
+
+      expect(res.body).toMatchObject({ sources: { INDEED: true } });
+    });
+  });
+
   it('applique la durée de conservation sans jamais supprimer une offre qui a une candidature', async () => {
     const old = new Date(Date.now() - 100 * 24 * 60 * 60 * 1000);
     const base = {
@@ -418,7 +552,14 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
     const res = await http.get('/collection/status').set('Cookie', session.cookie).expect(200);
 
     expect(res.body).toMatchObject({
-      sources: { LBA: true, LBB: true, ADZUNA: true, GOOGLE_JOBS: true, GLASSDOOR: true },
+      sources: {
+        LBA: true,
+        LBB: true,
+        ADZUNA: true,
+        GOOGLE_JOBS: true,
+        GLASSDOOR: true,
+        INDEED: false,
+      },
       gemini: { configured: expect.any(Boolean) as unknown },
     });
     expect(JSON.stringify(res.body)).not.toMatch(/cle-lba|secret-ft|id-ft|cle-adzuna|cle-serpapi/);
@@ -431,7 +572,7 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
     await run(session).expect(200);
     const last = await http.get('/collection/last').set('Cookie', session.cookie).expect(200);
 
-    expect((last.body as { sources: unknown[] }).sources).toHaveLength(5);
+    expect((last.body as { sources: unknown[] }).sources).toHaveLength(6);
   });
 
   it('refuse (409) une collecte lancée pendant qu’une autre tourne', async () => {

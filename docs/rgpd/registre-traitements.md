@@ -88,3 +88,9 @@ Non requise : traitement à petite échelle, usage personnel, aucune donnée sen
 ## Mise à jour 2026-11-10 : Glassdoor via SerpApi
 
 - Même sous-traitant et mêmes données que Google Jobs : SerpApi reçoit la requête (contrat recherché, « développeur »), la ville du profil et un rayon, jamais le nom, le téléphone, l'adresse ni le parcours du candidat. Source facultative (une seule clé SerpApi pour les deux). Annonces publiques reçues en retour, conservées comme les autres offres (90 jours sans réapparition).
+
+## Mise à jour 2026-11-10 : lecture des alertes Indeed dans Gmail
+
+- **Nouvelle lecture du contenu d'e-mails** : jusqu'à 50 messages des 14 derniers jours, de l'expéditeur d'alertes Indeed uniquement (recherche Gmail bornée par expéditeur et par date), en lecture seule. Le corps est analysé **en mémoire** et n'est ni stocké, ni journalisé, ni envoyé à un tiers : seules les annonces extraites (publiques) sont enregistrées.
+- **Donnée liée au destinataire stockée** : le lien de suivi d'Indeed de chaque annonce (il contient un jeton propre à l'adresse du destinataire). Conservé comme le reste de l'offre (90 jours sans réapparition), affiché dans l'application locale, jamais ouvert par le serveur.
+- Aucun envoi : l'étendue Gmail reste `gmail.compose` et `gmail.readonly`.

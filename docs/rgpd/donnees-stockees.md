@@ -37,3 +37,7 @@ Mots de passe en clair, clés d'API (fichier `.env`), jeton Gmail (fichiers mont
 ## Mise à jour 2026-11-10 : colonne `via`
 
 Les offres issues de Google Jobs gardent la plateforme d'origine de l'annonce (« LinkedIn », « Indeed »...) dans une colonne `via`. C'est une donnée publique de l'annonce, supprimée avec l'offre (90 jours sans réapparition).
+
+## Mise à jour 2026-11-10 : alertes Indeed
+
+Pour les offres issues des alertes Indeed, le champ `applyUrl` contient le **lien de suivi** d'Indeed (propre au destinataire). Le corps des e-mails d'alerte n'est jamais conservé : il est analysé en mémoire.

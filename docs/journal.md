@@ -58,3 +58,7 @@
 ## 2026-11-10 : Glassdoor (SerpApi)
 
 - Source Glassdoor : voir D31 et les risques R44 et R45. Après fusion : `docker compose build migrate`, `docker compose run --rm migrate`, `docker compose up -d --build`. Les variables `GOOGLE_JOBS_MAX_SEARCHES` et `GLASSDOOR_MAX_SEARCHES` remplacent `SERPAPI_MAX_SEARCHES`.
+
+## 2026-11-10 : alertes Indeed (Gmail)
+
+- Source Indeed : voir D32 et les risques R46 à R48. Après fusion : `docker compose build migrate`, `docker compose run --rm migrate`, `docker compose up -d --build`. Aucune clé à ajouter : la source utilise l'autorisation Gmail existante. Écrit à partir d'un vrai message d'alerte (anonymisé dans les tests). LinkedIn et Welcome to the Jungle : pas encore de message d'alerte avec des offres, donc pas de lecteur.
