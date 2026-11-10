@@ -94,3 +94,9 @@ Non requise : traitement à petite échelle, usage personnel, aucune donnée sen
 - **Nouvelle lecture du contenu d'e-mails** : jusqu'à 50 messages des 14 derniers jours, de l'expéditeur d'alertes Indeed uniquement (recherche Gmail bornée par expéditeur et par date), en lecture seule. Le corps est analysé **en mémoire** et n'est ni stocké, ni journalisé, ni envoyé à un tiers : seules les annonces extraites (publiques) sont enregistrées.
 - **Donnée liée au destinataire stockée** : le lien de suivi d'Indeed de chaque annonce (il contient un jeton propre à l'adresse du destinataire). Conservé comme le reste de l'offre (90 jours sans réapparition), affiché dans l'application locale, jamais ouvert par le serveur.
 - Aucun envoi : l'étendue Gmail reste `gmail.compose` et `gmail.readonly`.
+
+## Mise à jour 2026-11-10 : lecture des e-mails d'offres LinkedIn dans Gmail
+
+- **Lecture** : jusqu'à 50 messages des 14 derniers jours, de trois expéditeurs LinkedIn d'offres uniquement (recherche Gmail bornée). Le corps est analysé en mémoire et jamais stocké.
+- **Stocké** : intitulé, entreprise, ville et numéro public de l'annonce. Aucun lien reçu, aucun jeton, aucune donnée du compte LinkedIn.
+- **Base légale et durée** : inchangées (intérêt de l'utilisateur pour sa propre recherche ; durée de conservation des offres).

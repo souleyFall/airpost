@@ -8,6 +8,7 @@ import type { ProfileService } from '../profile/profile.service';
 import type { AdzunaConnector } from '../sources/adzuna/adzuna.connector';
 import { dedupKey } from '../sources/dedup';
 import type { IndeedAlertsConnector } from '../sources/alerts/indeed-alerts.connector';
+import type { LinkedinAlertsConnector } from '../sources/alerts/linkedin-alerts.connector';
 import type { GlassdoorConnector } from '../sources/glassdoor/glassdoor.connector';
 import type { GoogleJobsConnector } from '../sources/google-jobs/google-jobs.connector';
 import type { LbaConnector } from '../sources/lba/lba.connector';
@@ -47,6 +48,7 @@ function setup(
     googleJobs?: Search;
     glassdoor?: Search;
     indeed?: Search;
+    linkedin?: Search;
     inDatabase?: Map<string, Set<OfferSource>>;
   } = {},
 ) {
@@ -57,6 +59,7 @@ function setup(
   const googleJobs = vi.fn(options.googleJobs ?? empty);
   const glassdoor = vi.fn(options.glassdoor ?? empty);
   const indeed = vi.fn(options.indeed ?? empty);
+  const linkedin = vi.fn(options.linkedin ?? empty);
   const saveMany = vi.fn(async (offers: NormalizedOffer[]) => ({
     created: offers.length,
     updated: 0,
@@ -89,6 +92,7 @@ function setup(
     { search: googleJobs } as unknown as GoogleJobsConnector,
     { search: glassdoor } as unknown as GlassdoorConnector,
     { search: indeed } as unknown as IndeedAlertsConnector,
+    { search: linkedin } as unknown as LinkedinAlertsConnector,
   );
   return {
     service,
@@ -160,7 +164,7 @@ describe('CollectionService', () => {
 
     const report = await service.run('u1');
 
-    expect(saveMany).toHaveBeenCalledTimes(6);
+    expect(saveMany).toHaveBeenCalledTimes(7);
     expect(
       report.sources.map((s) => [s.source, s.status, s.fetched, s.created, s.skipped]),
     ).toEqual([
@@ -170,6 +174,7 @@ describe('CollectionService', () => {
       ['GOOGLE_JOBS', 'ok', 0, 0, 0],
       ['GLASSDOOR', 'ok', 0, 0, 0],
       ['INDEED', 'ok', 0, 0, 0],
+      ['LINKEDIN', 'ok', 0, 0, 0],
     ]);
     expect(report.purged).toBe(2);
     expect(service.lastReport()).toBe(report);
@@ -199,6 +204,9 @@ describe('CollectionService', () => {
       indeed: async () => {
         throw new SourceError('INDEED', 'not_configured', 'Gmail absent');
       },
+      linkedin: async () => {
+        throw new SourceError('LINKEDIN', 'not_configured', 'Gmail absent');
+      },
     });
 
     const report = await service.run('u1');
@@ -210,6 +218,7 @@ describe('CollectionService', () => {
       ['GOOGLE_JOBS', 'error', 'rate_limited'],
       ['GLASSDOOR', 'disabled', 'not_configured'],
       ['INDEED', 'disabled', 'not_configured'],
+      ['LINKEDIN', 'disabled', 'not_configured'],
     ]);
     expect(JSON.stringify(report)).not.toContain('SECRET');
     expect(saveMany).not.toHaveBeenCalled();
@@ -269,6 +278,7 @@ describe('CollectionService', () => {
       ['GOOGLE_JOBS', 'ok', undefined],
       ['GLASSDOOR', 'ok', undefined],
       ['INDEED', 'ok', undefined],
+      ['LINKEDIN', 'ok', undefined],
     ]);
     expect(JSON.stringify(report)).not.toContain('SECRET');
     expect(purgeStale).toHaveBeenCalled();

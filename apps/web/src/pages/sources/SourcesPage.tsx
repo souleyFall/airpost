@@ -137,6 +137,12 @@ export function SourcesPage() {
           status.sources.INDEED,
           find('INDEED'),
         ),
+        sourceRow(
+          'LinkedIn (e-mails d’offres)',
+          'Lit les offres que LinkedIn envoie à ta boîte Gmail : recommandations, offres enregistrées, alertes (lecture seule, aucun appel à LinkedIn). Intitulé, entreprise et ville seulement.',
+          status.sources.LINKEDIN,
+          find('LINKEDIN'),
+        ),
         {
           name: 'Gemini',
           state: status.gemini.configured ? 'Configuré' : 'Non configuré',

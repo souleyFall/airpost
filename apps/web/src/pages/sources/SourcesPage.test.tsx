@@ -98,6 +98,7 @@ function fakeApi(options: { last: boolean }) {
             GOOGLE_JOBS: true,
             GLASSDOOR: true,
             INDEED: true,
+            LINKEDIN: true,
           },
           gemini: { configured: true, model: 'gemini-3.5-flash-lite' },
         });

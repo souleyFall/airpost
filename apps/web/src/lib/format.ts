@@ -47,6 +47,7 @@ export const SOURCE_LABEL = {
   GOOGLE_JOBS: 'Google Jobs',
   GLASSDOOR: 'Glassdoor',
   INDEED: 'Indeed',
+  LINKEDIN: 'LinkedIn',
 } as const;
 
 /** Classe de couleur du badge de compatibilité (≥75 plein, ≥55 contour, sinon discret) : mêmes seuils que le verdict de l'API. */
