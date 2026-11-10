@@ -146,6 +146,30 @@ export interface ApiHealthItem {
   lastOkAt: string | null;
 }
 
+/** Chiffres du tableau de bord (voir apps/api/src/stats/stats.ts). Taux de 0 à 1 ; null sans candidature. */
+export interface Stats {
+  pipeline: { toReview: number; toSend: number; waiting: number; toFollowUp: number };
+  funnel: {
+    applied: number;
+    answered: number;
+    interviews: number;
+    rejections: number;
+    unanswered: number;
+    answerRate: number | null;
+    interviewRate: number | null;
+    medianDaysToFirstReply: number | null;
+  };
+  bySource: { source: OfferSource; applied: number; answered: number; interviews: number }[];
+  weekly: { weekStart: string; applied: number }[];
+  followUps: { sent: number; answeredAfter: number };
+  offers: {
+    total: number;
+    newThisWeek: number;
+    newThisWeekBySource: { source: OfferSource; count: number }[];
+  };
+  smallSample: boolean;
+}
+
 export interface SourcesStatus {
   sources: Record<OfferSource, boolean>;
   gemini: { configured: boolean; model: string };

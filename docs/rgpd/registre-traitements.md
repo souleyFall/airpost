@@ -112,3 +112,7 @@ Non requise : traitement à petite échelle, usage personnel, aucune donnée sen
 - **Données** : le texte d'une annonce collé par l'utilisateur (il peut contenir le nom ou l'adresse d'un recruteur, comme les annonces collectées), son lien facultatif et une adresse de contact trouvée dans le texte. Même durée de conservation que les autres offres.
 - **Modèle de langage** : il reçoit le texte expurgé des e-mails, téléphones et liens ; il ne renvoie que l'intitulé, l'entreprise et la ville.
 - **Aucune collecte sur les sites d'emploi** : le lien n'est jamais visité par le serveur.
+
+## Mise à jour 2026-11-11 : tableau de bord Résultats
+
+- **Aucune nouvelle donnée** : l'écran additionne des données déjà stockées (statuts, dates d'envoi, dates et catégories des réponses, sources). Il n'envoie rien à un tiers ni au modèle de langage, et n'affiche ni texte de lettre, ni extrait de mail, ni contact.
