@@ -1,5 +1,16 @@
 const DAY = 86_400_000;
 
+/**
+ * Bilan d'une collecte en une phrase : le nombre d'offres NOUVELLES, c'est-à-dire qui n'étaient pas encore en base
+ * (les offres déjà connues et simplement revues ne comptent pas).
+ */
+export function newOffersLabel(sources: { created: number }[] | undefined): string | null {
+  if (!sources) return null;
+  const created = sources.reduce((total, source) => total + source.created, 0);
+  if (created === 0) return 'Aucune nouvelle offre';
+  return created === 1 ? '1 nouvelle offre' : `${created} nouvelles offres`;
+}
+
 /** « aujourd’hui », « hier », « il y a 3 jours » : la fraîcheur d'une offre en un coup d'œil. */
 export function ageLabel(iso: string | null, now: Date = new Date()): string {
   if (!iso) {
