@@ -16,6 +16,8 @@ export interface LlmResponse {
   /** Texte brut renvoyé par le modèle (du JSON, la sortie étant demandée en JSON). */
   text: string;
   usage: LlmUsage;
+  /** Modèle qui a répondu (peut être un modèle de secours) : pour les journaux, jamais pour le contenu. */
+  model?: string;
 }
 
 /**

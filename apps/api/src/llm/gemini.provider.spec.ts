@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Env } from '../config/env';
 import type { HttpFetch } from '../http/http-fetch';
 import { GeminiProvider } from './gemini.provider';
@@ -42,7 +42,11 @@ describe('GeminiProvider', () => {
 
     const result = await provider.generate(REQUEST);
 
-    expect(result).toEqual({ text: '{"a":1}', usage: { promptTokens: 20, outputTokens: 18 } });
+    expect(result).toEqual({
+      text: '{"a":1}',
+      usage: { promptTokens: 20, outputTokens: 18 },
+      model: 'gemini-3.5-flash-lite',
+    });
     const [url, init] = http.mock.calls[0] ?? [];
     expect(url).toBe(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent',
@@ -77,7 +81,7 @@ describe('GeminiProvider', () => {
       }),
     );
 
-    expect(await provider.generate(REQUEST)).toEqual({
+    expect(await provider.generate(REQUEST)).toMatchObject({
       text: '{"a":1}',
       usage: { promptTokens: 0, outputTokens: 0 },
     });
@@ -186,5 +190,146 @@ describe('GeminiProvider', () => {
         expect(message).not.toContain('confidentiel');
       }
     });
+  });
+});
+
+describe('GeminiProvider : modèles de secours', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-10T08:00:00Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const MODELS = { GEMINI_FALLBACK_MODELS: ['gemini-3.6-flash', 'gemini-3.8-flash'] };
+  /** Réponse selon le modèle appelé (lu dans l'adresse) : un nombre = statut d'erreur, sinon succès. */
+  function byModel(plan: Record<string, number | 'ok'>, env: Partial<Env> = MODELS) {
+    const calls: string[] = [];
+    const http = vi.fn<HttpFetch>(async (url) => {
+      const model = /models\/([^:]+):/.exec(String(url))?.[1] ?? '';
+      calls.push(model);
+      const outcome = plan[model] ?? 'ok';
+      return outcome === 'ok'
+        ? ok(`{"par":"${model}"}`)
+        : json({ error: { status: 'X' } }, outcome);
+    });
+    const full = { GEMINI_API_KEY: KEY, GEMINI_MODEL: 'gemini-3.5-flash-lite', ...env } as Env;
+    return { provider: new GeminiProvider(full, http), calls, plan };
+  }
+
+  it('sans erreur, seul le modèle principal est appelé', async () => {
+    const { provider, calls } = byModel({});
+
+    expect((await provider.generate(REQUEST)).model).toBe('gemini-3.5-flash-lite');
+    expect(calls).toEqual(['gemini-3.5-flash-lite']);
+  });
+
+  it.each([
+    [429, 'quota atteint'],
+    [503, 'surcharge'],
+    [404, 'modèle introuvable'],
+  ])('bascule sur le modèle suivant après un %i (%s)', async (status) => {
+    const { provider, calls } = byModel({ 'gemini-3.5-flash-lite': status });
+
+    const result = await provider.generate(REQUEST);
+
+    expect(result.model).toBe('gemini-3.6-flash');
+    expect(result.text).toBe('{"par":"gemini-3.6-flash"}');
+    expect(calls).toEqual(['gemini-3.5-flash-lite', 'gemini-3.6-flash']);
+  });
+
+  it('enchaîne plusieurs modèles défaillants jusqu’au premier qui répond', async () => {
+    const { provider, calls } = byModel({ 'gemini-3.5-flash-lite': 429, 'gemini-3.6-flash': 503 });
+
+    expect((await provider.generate(REQUEST)).model).toBe('gemini-3.8-flash');
+    expect(calls).toEqual(['gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-3.8-flash']);
+  });
+
+  it('ne rappelle pas un modèle en échec pendant sa pause, puis le réessaie ensuite', async () => {
+    const { provider, calls, plan } = byModel({ 'gemini-3.5-flash-lite': 429 });
+    await provider.generate(REQUEST);
+    calls.length = 0;
+
+    await provider.generate(REQUEST);
+    expect(calls).toEqual(['gemini-3.6-flash']);
+
+    // Après la pause (2 min pour un premier quota atteint), le modèle principal est retenté.
+    plan['gemini-3.5-flash-lite'] = 'ok';
+    vi.setSystemTime(new Date('2026-11-10T08:02:01Z'));
+    calls.length = 0;
+    expect((await provider.generate(REQUEST)).model).toBe('gemini-3.5-flash-lite');
+    expect(calls).toEqual(['gemini-3.5-flash-lite']);
+  });
+
+  it('allonge la pause d’un modèle qui reste bloqué (limite par jour), jusqu’à une heure', async () => {
+    const { provider, calls } = byModel({ 'gemini-3.5-flash-lite': 429 });
+    await provider.generate(REQUEST); // échec n°1 : pause de 2 min
+
+    vi.setSystemTime(new Date('2026-11-10T08:02:01Z'));
+    await provider.generate(REQUEST); // échec n°2 : pause de 4 min
+    calls.length = 0;
+
+    vi.setSystemTime(new Date('2026-11-10T08:05:00Z')); // 3 min plus tard : encore en pause
+    await provider.generate(REQUEST);
+    expect(calls).toEqual(['gemini-3.6-flash']);
+  });
+
+  it('tous les modèles en quota atteint : « quota atteint », que les appelants savent arrêter', async () => {
+    const { provider } = byModel({
+      'gemini-3.5-flash-lite': 429,
+      'gemini-3.6-flash': 429,
+      'gemini-3.8-flash': 429,
+    });
+
+    expect((await failure(provider)).reason).toBe('rate_limited');
+  });
+
+  it('un mélange de quota et de surcharge renvoie « quota atteint » (le plus grave)', async () => {
+    const { provider } = byModel({
+      'gemini-3.5-flash-lite': 503,
+      'gemini-3.6-flash': 429,
+      'gemini-3.8-flash': 503,
+    });
+
+    expect((await failure(provider)).reason).toBe('rate_limited');
+  });
+
+  it('tous les modèles en pause : aucune requête, erreur immédiate', async () => {
+    const { provider, calls } = byModel(
+      { 'gemini-3.5-flash-lite': 429 },
+      { GEMINI_FALLBACK_MODELS: [] },
+    );
+    await failure(provider);
+    calls.length = 0;
+
+    expect((await failure(provider)).reason).toBe('rate_limited');
+    expect(calls).toEqual([]);
+  });
+
+  it.each([
+    [401, 'unauthorized'],
+    [400, 'invalid_output'],
+  ] as const)(
+    'une erreur %i vaut pour tous les modèles : pas de bascule',
+    async (status, reason) => {
+      const { provider, calls } = byModel({ 'gemini-3.5-flash-lite': status });
+
+      expect((await failure(provider)).reason).toBe(reason);
+      expect(calls).toEqual(['gemini-3.5-flash-lite']);
+    },
+  );
+
+  it('ne divulgue ni la clé ni le prompt quand tous les modèles échouent', async () => {
+    const { provider } = byModel({
+      'gemini-3.5-flash-lite': 429,
+      'gemini-3.6-flash': 503,
+      'gemini-3.8-flash': 404,
+    });
+
+    const { message } = await failure(provider);
+
+    expect(message).not.toContain(KEY);
+    expect(message).not.toContain('confidentiel');
   });
 });

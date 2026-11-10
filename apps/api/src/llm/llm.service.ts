@@ -86,7 +86,7 @@ export class LlmService {
       });
       // Des comptes seulement : jamais le prompt ni la réponse dans les journaux.
       this.logger.log(
-        `Appel modèle : ${response.usage.promptTokens} jetons envoyés, ${response.usage.outputTokens} reçus.`,
+        `Appel modèle${response.model ? ` ${response.model}` : ''} : ${response.usage.promptTokens} jetons envoyés, ${response.usage.outputTokens} reçus.`,
       );
       const value = this.parse(response.text, request.schema);
       if (value.ok) {
