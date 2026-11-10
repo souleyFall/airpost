@@ -454,6 +454,17 @@ describe('Offres et analyse IA (e2e, base réelle)', () => {
       expect(titles(await get('?channel=EMAIL'))).toEqual(['Offre lbb-stage']);
     });
 
+    it.each(['LBA', 'LBB', 'ADZUNA', 'GOOGLE_JOBS'])(
+      'accepte chaque source de l’énumération dans le filtre (« %s »)',
+      async (source) => {
+        await seed('une', { source, contractType: 'ALTERNANCE' });
+
+        const res = await get(`?source=${source}`);
+
+        expect(res.body).toMatchObject({ total: 1 });
+      },
+    );
+
     it('les candidatures spontanées ont leur propre filtre et ne sont pas des alternances', async () => {
       await seed('annonce', { source: 'LBA', contractType: 'ALTERNANCE', score: 90 });
       await seed('spontanee', { source: 'LBB', contractType: 'SPONTANEE', score: 50 });
