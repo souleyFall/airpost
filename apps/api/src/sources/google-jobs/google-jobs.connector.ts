@@ -26,6 +26,8 @@ const TIMEOUT_MS = 20_000;
 /** Villes géocodées au plus par collecte : les annonces d'une même ville partagent une seule recherche. */
 const MAX_CITIES = 40;
 const DAY_MS = 86_400_000;
+/** En dessous de cette longueur (caractères), la description est jugée courte et complétée par les « points forts ». */
+const HIGHLIGHTS_ONLY_BELOW = 400;
 
 const jobSchema = z.object({
   // Identifiant stable de l'annonce chez Google ; long (plusieurs centaines de caractères), borné par prudence.
@@ -77,7 +79,11 @@ const REGIONS = new Set(
 
 /** « Paris, Île-de-France, France » → « Paris » ; « France » ou une région seule → rien à géocoder. */
 export function cityOf(location?: string | null): string | undefined {
-  const first = location?.split(',')[0]?.trim();
+  // « Paris 8e Arrondissement » → « Paris » : le service de géocodage cherche des communes, pas des arrondissements.
+  const first = location
+    ?.split(',')[0]
+    ?.replace(/\s+\d+\s*(?:er|e|ème|è)?\s*arrondissement.*$/i, '')
+    .trim();
   return first ? cleanText(first, 80) : undefined;
 }
 
@@ -112,7 +118,14 @@ export function normalizeGoogleJob(job: Job, now: Date): NormalizedOffer {
     .map((h) => [h.title, ...(h.items ?? [])].filter(Boolean).join('\n'))
     .filter(Boolean)
     .join('\n\n');
-  const description = [job.description, highlights].filter(Boolean).join('\n\n');
+  // Les « points forts » de Google reprennent des extraits de la description : on ne les ajoute que si elle est
+  // courte ou absente (sinon le texte serait dupliqué, et le modèle paierait deux fois les mêmes jetons).
+  const description = [
+    job.description,
+    (job.description?.length ?? 0) < HIGHLIGHTS_ONLY_BELOW ? highlights : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
   return {
     source: 'GOOGLE_JOBS',
     externalId: job.job_id,

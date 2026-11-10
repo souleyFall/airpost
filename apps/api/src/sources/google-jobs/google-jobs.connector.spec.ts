@@ -97,6 +97,12 @@ describe('cityOf et isGeocodable', () => {
     expect(cityOf('')).toBeUndefined();
   });
 
+  it('retire l’arrondissement : seule la commune se géocode', () => {
+    expect(cityOf('Paris 8e Arrondissement, Paris, France')).toBe('Paris');
+    expect(cityOf('Lyon 3ème Arrondissement, France')).toBe('Lyon');
+    expect(cityOf('Marseille 1er Arrondissement')).toBe('Marseille');
+  });
+
   it('ne géocode ni un pays, ni une région, ni « Anywhere »', () => {
     for (const place of ['France', 'Île-de-France', 'Bretagne', 'Anywhere', 'Télétravail']) {
       expect(isGeocodable(place)).toBe(false);
@@ -138,6 +144,14 @@ describe('normalizeGoogleJob', () => {
       via: 'LinkedIn',
       publishedAt: new Date('2026-11-07T12:00:00Z'),
     });
+  });
+
+  it('n’ajoute les « points forts » que si la description est courte ou absente (pas de doublon)', () => {
+    const long = 'Texte détaillé de l’annonce. '.repeat(30);
+    const withLong = normalizeGoogleJob(job({ description: long }), NOW);
+    expect(withLong.description).not.toContain('Qualifications');
+    const without = normalizeGoogleJob(job({ description: null }), NOW);
+    expect(without.description).toBe('Qualifications\nTypeScript\nReact');
   });
 
   it('prend le lien de partage quand aucune option de candidature n’est sûre', () => {
