@@ -8,12 +8,13 @@ import { MatchService } from '../matching/match.service';
 import { AdzunaConnector } from '../sources/adzuna/adzuna.connector';
 import { dedupKey, normalizeText } from '../sources/dedup';
 import { MINUTES_PER_KM } from '../sources/geo';
+import { GlassdoorConnector } from '../sources/glassdoor/glassdoor.connector';
 import { GoogleJobsConnector } from '../sources/google-jobs/google-jobs.connector';
 import { LbaConnector } from '../sources/lba/lba.connector';
 import { LbbConnector } from '../sources/lbb/lbb.connector';
 import { UNKNOWN_COMPANY } from '../sources/normalize';
 import { OffersService } from '../sources/offers.service';
-import { isRelevantOffer } from '../sources/relevance';
+import { isRelevantOffer, isSchoolAd } from '../sources/relevance';
 import {
   type NormalizedOffer,
   type SearchQuery,
@@ -81,6 +82,7 @@ export class CollectionService {
     lbb: LbbConnector,
     adzuna: AdzunaConnector,
     googleJobs: GoogleJobsConnector,
+    glassdoor: GlassdoorConnector,
   ) {
     // L'ordre fixe la priorité en cas de doublon entre sources : de vraies annonces d'abord, les
     // entreprises « qui recrutent souvent » (candidatures spontanées) ensuite.
@@ -91,6 +93,7 @@ export class CollectionService {
       // En dernier : les annonces de Google Jobs reprennent celles d'autres sites, les doublons cèdent la place aux
       // annonces des sources précédentes.
       { source: 'GOOGLE_JOBS', search: (q) => googleJobs.search(q) },
+      { source: 'GLASSDOOR', search: (q) => glassdoor.search(q) },
     ];
   }
 
@@ -220,7 +223,11 @@ export class CollectionService {
         // Mots entiers : « sa » ne doit pas exclure « casino ». Les mots sont séparés par des tirets (normalizeText).
         if (excludedNames.some((name) => `-${company}-`.includes(`-${name}-`))) {
           report.excluded++;
-        } else if (!trusted && !isRelevantOffer(offer.title, offer.description)) {
+        } else if (
+          !trusted &&
+          (!isRelevantOffer(offer.title, offer.description) ||
+            isSchoolAd(offer.company, offer.description))
+        ) {
           // Déjà filtrées par code ROME à la source : La Bonne Boîte (qui n'a d'ailleurs pas d'intitulé de poste) et La
           // Bonne Alternance quand des codes sont configurés. Adzuna, elle, cherche par mots et renvoie du bruit.
           report.irrelevant++;

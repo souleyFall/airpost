@@ -4,7 +4,6 @@ import { ENV } from '../../config/config.module';
 import type { Env } from '../../config/env';
 import { HTTP_FETCH, type HttpFetch } from '../../http/http-fetch';
 import { GeocoderService } from '../geocoder.service';
-import { assertOk } from '../http-errors';
 import {
   MAX_COMPANY,
   MAX_DESCRIPTION,
@@ -14,6 +13,7 @@ import {
   isValidGeoQuery,
   safeUrl,
 } from '../normalize';
+import { type Page, cityOf, locateOffers, runSearches, serpapiGet } from '../serpapi/serpapi';
 import {
   type NormalizedOffer,
   type SearchQuery,
@@ -21,15 +21,12 @@ import {
   SourceError,
 } from '../source.types';
 
-const BASE_URL = 'https://serpapi.com/search.json';
-/** Une recherche Google Jobs non mise en cache peut prendre plusieurs secondes : marge confortable. */
-const TIMEOUT_MS = 30_000;
-/** Villes géocodées au plus par collecte : les annonces d'une même ville partagent une seule recherche. */
-const MAX_CITIES = 40;
+// Outils communs aux connecteurs SerpApi, ré-exportés ici pour les tests et les appelants existants.
+export { cityOf, isGeocodable, networkCause } from '../serpapi/serpapi';
+
 const DAY_MS = 86_400_000;
 /** En dessous de cette longueur (caractères), la description est jugée courte et complétée par les « points forts ». */
 const HIGHLIGHTS_ONLY_BELOW = 400;
-
 const jobSchema = z.object({
   // Identifiant stable de l'annonce chez Google ; long (plusieurs centaines de caractères), borné par prudence.
   job_id: z.string().min(1).max(2_000),
@@ -50,47 +47,8 @@ type Job = z.infer<typeof jobSchema>;
 
 const responseSchema = z.object({
   jobs_results: z.array(z.unknown()).optional(),
-  // SerpApi répond parfois 200 avec un champ « error » (clé invalide, plus de recherches, aucun résultat).
-  error: z.string().optional(),
   serpapi_pagination: z.object({ next_page_token: z.string().nullish() }).nullish(),
 });
-
-const REGIONS = new Set(
-  [
-    'france',
-    'anywhere',
-    'remote',
-    'télétravail',
-    'île-de-france',
-    'ile-de-france',
-    'auvergne-rhône-alpes',
-    'bourgogne-franche-comté',
-    'bretagne',
-    'centre-val de loire',
-    'corse',
-    'grand est',
-    'hauts-de-france',
-    'normandie',
-    'nouvelle-aquitaine',
-    'occitanie',
-    'pays de la loire',
-    "provence-alpes-côte d'azur",
-  ].map((name) => name.toLowerCase()),
-);
-
-/** « Paris, Île-de-France, France » → « Paris » ; « France » ou une région seule → rien à géocoder. */
-export function cityOf(location?: string | null): string | undefined {
-  // « Paris 8e Arrondissement » → « Paris » : le service de géocodage cherche des communes, pas des arrondissements.
-  const first = location
-    ?.split(',')[0]
-    ?.replace(/\s+\d+\s*(?:er|e|ème|è)?\s*arrondissement.*$/i, '')
-    .trim();
-  return first ? cleanText(first, 80) : undefined;
-}
-
-export function isGeocodable(city?: string): city is string {
-  return Boolean(city) && !REGIONS.has((city ?? '').toLowerCase());
-}
 
 /**
  * « Il y a 3 jours », « il y a 8 heures », « il y a 1 mois », « 3 days ago » → date approximative.
@@ -160,42 +118,10 @@ export function buildQueries(query: SearchQuery): string[] {
   );
 }
 
-/** Nature d'une panne réseau, sans détail sensible : « délai dépassé », un code système (ECONNRESET...) ou « réseau ». */
-export function networkCause(error: unknown): string {
-  if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
-    return 'délai dépassé';
-  }
-  const code = (error as { cause?: { code?: unknown } } | null)?.cause?.code;
-  return typeof code === 'string' && /^[A-Z0-9_]{3,30}$/.test(code) ? code : 'réseau';
-}
-
-/** Traduction du champ « error » d'une réponse 200 de SerpApi. `null` : « aucun résultat », pas une panne. */
-function errorFromBody(message: string, key: string): SourceError | null {
-  const m = message.toLowerCase();
-  if (/hasn'?t returned any results|no results|did not return any results/.test(m)) return null;
-  if (/invalid api key|api key/.test(m)) {
-    return new SourceError('GOOGLE_JOBS', 'unauthorized', 'Google Jobs : clé SerpApi refusée.');
-  }
-  if (/run out of searches|plan|limit|quota|exceeded/.test(m)) {
-    return new SourceError('GOOGLE_JOBS', 'rate_limited', 'Google Jobs : quota SerpApi atteint.');
-  }
-  // Extrait du message de SerpApi pour comprendre la panne, sans lien ni clé (la clé voyage dans l'URL).
-  const excerpt = message
-    .replaceAll(key, '[clé]')
-    .replace(/https?:\/\/\S+/g, '[lien]')
-    .slice(0, 100);
-  return new SourceError(
-    'GOOGLE_JOBS',
-    'unavailable',
-    `Google Jobs : réponse en erreur (${excerpt}).`,
-  );
-}
-
 /**
  * Connecteur Google Jobs via SerpApi. Google Jobs reprend des annonces de LinkedIn, Indeed, Welcome to the Jungle...
- * sans que nous touchions à ces sites : seul SerpApi est appelé. La clé voyage dans l'URL (méthode de l'API) :
- * aucun message d'erreur, aucun journal ne doit donc jamais contenir l'URL de la requête.
- * Quota : 250 recherches par mois en formule gratuite ; `SERPAPI_MAX_SEARCHES` borne chaque collecte, pages comprises.
+ * sans que nous touchions à ces sites : seul SerpApi est appelé (voir `serpapi/serpapi.ts`).
+ * Quota : 250 recherches par mois en formule gratuite ; `GOOGLE_JOBS_MAX_SEARCHES` borne chaque collecte, pages comprises.
  */
 @Injectable()
 export class GoogleJobsConnector {
@@ -215,37 +141,16 @@ export class GoogleJobsConnector {
       throw new SourceError('GOOGLE_JOBS', 'invalid', 'Google Jobs : lieu ou rayon invalide.');
     }
 
-    const budget = this.env.SERPAPI_MAX_SEARCHES;
-    const offers = new Map<string, NormalizedOffer>();
-    let skipped = 0;
-    let used = 0;
-
-    // Un état par requête : sa prochaine page, ou rien (terminée). Tour de rôle : la page 1 de chaque requête
-    // d'abord, puis les pages 2, jusqu'à épuisement du budget.
-    const pending = buildQueries(query).map((q) => ({ q, token: undefined as string | undefined }));
-    let active = pending;
-    try {
-      while (active.length > 0 && used < budget) {
-        const next: typeof pending = [];
-        for (const state of active) {
-          if (used >= budget) break;
-          used++;
-          const page = await this.fetchPage(key, state.q, state.token, where, query.radiusKm, now);
-          skipped += page.skipped;
-          for (const offer of page.offers) offers.set(offer.externalId, offer);
-          if (page.next) next.push({ q: state.q, token: page.next });
-        }
-        active = next;
-      }
-    } catch (error) {
-      // Échec après des résultats (quota atteint en route...) : on garde ce qui a été lu. Échec dès la première
-      // recherche : la source est en erreur.
-      if (offers.size === 0 || !(error instanceof SourceError)) throw error;
-    }
-
-    const list = [...offers.values()];
-    await this.locate(list, { latitude: query.latitude, longitude: query.longitude });
-    return { offers: list, skipped };
+    const { offers, skipped } = await runSearches({
+      queries: buildQueries(query),
+      budget: this.env.GOOGLE_JOBS_MAX_SEARCHES,
+      fetchPage: (q, token) => this.fetchPage(key, q, token, where, query.radiusKm, now),
+    });
+    await locateOffers(this.geocoder, offers, {
+      latitude: query.latitude,
+      longitude: query.longitude,
+    });
+    return { offers, skipped };
   }
 
   private async fetchPage(
@@ -255,49 +160,33 @@ export class GoogleJobsConnector {
     where: string,
     radiusKm: number,
     now: Date,
-  ): Promise<{ offers: NormalizedOffer[]; skipped: number; next?: string }> {
-    const params = new URLSearchParams({
+  ): Promise<Page> {
+    const params: Record<string, string> = {
       engine: 'google_jobs',
       q,
       location: `${where}, France`,
       gl: 'fr',
       hl: 'fr',
       lrad: String(radiusKm),
-      api_key: key,
+    };
+    if (token) params.next_page_token = token;
+
+    const raw = await serpapiGet(this.http, {
+      source: 'GOOGLE_JOBS',
+      label: 'Google Jobs',
+      key,
+      params,
     });
-    if (token) params.set('next_page_token', token);
-
-    let response: Response;
-    try {
-      response = await this.http(`${BASE_URL}?${params.toString()}`, {
-        headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-        redirect: 'error',
-      });
-    } catch (error) {
-      // Jamais le message d'origine (il peut contenir l'URL, donc la clé) : seulement la nature de la panne.
-      throw new SourceError(
-        'GOOGLE_JOBS',
-        'unavailable',
-        `Google Jobs : service injoignable (${networkCause(error)}).`,
-      );
-    }
-    assertOk(response, 'GOOGLE_JOBS', 'Google Jobs');
-
-    const body = responseSchema.safeParse(await response.json().catch(() => null));
+    if (raw === null) return { offers: [], skipped: 0 };
+    const body = responseSchema.safeParse(raw);
     if (!body.success) {
       throw new SourceError('GOOGLE_JOBS', 'invalid', 'Google Jobs : réponse inattendue.');
-    }
-    if (body.data.error !== undefined) {
-      const failure = errorFromBody(body.data.error, key);
-      if (failure) throw failure;
-      return { offers: [], skipped: 0 };
     }
 
     const offers: NormalizedOffer[] = [];
     let skipped = 0;
-    for (const raw of body.data.jobs_results ?? []) {
-      const job = jobSchema.safeParse(raw);
+    for (const entry of body.data.jobs_results ?? []) {
+      const job = jobSchema.safeParse(entry);
       if (job.success) offers.push(normalizeGoogleJob(job.data, now));
       else skipped++;
     }
@@ -306,26 +195,5 @@ export class GoogleJobsConnector {
       skipped,
       next: body.data.serpapi_pagination?.next_page_token ?? undefined,
     };
-  }
-
-  /** Ajoute les coordonnées des villes (service public de géocodage) : sans elles, pas de distance ni de filtre de rayon. */
-  private async locate(
-    offers: NormalizedOffer[],
-    home: { latitude: number; longitude: number },
-  ): Promise<void> {
-    const found = new Map<string, { latitude: number; longitude: number } | null>();
-    for (const offer of offers) {
-      if (!isGeocodable(offer.city)) continue;
-      const name = offer.city.toLowerCase();
-      if (!found.has(name)) {
-        if (found.size >= MAX_CITIES) continue;
-        found.set(name, await this.geocoder.geocodeCity(offer.city, home));
-      }
-      const coordinates = found.get(name);
-      if (coordinates) {
-        offer.latitude = coordinates.latitude;
-        offer.longitude = coordinates.longitude;
-      }
-    }
   }
 }

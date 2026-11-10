@@ -17,7 +17,14 @@ async function main() {
   try {
     const offers = await prisma.offer.findMany({
       where: { application: null },
-      select: { id: true, source: true, title: true, description: true, contractType: true },
+      select: {
+        id: true,
+        source: true,
+        title: true,
+        company: true,
+        description: true,
+        contractType: true,
+      },
     });
     // La Bonne Boîte et La Bonne Alternance sont déjà filtrées par code ROME à la source.
     const plan = planCleanup(offers, new Set(['LBB', 'LBA']));

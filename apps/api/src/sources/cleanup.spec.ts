@@ -5,6 +5,7 @@ const stored = (id: string, extra: Partial<StoredOffer> = {}): StoredOffer => ({
   id,
   source: 'ADZUNA',
   title: 'Alternance développeur web',
+  company: 'Atelier Exemple',
   description: null,
   contractType: 'AUTRE',
   ...extra,
@@ -17,6 +18,18 @@ describe('planCleanup', () => {
       new Set(['LBB']),
     );
     expect(plan.deleteIds).toEqual(['compta']);
+  });
+
+  it('supprime aussi les annonces d’écoles des sources non fiables, jamais celles d’une source de confiance', () => {
+    const plan = planCleanup(
+      [
+        stored('ecole', { company: 'CFA INSTA' }),
+        stored('ecole-lba', { source: 'LBA', company: 'CFA INSTA' }),
+        stored('employeur', { company: 'Nordlys Logiciels' }),
+      ],
+      new Set(['LBA']),
+    );
+    expect(plan.deleteIds).toEqual(['ecole']);
   });
 
   it('ne supprime jamais une offre d’une source de confiance, même au titre atypique', () => {

@@ -7,6 +7,7 @@ import type { Profile } from '../profile/profile.schema';
 import type { ProfileService } from '../profile/profile.service';
 import type { AdzunaConnector } from '../sources/adzuna/adzuna.connector';
 import { dedupKey } from '../sources/dedup';
+import type { GlassdoorConnector } from '../sources/glassdoor/glassdoor.connector';
 import type { GoogleJobsConnector } from '../sources/google-jobs/google-jobs.connector';
 import type { LbaConnector } from '../sources/lba/lba.connector';
 import type { LbbConnector } from '../sources/lbb/lbb.connector';
@@ -43,6 +44,7 @@ function setup(
     adzuna?: Search;
     lbb?: Search;
     googleJobs?: Search;
+    glassdoor?: Search;
     inDatabase?: Map<string, Set<OfferSource>>;
   } = {},
 ) {
@@ -51,6 +53,7 @@ function setup(
   const adzuna = vi.fn(options.adzuna ?? empty);
   const lbb = vi.fn(options.lbb ?? empty);
   const googleJobs = vi.fn(options.googleJobs ?? empty);
+  const glassdoor = vi.fn(options.glassdoor ?? empty);
   const saveMany = vi.fn(async (offers: NormalizedOffer[]) => ({
     created: offers.length,
     updated: 0,
@@ -81,6 +84,7 @@ function setup(
     { search: lbb } as unknown as LbbConnector,
     { search: adzuna } as unknown as AdzunaConnector,
     { search: googleJobs } as unknown as GoogleJobsConnector,
+    { search: glassdoor } as unknown as GlassdoorConnector,
   );
   return {
     service,
@@ -88,6 +92,7 @@ function setup(
     adzuna,
     lbb,
     googleJobs,
+    glassdoor,
     saveMany,
     purgeStale,
     analyzePending,
@@ -150,7 +155,7 @@ describe('CollectionService', () => {
 
     const report = await service.run('u1');
 
-    expect(saveMany).toHaveBeenCalledTimes(4);
+    expect(saveMany).toHaveBeenCalledTimes(5);
     expect(
       report.sources.map((s) => [s.source, s.status, s.fetched, s.created, s.skipped]),
     ).toEqual([
@@ -158,6 +163,7 @@ describe('CollectionService', () => {
       ['ADZUNA', 'ok', 1, 1, 0],
       ['LBB', 'ok', 0, 0, 0],
       ['GOOGLE_JOBS', 'ok', 0, 0, 0],
+      ['GLASSDOOR', 'ok', 0, 0, 0],
     ]);
     expect(report.purged).toBe(2);
     expect(service.lastReport()).toBe(report);
@@ -181,6 +187,9 @@ describe('CollectionService', () => {
           'quota avec https://x/?api_key=SECRET',
         );
       },
+      glassdoor: async () => {
+        throw new SourceError('GLASSDOOR', 'not_configured', 'clé absente');
+      },
     });
 
     const report = await service.run('u1');
@@ -190,6 +199,7 @@ describe('CollectionService', () => {
       ['ADZUNA', 'disabled', 'not_configured'],
       ['LBB', 'error', 'unexpected'],
       ['GOOGLE_JOBS', 'error', 'rate_limited'],
+      ['GLASSDOOR', 'disabled', 'not_configured'],
     ]);
     expect(JSON.stringify(report)).not.toContain('SECRET');
     expect(saveMany).not.toHaveBeenCalled();
@@ -247,6 +257,7 @@ describe('CollectionService', () => {
       ['ADZUNA', 'ok', undefined],
       ['LBB', 'ok', undefined],
       ['GOOGLE_JOBS', 'ok', undefined],
+      ['GLASSDOOR', 'ok', undefined],
     ]);
     expect(JSON.stringify(report)).not.toContain('SECRET');
     expect(purgeStale).toHaveBeenCalled();
@@ -425,6 +436,37 @@ describe('CollectionService', () => {
       },
     });
     expect((await off.service.run('u1')).sources[3]).toMatchObject({ status: 'disabled' });
+  });
+
+  it('Glassdoor : hors-sujet et annonces d’écoles écartés (source non fiable), désactivée sans clé', async () => {
+    const { service, saveMany } = setup({
+      glassdoor: async () => ({
+        offers: [
+          offer('GLASSDOOR', 'dev', {
+            title: 'Alternance développeur web',
+            company: 'Nordlys SAS',
+          }),
+          offer('GLASSDOOR', 'ecole', {
+            title: 'Alternance développeur web',
+            company: 'CFA INSTA',
+          }),
+          offer('GLASSDOOR', 'compta', { title: 'Alternance comptable', company: 'Nordlys SAS' }),
+        ],
+        skipped: 0,
+      }),
+    });
+
+    const report = await service.run('u1');
+
+    expect(report.sources[4]).toMatchObject({ source: 'GLASSDOOR', irrelevant: 2, created: 1 });
+    expect(saveMany.mock.calls.flatMap((c) => c[0].map((o) => o.externalId))).toEqual(['dev']);
+
+    const off = setup({
+      glassdoor: async () => {
+        throw new SourceError('GLASSDOOR', 'not_configured', 'absente');
+      },
+    });
+    expect((await off.service.run('u1')).sources[4]).toMatchObject({ status: 'disabled' });
   });
 
   it('journalise POURQUOI une source est en erreur, sans secret : message de la source, nom d’une erreur inattendue', async () => {

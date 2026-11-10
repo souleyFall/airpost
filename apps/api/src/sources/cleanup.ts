@@ -1,10 +1,11 @@
 import type { ContractType, OfferSource } from '../generated/prisma/enums';
-import { detectContractType, isRelevantOffer } from './relevance';
+import { detectContractType, isRelevantOffer, isSchoolAd } from './relevance';
 
 export interface StoredOffer {
   id: string;
   source: OfferSource;
   title: string;
+  company: string;
   description: string | null;
   contractType: ContractType;
 }
@@ -25,7 +26,11 @@ export function planCleanup(offers: StoredOffer[], trusted: ReadonlySet<OfferSou
   const deleteIds: string[] = [];
   const contractUpdates: CleanupPlan['contractUpdates'] = [];
   for (const offer of offers) {
-    if (!trusted.has(offer.source) && !isRelevantOffer(offer.title, offer.description)) {
+    if (
+      !trusted.has(offer.source) &&
+      (!isRelevantOffer(offer.title, offer.description) ||
+        isSchoolAd(offer.company, offer.description))
+    ) {
       deleteIds.push(offer.id);
       continue;
     }

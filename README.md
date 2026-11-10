@@ -1,6 +1,6 @@
 # airpost
 
-Outil personnel de recherche d'alternance : il collecte des offres par les API officielles (La Bonne Alternance, La Bonne Boîte, Adzuna) et par Google Jobs via SerpApi (qui reprend des annonces de LinkedIn, Indeed, Welcome to the Jungle), les note, prépare une lettre sur mesure avec Gemini (garde-fous contre les inventions), te la fait relire et valider, crée un **brouillon Gmail** (jamais d'envoi automatique) et suit les réponses.
+Outil personnel de recherche d'alternance : il collecte des offres par les API officielles (La Bonne Alternance, La Bonne Boîte, Adzuna) et par Google Jobs et Glassdoor via SerpApi (Google Jobs reprend des annonces de plusieurs sites), les note, prépare une lettre sur mesure avec Gemini (garde-fous contre les inventions), te la fait relire et valider, crée un **brouillon Gmail** (jamais d'envoi automatique) et suit les réponses.
 
 Aucun scraping de LinkedIn, Indeed ou Welcome to the Jungle.
 

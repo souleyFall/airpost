@@ -152,6 +152,19 @@ export function isRelevantOffer(title: string, description?: string | null): boo
 }
 
 /**
+ * Annonce d'une école ou d'un centre de formation qui se présente comme une offre d'alternance : l'utilisateur
+ * cherche un employeur, pas une inscription. Détection prudente sur le NOM de l'entreprise (CFA, école, campus,
+ * institut...) ou la mention d'un titre RNCP (diplôme préparé). Un nom de marque d'école sans ces mots passe à
+ * travers : la note de l'IA le placera bas, faute de mieux.
+ */
+const SCHOOL_COMPANY =
+  /\b(cfa|ecole|ecoles|school|campus|institut|academy|academie|universite|university|formation)\b/;
+
+export function isSchoolAd(company: string, description?: string | null): boolean {
+  return SCHOOL_COMPANY.test(fold(company)) || /\brncp\b/.test(fold(description ?? ''));
+}
+
+/**
  * Type de contrat, déduit du texte (aucune source ne le publie de façon fiable). « Alternance » l'emporte sur
  * « stage » : une annonce d'alternance peut mentionner un stage précédent, pas l'inverse.
  */

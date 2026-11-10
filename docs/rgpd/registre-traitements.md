@@ -84,3 +84,7 @@ Non requise : traitement à petite échelle, usage personnel, aucune donnée sen
 - **Nouveau sous-traitant : SerpApi** (États-Unis). Il reçoit la requête de recherche (contrat recherché et deux mots-clés de la pile technique), la ville du profil et un rayon, comme Adzuna reçoit déjà la ville. Il ne reçoit ni le nom, ni le téléphone, ni l'adresse, ni le parcours du candidat. Source facultative : sans clé, rien n'est envoyé.
 - **Données reçues en retour** : annonces publiques (intitulé, entreprise, lieu, description, liens). Aucune donnée de tiers à caractère personnel n'est conservée au-delà de ce que publie l'annonce ; elles suivent la durée de conservation des offres (90 jours sans réapparition).
 - **Géocodage** : le nom de la ville de chaque annonce est envoyé au service public de géocodage de l'État, jamais le domicile du candidat.
+
+## Mise à jour 2026-11-10 : Glassdoor via SerpApi
+
+- Même sous-traitant et mêmes données que Google Jobs : SerpApi reçoit la requête (contrat recherché, « développeur »), la ville du profil et un rayon, jamais le nom, le téléphone, l'adresse ni le parcours du candidat. Source facultative (une seule clé SerpApi pour les deux). Annonces publiques reçues en retour, conservées comme les autres offres (90 jours sans réapparition).

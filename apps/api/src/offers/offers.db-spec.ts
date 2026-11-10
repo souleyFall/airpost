@@ -7,6 +7,7 @@ import { AppModule } from '../app.module';
 import { configureApp } from '../app.setup';
 import { PasswordService } from '../auth/password.service';
 import { parseEnv } from '../config/env';
+import { OfferSource } from '../generated/prisma/enums';
 import { LlmError, LlmProvider, type LlmRequest, type LlmResponse } from '../llm/llm.types';
 import { MatchService } from '../matching/match.service';
 import { OffersService } from '../sources/offers.service';
@@ -454,7 +455,7 @@ describe('Offres et analyse IA (e2e, base réelle)', () => {
       expect(titles(await get('?channel=EMAIL'))).toEqual(['Offre lbb-stage']);
     });
 
-    it.each(['LBA', 'LBB', 'ADZUNA', 'GOOGLE_JOBS'])(
+    it.each(Object.values(OfferSource))(
       'accepte chaque source de l’énumération dans le filtre (« %s »)',
       async (source) => {
         await seed('une', { source, contractType: 'ALTERNANCE' });

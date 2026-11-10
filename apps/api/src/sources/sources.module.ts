@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AdzunaConnector } from './adzuna/adzuna.connector';
 import { LbaConnector } from './lba/lba.connector';
 import { GeocoderService } from './geocoder.service';
+import { GlassdoorConnector } from './glassdoor/glassdoor.connector';
 import { GoogleJobsConnector } from './google-jobs/google-jobs.connector';
 import { LbbConnector } from './lbb/lbb.connector';
 import { OffersService } from './offers.service';
@@ -12,6 +13,7 @@ import { OffersService } from './offers.service';
     LbbConnector,
     AdzunaConnector,
     GoogleJobsConnector,
+    GlassdoorConnector,
     GeocoderService,
     OffersService,
   ],
@@ -21,6 +23,7 @@ import { OffersService } from './offers.service';
     LbbConnector,
     AdzunaConnector,
     GoogleJobsConnector,
+    GlassdoorConnector,
     GeocoderService,
     OffersService,
   ],

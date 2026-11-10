@@ -45,6 +45,7 @@ export const SOURCE_LABEL = {
   // Mention d'attribution exigée par les conditions d'utilisation d'Adzuna.
   ADZUNA: 'Jobs by Adzuna',
   GOOGLE_JOBS: 'Google Jobs',
+  GLASSDOOR: 'Glassdoor',
 } as const;
 
 /** Classe de couleur du badge de compatibilité (≥75 plein, ≥55 contour, sinon discret) : mêmes seuils que le verdict de l'API. */

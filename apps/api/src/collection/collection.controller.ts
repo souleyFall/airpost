@@ -34,6 +34,7 @@ export class CollectionController {
         LBB: configured(this.env.FT_CLIENT_ID) && configured(this.env.FT_CLIENT_SECRET),
         ADZUNA: configured(this.env.ADZUNA_APP_ID) && configured(this.env.ADZUNA_APP_KEY),
         GOOGLE_JOBS: configured(this.env.SERPAPI_KEY),
+        GLASSDOOR: configured(this.env.SERPAPI_KEY),
       },
       gemini: { configured: configured(this.env.GEMINI_API_KEY), model: this.env.GEMINI_MODEL },
     };
