@@ -278,3 +278,12 @@ En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans N
 - **Pourquoi 08:30** : les alertes e-mail (Indeed, bientôt LinkedIn et Welcome to the Jungle) sont envoyées de nuit ou tôt le matin ; à 08:30 elles sont arrivées et les offres ont moins de 24 h, avant que la plupart des candidats postulent (la fraîcheur compte beaucoup dans le score). Les recruteurs publient surtout en début de semaine et en matinée.
 - **Pourquoi une seule fois par jour** : une collecte consomme 6 recherches SerpApi (2 Google Jobs + 4 Glassdoor) sur 250 gratuites par mois : 30 collectes = 180, il reste une marge d'environ 70 pour les collectes à la demande. Deux par jour dépasseraient le quota.
 - **Limite** : l'application tourne sur le PC de l'utilisateur ; si le PC est éteint ou en veille à 08:30, la collecte n'a pas lieu ce jour-là (la suivante se fait le lendemain).
+
+### D34 : LinkedIn par les e-mails d'offres lus dans Gmail
+
+- **Ce qui est lu** : les messages que LinkedIn envoie déjà à l'utilisateur (offres recommandées de `jobs-listings@linkedin.com`, offres enregistrées et « offres similaires » de `jobs-noreply@linkedin.com`, alertes de `jobalerts-noreply@linkedin.com`). Aucun appel à LinkedIn, aucun compte utilisé, aucun lien suivi : c'est la seule voie sans risque pour le compte.
+- **Format** : relevé sur de vrais messages (trois modèles). Chaque annonce se termine par « Voir l'offre d'emploi : lien » ; les trois lignes au-dessus sont l'intitulé, l'entreprise et le lieu. Le troisième expéditeur n'a pas encore été observé : il est lu avec les mêmes règles strictes, un format différent donnerait des blocs « ignorés ».
+- **Identifiant** : le numéro d'annonce LinkedIn, stable d'un message à l'autre (pas de doublon).
+- **Jetons** : les liens reçus contiennent des jetons personnels, dont un jeton de connexion à usage unique. Ils ne sont jamais stockés : l'adresse publique est reconstruite à partir du seul numéro (`https://www.linkedin.com/jobs/view/<numéro>/`).
+- **Déjà postulé** : l'annonce d'un message « votre candidature a été envoyée » n'est pas reprise (elle est déjà dans le suivi) ; les offres similaires du même message le sont.
+- **Limites** : pas de texte d'annonce ni de date de publication (l'IA note sur l'intitulé) ; un lieu donné comme un département n'est pas géolocalisé ; Welcome to the Jungle attend toujours un premier e-mail d'alerte réel.

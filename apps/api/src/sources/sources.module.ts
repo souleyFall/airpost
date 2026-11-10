@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { GmailModule } from '../gmail/gmail.module';
 import { AdzunaConnector } from './adzuna/adzuna.connector';
 import { IndeedAlertsConnector } from './alerts/indeed-alerts.connector';
+import { LinkedinAlertsConnector } from './alerts/linkedin-alerts.connector';
 import { LbaConnector } from './lba/lba.connector';
 import { GeocoderService } from './geocoder.service';
 import { GlassdoorConnector } from './glassdoor/glassdoor.connector';
@@ -19,6 +20,7 @@ import { OffersService } from './offers.service';
     GoogleJobsConnector,
     GlassdoorConnector,
     IndeedAlertsConnector,
+    LinkedinAlertsConnector,
     GeocoderService,
     OffersService,
   ],
@@ -30,6 +32,7 @@ import { OffersService } from './offers.service';
     GoogleJobsConnector,
     GlassdoorConnector,
     IndeedAlertsConnector,
+    LinkedinAlertsConnector,
     GeocoderService,
     OffersService,
   ],

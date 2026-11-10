@@ -252,6 +252,7 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
       ['GLASSDOOR', 'ok', 1, 0],
       // Gmail n'est pas configuré dans ce test : alertes Indeed désactivées (cas testé plus bas, avec un faux Gmail).
       ['INDEED', 'disabled', 0, 0],
+      ['LINKEDIN', 'disabled', 0, 0],
     ]);
     const rows = await prisma.offer.findMany({
       orderBy: [{ source: 'asc' }, { externalId: 'asc' }],
@@ -312,6 +313,7 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
       [0, 1],
       [0, 1],
       [0, 1],
+      [0, 0],
       [0, 0],
     ]);
     expect(await prisma.offer.count()).toBe(6);
@@ -559,6 +561,7 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
         GOOGLE_JOBS: true,
         GLASSDOOR: true,
         INDEED: false,
+        LINKEDIN: false,
       },
       gemini: { configured: expect.any(Boolean) as unknown },
     });
@@ -572,7 +575,7 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
     await run(session).expect(200);
     const last = await http.get('/collection/last').set('Cookie', session.cookie).expect(200);
 
-    expect((last.body as { sources: unknown[] }).sources).toHaveLength(6);
+    expect((last.body as { sources: unknown[] }).sources).toHaveLength(7);
   });
 
   it('refuse (409) une collecte lancée pendant qu’une autre tourne', async () => {

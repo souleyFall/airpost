@@ -75,6 +75,7 @@ const SOURCE_CHOICES: { id: OfferSource; label: string }[] = [
   { id: 'GOOGLE_JOBS', label: 'Google Jobs' },
   { id: 'GLASSDOOR', label: 'Glassdoor' },
   { id: 'INDEED', label: 'Indeed' },
+  { id: 'LINKEDIN', label: 'LinkedIn' },
   { id: 'LBB', label: 'La Bonne Boîte' },
 ];
 

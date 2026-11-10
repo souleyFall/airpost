@@ -4,6 +4,7 @@ import type { AuthenticatedRequest } from '../auth/auth.guard';
 import { ENV } from '../config/config.module';
 import type { Env } from '../config/env';
 import { IndeedAlertsConnector } from '../sources/alerts/indeed-alerts.connector';
+import { LinkedinAlertsConnector } from '../sources/alerts/linkedin-alerts.connector';
 import { CollectionService, type RunReport } from './collection.service';
 
 // Pas de @Public() : session obligatoire ; POST exige aussi le jeton CSRF (garde global).
@@ -13,6 +14,7 @@ export class CollectionController {
     private readonly collection: CollectionService,
     @Inject(ENV) private readonly env: Env,
     private readonly indeedAlerts: IndeedAlertsConnector,
+    private readonly linkedinAlerts: LinkedinAlertsConnector,
   ) {}
 
   /** Lance une collecte maintenant. Limitée à 3 par minute : chaque collecte consomme les quotas des API. */
@@ -39,6 +41,7 @@ export class CollectionController {
         GLASSDOOR: configured(this.env.SERPAPI_KEY),
         // Alertes Indeed : lues dans Gmail, donc configurées si l'autorisation Gmail l'est (aucune clé propre).
         INDEED: this.indeedAlerts.isConfigured(),
+        LINKEDIN: this.linkedinAlerts.isConfigured(),
       },
       gemini: { configured: configured(this.env.GEMINI_API_KEY), model: this.env.GEMINI_MODEL },
     };
