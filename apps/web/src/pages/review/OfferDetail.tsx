@@ -18,6 +18,8 @@ import {
   scoreTone,
   wordCount,
 } from '../../lib/format';
+import { buildLetterPdf, downloadPdf, letterContent, letterFileName } from '../../lib/letterPdf';
+import type { Profile } from '../profile/profileForm';
 
 interface Props {
   offerId: string;
@@ -84,6 +86,8 @@ export function OfferDetail({ offerId, onChanged, onAnalyzed }: Props) {
   const [busy, setBusy] = useState<null | 'generate' | 'save' | 'validate' | 'reject'>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [saved, setSaved] = useState(true);
+  const [copied, setCopied] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const applyApplication = useCallback((data: ApplicationDetail) => {
     setApplication(data);
@@ -200,6 +204,35 @@ export function OfferDetail({ offerId, onChanged, onAnalyzed }: Props) {
       await api('POST', `/applications/${application.id}/status`, { status: 'WITHDRAWN' });
       return true;
     });
+
+  /** Copie le texte de la lettre tel qu'il est à l'écran (modifications non enregistrées comprises). */
+  async function copyLetter() {
+    setActionError(null);
+    try {
+      await navigator.clipboard.writeText(body);
+      setCopied(true);
+      setTimeout(() => mounted.current && setCopied(false), 2000);
+    } catch {
+      setActionError('Copie impossible : sélectionne le texte et copie-le à la main.');
+    }
+  }
+
+  /** Fabrique le PDF dans le navigateur : en-tête tiré du profil, date du jour, objet, texte, signature. */
+  async function downloadLetter() {
+    if (!offer) return;
+    setExporting(true);
+    setActionError(null);
+    try {
+      const profile = await api<Profile>('GET', '/profile');
+      const sender = { ...profile.identity, headline: profile.headline };
+      const bytes = await buildLetterPdf(letterContent(sender, subject, body));
+      downloadPdf(bytes, letterFileName(sender, offer.company));
+    } catch {
+      setActionError('Le PDF n’a pas pu être créé.');
+    } finally {
+      if (mounted.current) setExporting(false);
+    }
+  }
 
   if (loadError) {
     return (
@@ -459,6 +492,22 @@ export function OfferDetail({ offerId, onChanged, onAnalyzed }: Props) {
                   >
                     {words} mots · cible {MIN_WORDS}–{MAX_WORDS}
                   </span>
+                  <button
+                    type="button"
+                    className="btn btn-quiet !h-8 !text-[13px]"
+                    onClick={() => void copyLetter()}
+                    disabled={body.trim() === ''}
+                  >
+                    {copied ? 'Copié' : 'Copier'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-quiet !h-8 !text-[13px]"
+                    onClick={() => void downloadLetter()}
+                    disabled={exporting || body.trim() === ''}
+                  >
+                    {exporting ? 'Préparation…' : 'Télécharger en PDF'}
+                  </button>
                   <button
                     type="button"
                     className="btn btn-quiet !h-8 !text-[13px]"
