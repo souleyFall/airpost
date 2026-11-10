@@ -266,3 +266,8 @@ En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans N
 - **Données** : le corps du message est analysé en mémoire ; seules les annonces extraites sont enregistrées. Étendue Gmail inchangée (`gmail.readonly`).
 - **Filtre des écoles** complété par des formules d'annonce d'école relevées sur de vraies annonces (ISCOD : « préparer une formation en développement informatique », « spécialiste de la formation », « entreprise partenaire »).
 - **Limites** : un seul expéditeur Indeed connu (d'autres formats ou expéditeurs d'alerte ne seraient pas lus), texte limité à un extrait, salaire dans la description. LinkedIn et Welcome to the Jungle attendent un vrai message d'alerte avec des offres.
+
+### D32 (suite) : deux défauts trouvés par le premier essai réel
+
+- **Google Jobs : identifiant d'annonce instable.** Hors du cache d'une heure de SerpApi, la même annonce revient avec un autre `job_id` : chaque collecte recréait les mêmes annonces (18 lignes pour 9 annonces constatées). Pour les sources à identifiant instable (`UNSTABLE_ID_SOURCES`, Google Jobs), l'identité d'une offre est l'empreinte (entreprise, intitulé, ville) : une annonce déjà connue sous un autre identifiant est mise à jour, pas recréée, et le nettoyage supprime les doublons déjà en base (garde la ligne analysée, sinon la plus ancienne ; jamais une ligne qui a une candidature). Les sources à identifiant stable ne sont pas concernées : deux annonces de même titre y restent deux offres.
+- **Écoles sans mot d'école.** ISCOD (citée par l'utilisateur) et SCHOLIA n'avaient ni mot-clé dans leur nom, ni formule typique dans le texte : liste courte de marques ajoutée, extensible par l'utilisateur via « Entreprises à exclure » de son profil.

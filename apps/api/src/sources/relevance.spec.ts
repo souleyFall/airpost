@@ -123,11 +123,14 @@ describe('isSchoolAd', () => {
     'Digital School',
     'Université Paris Nord',
     'Académie du Web',
+    // Marques d'écoles sans mot d'école dans leur nom (relevées sur de vraies annonces).
+    'ISCOD',
+    'Scholia',
   ])('écarte l’annonce de « %s »', (company) => {
     expect(isSchoolAd(company)).toBe(true);
   });
 
-  it.each(['Atelier Exemple', 'Nordlys Logiciels', 'Natixis CIB France', 'SCHOLIA', 'Capgemini'])(
+  it.each(['Atelier Exemple', 'Nordlys Logiciels', 'Natixis CIB France', 'Capgemini'])(
     'garde l’annonce de « %s »',
     (company) => {
       expect(isSchoolAd(company)).toBe(false);

@@ -168,8 +168,20 @@ const SCHOOL_COMPANY =
 const SCHOOL_TEXT =
   /\b(rncp|preparer une formation|centre de formation|organisme de formation|specialiste de la formation|entreprise partenaire|ecole partenaire)\b/;
 
+/**
+ * Écoles repérées sur de vraies annonces dont ni le nom ni le texte ne contiennent de mot d'école (ISCOD, citée par
+ * l'utilisateur lui-même ; SCHOLIA). Liste courte et assumée : pour en ajouter, l'utilisateur peut aussi les mettre dans
+ * « Entreprises à exclure » de son profil, sans toucher au code.
+ */
+const SCHOOL_BRANDS = /\b(iscod|scholia)\b/;
+
 export function isSchoolAd(company: string, description?: string | null): boolean {
-  return SCHOOL_COMPANY.test(fold(company)) || SCHOOL_TEXT.test(fold(description ?? ''));
+  const name = fold(company);
+  return (
+    SCHOOL_COMPANY.test(name) ||
+    SCHOOL_BRANDS.test(name) ||
+    SCHOOL_TEXT.test(fold(description ?? ''))
+  );
 }
 
 /**
