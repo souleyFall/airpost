@@ -22,7 +22,8 @@ import {
 } from '../source.types';
 
 const BASE_URL = 'https://serpapi.com/search.json';
-const TIMEOUT_MS = 20_000;
+/** Une recherche Google Jobs non mise en cache peut prendre plusieurs secondes : marge confortable. */
+const TIMEOUT_MS = 30_000;
 /** Villes géocodées au plus par collecte : les annonces d'une même ville partagent une seule recherche. */
 const MAX_CITIES = 40;
 const DAY_MS = 86_400_000;
@@ -159,8 +160,17 @@ export function buildQueries(query: SearchQuery): string[] {
   );
 }
 
+/** Nature d'une panne réseau, sans détail sensible : « délai dépassé », un code système (ECONNRESET...) ou « réseau ». */
+export function networkCause(error: unknown): string {
+  if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+    return 'délai dépassé';
+  }
+  const code = (error as { cause?: { code?: unknown } } | null)?.cause?.code;
+  return typeof code === 'string' && /^[A-Z0-9_]{3,30}$/.test(code) ? code : 'réseau';
+}
+
 /** Traduction du champ « error » d'une réponse 200 de SerpApi. `null` : « aucun résultat », pas une panne. */
-function errorFromBody(message: string): SourceError | null {
+function errorFromBody(message: string, key: string): SourceError | null {
   const m = message.toLowerCase();
   if (/hasn'?t returned any results|no results|did not return any results/.test(m)) return null;
   if (/invalid api key|api key/.test(m)) {
@@ -169,7 +179,16 @@ function errorFromBody(message: string): SourceError | null {
   if (/run out of searches|plan|limit|quota|exceeded/.test(m)) {
     return new SourceError('GOOGLE_JOBS', 'rate_limited', 'Google Jobs : quota SerpApi atteint.');
   }
-  return new SourceError('GOOGLE_JOBS', 'unavailable', 'Google Jobs : réponse en erreur.');
+  // Extrait du message de SerpApi pour comprendre la panne, sans lien ni clé (la clé voyage dans l'URL).
+  const excerpt = message
+    .replaceAll(key, '[clé]')
+    .replace(/https?:\/\/\S+/g, '[lien]')
+    .slice(0, 100);
+  return new SourceError(
+    'GOOGLE_JOBS',
+    'unavailable',
+    `Google Jobs : réponse en erreur (${excerpt}).`,
+  );
 }
 
 /**
@@ -255,9 +274,13 @@ export class GoogleJobsConnector {
         signal: AbortSignal.timeout(TIMEOUT_MS),
         redirect: 'error',
       });
-    } catch {
-      // Pas de détail : le message d'origine peut contenir l'URL, donc la clé.
-      throw new SourceError('GOOGLE_JOBS', 'unavailable', 'Google Jobs : service injoignable.');
+    } catch (error) {
+      // Jamais le message d'origine (il peut contenir l'URL, donc la clé) : seulement la nature de la panne.
+      throw new SourceError(
+        'GOOGLE_JOBS',
+        'unavailable',
+        `Google Jobs : service injoignable (${networkCause(error)}).`,
+      );
     }
     assertOk(response, 'GOOGLE_JOBS', 'Google Jobs');
 
@@ -266,7 +289,7 @@ export class GoogleJobsConnector {
       throw new SourceError('GOOGLE_JOBS', 'invalid', 'Google Jobs : réponse inattendue.');
     }
     if (body.data.error !== undefined) {
-      const failure = errorFromBody(body.data.error);
+      const failure = errorFromBody(body.data.error, key);
       if (failure) throw failure;
       return { offers: [], skipped: 0 };
     }
