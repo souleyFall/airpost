@@ -72,7 +72,7 @@ export function buildLetterPrompt(
     .join('\n\n');
 }
 
-const REMINDERS: Record<Violation, string> = {
+export const REMINDERS: Record<Violation, string> = {
   length: 'Respecte la longueur : entre 150 et 300 mots.',
   placeholder: 'Ne laisse aucun texte à compléter entre crochets, accolades ou chevrons.',
   contact_data: "N'écris aucune adresse e-mail, aucun numéro de téléphone, aucun lien.",

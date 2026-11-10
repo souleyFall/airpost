@@ -101,12 +101,26 @@ export interface RunReport {
   pendingAnalysis: number;
 }
 
+/** Relance : à faire, faite (on attend), ou faite depuis assez longtemps pour classer sans suite. */
+export type FollowUpState = 'due' | 'done' | 'give_up' | null;
+
+export interface FollowUpResult {
+  applicationId: string;
+  subject: string;
+  body: string;
+  preview: string;
+  warnings: string[];
+  to: string | null;
+}
+
 export interface ApplicationRow {
   id: string;
   status: ApplicationStatus;
   subject: string | null;
   validatedAt: string | null;
   appliedAt: string | null;
+  followedUpAt: string | null;
+  followUp: FollowUpState;
   createdAt: string;
   updatedAt: string;
   replies: ReplyRow[];

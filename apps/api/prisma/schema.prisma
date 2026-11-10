@@ -180,6 +180,10 @@ model Application {
   /// Lettre ou corps du mail, relus et validés par l'utilisateur avant tout brouillon.
   body          String?
   gmailDraftId  String?
+  /// Relance : une seule par candidature. Date à laquelle elle a été faite (brouillon créé, ou déclarée faite par l'utilisateur).
+  followedUpAt  DateTime?
+  /// Brouillon Gmail de la relance (supprimé avec la candidature).
+  followUpDraftId String?
   validatedAt   DateTime?
   appliedAt     DateTime?
   createdAt     DateTime          @default(now())

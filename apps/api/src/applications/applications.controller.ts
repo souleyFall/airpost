@@ -72,6 +72,13 @@ export class ApplicationsController {
     return this.applications.changeStatus(id, body.status);
   }
 
+  /** Déclare une relance déjà faite par un autre moyen (téléphone, LinkedIn...) : la candidature sort de « à relancer ». */
+  @Post(':id/follow-up/done')
+  @HttpCode(200)
+  markFollowedUp(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.applications.markFollowedUp(id);
+  }
+
   /** Supprime la candidature et son brouillon Gmail ; `gmailDraftDeleted: false` = brouillon à retirer à la main. */
   @Delete(':id')
   remove(@Param('id', new ParseUUIDPipe()) id: string) {

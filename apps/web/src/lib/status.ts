@@ -29,23 +29,14 @@ export const MANUAL_NEXT: Record<ApplicationStatus, readonly ApplicationStatus[]
   WITHDRAWN: [],
 };
 
-/** Délai après lequel une candidature envoyée sans réponse devient « à relancer ». */
-export const FOLLOW_UP_DAYS = 14;
+/** Délai (jours) avant la relance : la règle est celle du serveur (8 jours), ce chiffre ne sert qu'à l'affichage. */
+export const FOLLOW_UP_DAYS = 8;
 
 const DAY = 86_400_000;
 
 export function daysSince(iso: string | null, now: Date = new Date()): number | null {
   if (!iso) return null;
   return Math.max(0, Math.floor((now.getTime() - new Date(iso).getTime()) / DAY));
-}
-
-export function needsFollowUp(
-  status: ApplicationStatus,
-  appliedAt: string | null,
-  now: Date = new Date(),
-): boolean {
-  const days = daysSince(appliedAt, now);
-  return status === 'APPLIED' && days !== null && days >= FOLLOW_UP_DAYS;
 }
 
 export function shortDate(iso: string | null): string {
