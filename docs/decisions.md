@@ -329,3 +329,13 @@ En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans N
 - **Lecture du texte** : une requête Gemini propose intitulé, entreprise et ville (texte encadré comme non fiable, coordonnées retirées avant le modèle) ; l'adresse de contact est cherchée par le code (adresses « noreply » ignorées). L'utilisateur vérifie et corrige ; sans quota, il remplit les champs lui-même.
 - **Enregistrement** : source `MANUAL`, description = le texte collé tel quel (le modèle ne réécrit rien), contrat déduit comme ailleurs, ville géolocalisée (distance), doublon détecté sur toutes les sources (l'offre existante est rouverte). Analyse immédiate ; un quota atteint garde l'offre sans note.
 - **Jamais supprimée par le tri de pertinence** (source de confiance comme La Bonne Boîte) : c'est un choix de l'utilisateur. Purge RGPD inchangée : sans candidature, elle part après la durée de conservation.
+
+### D40 : tableau de bord « Résultats »
+
+- **But** : savoir ce que donnent les candidatures (réponses, entretiens), quelles sources marchent, et où en est le travail, pour décider où investir du temps et du quota. Page `/resultats`, données de `GET /stats` (lecture seule, calcul pur et testé dans `apps/api/src/stats/stats.ts`).
+- **Définitions** : « envoyée » = date d'envoi connue. « Réponse » = au moins un mail classé (accusé, entretien, refus, autre) OU un statut posé à la main (accusé, entretien, refus). « Entretien » = statut entretien ou mail d'entretien. Délai médian = entre l'envoi et le PREMIER mail reçu. Taux de réponse par source = réponses / envoyées de cette source.
+- **Honnêteté statistique** : en dessous de 5 candidatures envoyées, un bandeau dit « trop tôt pour conclure » ; par source, un envoi sur moins de 3 est marqué « (sur N) ». Aucun pourcentage quand il n'y a rien à diviser (tiret, pas 0 %).
+- **Relances** : nombre de relances faites, et combien ont été suivies d'une réponse reçue APRÈS la relance (une réponse arrivée avant n'est pas un effet de la relance).
+- **Semaines** : huit semaines glissantes, lundi de chaque semaine en UTC (un envoi tardi le dimanche soir en heure de Paris peut compter dans la semaine suivante : écart assumé, affichage seulement).
+- **Données** : seulement des compteurs. Aucun texte de lettre, de mail ni nom de recruteur ne quitte la base pour cet écran (testé). Pas de nouvelle donnée stockée, pas de migration.
+- **Limites** : corrélation, pas causalité (une source qui répond plus n'est pas forcément meilleure : le nombre d'envois est petit) ; les candidatures déclarées « envoyées » à la main avant l'existence de la date d'envoi ne comptent pas.

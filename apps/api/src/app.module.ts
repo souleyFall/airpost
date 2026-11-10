@@ -17,6 +17,7 @@ import { LlmModule } from './llm/llm.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProfileModule } from './profile/profile.module';
 import { SourcesModule } from './sources/sources.module';
+import { StatsModule } from './stats/stats.module';
 
 // Le module racine : il assemble les modules de l'application, un par fonctionnalité.
 @Module({
@@ -41,6 +42,7 @@ import { SourcesModule } from './sources/sources.module';
     GmailModule,
     HealthModule,
     ApiHealthModule,
+    StatsModule,
   ],
   // Le garde est global : il s'applique à toutes les routes, y compris celles des futurs modules.
   // Il est déclaré avant celui de l'authentification (AuthModule) : on limite le débit avant tout travail.

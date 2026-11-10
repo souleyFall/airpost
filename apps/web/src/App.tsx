@@ -4,6 +4,7 @@ import { AppShell } from './components/AppShell';
 import { LoginPage } from './pages/LoginPage';
 import { ProfilePage } from './pages/profile/ProfilePage';
 import { SourcesPage } from './pages/sources/SourcesPage';
+import { StatsPage } from './pages/stats/StatsPage';
 import { TrackingPage } from './pages/tracking/TrackingPage';
 import { ReviewPage } from './pages/review/ReviewPage';
 
@@ -30,6 +31,7 @@ export function AppRoutes() {
       <Route element={<RequireAuth />}>
         <Route index element={<ReviewPage />} />
         <Route path="suivi" element={<TrackingPage />} />
+        <Route path="resultats" element={<StatsPage />} />
         <Route path="sources" element={<SourcesPage />} />
         <Route path="profil" element={<ProfilePage />} />
       </Route>

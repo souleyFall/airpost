@@ -51,6 +51,11 @@ const LINKS: { to: string; label: string; count?: CountKey; icon: ReactNode }[] 
     icon: <path d="M3 4h10M3 8h10M3 12h6" />,
   },
   {
+    to: '/resultats',
+    label: 'Résultats',
+    icon: <path d="M3 13V8M8 13V3M13 13V6" />,
+  },
+  {
     to: '/profil',
     label: 'Profil',
     icon: <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM2.5 14c0-3 2.5-4.5 5.5-4.5s5.5 1.5 5.5 4.5" />,
