@@ -71,6 +71,23 @@ export const envSchema = z
           .optional(),
       )
       .default('gemini-3.5-flash-lite'),
+    /**
+     * Modèles de secours, essayés dans l'ordre quand le modèle principal répond « quota atteint » (429), « surchargé »
+     * (503) ou « introuvable » (404). Liste séparée par des virgules, 3 au plus. Chaque modèle a son propre quota :
+     * un secours ajoute de la marge, il ne double pas le quota du modèle principal. Vide : aucun secours.
+     */
+    GEMINI_FALLBACK_MODELS: z
+      .preprocess(
+        (value) =>
+          typeof value === 'string'
+            ? value
+                .split(',')
+                .map((model) => model.trim())
+                .filter(Boolean)
+            : value,
+        z.array(z.string().regex(/^[a-z0-9][a-z0-9.-]{1,60}$/)).max(3),
+      )
+      .default([]),
     /** France Travail (La Bonne Boîte) : identifiant et secret OAuth2. Secrets, jamais journalisés. */
     FT_CLIENT_ID: secret(),
     FT_CLIENT_SECRET: secret(),

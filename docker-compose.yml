@@ -44,6 +44,8 @@ services:
       LBA_API_KEY: ${LBA_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
+      # Modèles de secours (quota atteint, surcharge) : chacun a son propre quota. Vide : aucun secours.
+      GEMINI_FALLBACK_MODELS: ${GEMINI_FALLBACK_MODELS:-gemini-3.6-flash,gemini-3.8-flash}
       FT_CLIENT_ID: ${FT_CLIENT_ID:-}
       FT_CLIENT_SECRET: ${FT_CLIENT_SECRET:-}
       ADZUNA_APP_ID: ${ADZUNA_APP_ID:-}

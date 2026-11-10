@@ -294,3 +294,12 @@ En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans N
 - **Les autres** (contrat non précisé, CDI, CDD, candidature spontanée) restent dans la liste, sans note, en fin de liste, de la plus récente à la plus ancienne (date de publication, à défaut date de première apparition). Elles ne comptent pas comme « en attente d'analyse ». Si l'utilisateur en ouvre une, elle est analysée comme avant.
 - **Pourquoi pas des mots-clés libres** : le seul filtre utile ici est le contrat, déjà détecté. Des mots-clés de métier risquaient d'écarter de bonnes offres décrites autrement ou en anglais, surtout quand la source ne donne que l'intitulé (LinkedIn).
 - **Limites** : une annonce qui ne dit jamais « alternance » ni « stage » (ni dans le titre ni dans le texte) n'est pas notée avant d'être ouverte ; une source à texte court (extrait) peut manquer le mot ; les candidatures spontanées de La Bonne Boîte ne sont plus notées automatiquement.
+
+### D36 : basculement de modèle Gemini (quota atteint, surcharge)
+
+- **Constat** : sur les graphiques de la console Gemini, les erreurs du dernier jour étaient pour moitié des 503 (modèle surchargé) et pour moitié des 429 (quota). Le quota est compté PAR MODÈLE (et pour tout le projet, pas par clé) : un autre modèle a encore le sien.
+- **Règle** : `GEMINI_FALLBACK_MODELS` (3 au plus, séparés par des virgules) liste les modèles de secours. Sur 429, 503 ou 404, le modèle suivant prend le relais. Une clé refusée, une demande bloquée ou une réponse inexploitable ne basculent pas : elles valent pour tous les modèles.
+- **Pause** : un modèle en échec n'est plus appelé pendant un moment (chaque requête refusée compte dans le quota) : 30 s pour une surcharge, 2 min pour un premier quota atteint, doublé à chaque échec consécutif jusqu'à 1 h (une limite par jour ne passe pas en 2 minutes), 1 h pour un modèle introuvable. Tous les modèles en pause : erreur immédiate sans requête.
+- **Erreur finale** : « quota atteint » l'emporte sur « surcharge », puis sur « introuvable » ; les boucles d'analyse s'arrêtent proprement et les offres restent en attente.
+- **Défaut** : `gemini-3.6-flash,gemini-3.8-flash`, déduits des libellés de la console (non vérifiés sur l'API) ; un nom faux donne un 404, puis une pause d'une heure, sans effet sur le reste.
+- **Limites** : un modèle de secours a en général un quota gratuit plus petit : c'est de la marge, pas un doublement. Le modèle qui a répondu apparaît dans le journal (« Appel modèle gemini-3.6-flash ») mais n'est pas enregistré avec la note de l'offre.
