@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { ApiError, api } from '../api/client';
-import type { RunReport } from '../api/types';
+import type { RunReport as BaseRunReport, SourceReport } from '../api/types';
+import { newOffersLabel } from '../lib/format';
 import { useAuth } from '../auth/AuthProvider';
 import { Logo } from './Logo';
 import type { ShellContext } from './shellContext';
@@ -26,6 +27,9 @@ function Icon({ children }: { children: ReactNode }) {
 }
 
 type CountKey = 'review' | 'tracking';
+
+/** Le bilan par source est présent dans les réponses de l'API ; facultatif ici pour rester tolérant. */
+type RunReport = BaseRunReport & { sources?: SourceReport[] };
 
 const LINKS: { to: string; label: string; count?: CountKey; icon: ReactNode }[] = [
   {
@@ -109,6 +113,7 @@ export function AppShell() {
     }
   }
 
+  const newOffers = collecting ? null : newOffersLabel(lastRun?.sources);
   const context = useMemo<ShellContext>(() => ({ version, setCount }), [version, setCount]);
 
   return (
@@ -136,6 +141,11 @@ export function AppShell() {
         </nav>
         <div className="mt-auto flex flex-col gap-3 px-2.5">
           <p className="m-0 text-[13px] text-muted">{lastRunLabel(lastRun)}</p>
+          {newOffers ? (
+            <p role="status" className="m-0 text-[13px] font-semibold">
+              {newOffers}
+            </p>
+          ) : null}
           {collectError ? (
             <p role="alert" className="m-0 text-[13px] text-danger">
               {collectError}

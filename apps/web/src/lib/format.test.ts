@@ -1,7 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import { ageLabel, hasPlaceholder, place, scoreTone, shortAge, wordCount } from './format';
+import {
+  ageLabel,
+  hasPlaceholder,
+  newOffersLabel,
+  place,
+  scoreTone,
+  shortAge,
+  wordCount,
+} from './format';
 
 const NOW = new Date('2026-11-10T12:00:00Z');
+
+describe('newOffersLabel', () => {
+  it('additionne les offres nouvelles de toutes les sources, sans compter les mises à jour', () => {
+    expect(newOffersLabel([{ created: 7 }, { created: 0 }, { created: 5 }])).toBe(
+      '12 nouvelles offres',
+    );
+    expect(newOffersLabel([{ created: 1 }, { created: 0 }])).toBe('1 nouvelle offre');
+    expect(newOffersLabel([{ created: 0 }])).toBe('Aucune nouvelle offre');
+    expect(newOffersLabel([])).toBe('Aucune nouvelle offre');
+  });
+
+  it('ne dit rien sans bilan par source', () => {
+    expect(newOffersLabel(undefined)).toBeNull();
+  });
+});
 
 describe('format', () => {
   it('décrit l’âge d’une offre', () => {
