@@ -106,3 +106,9 @@ Non requise : traitement à petite échelle, usage personnel, aucune donnée sen
 - **Nouvelles données** : la date de la relance et l'identifiant du brouillon Gmail de relance, sur la candidature. Le texte de la relance n'est pas stocké par airpost : il vit dans le brouillon Gmail de l'utilisateur.
 - **Modèle de langage** : la relance est rédigée à partir du profil (sans nom, mail ni téléphone, comme pour la lettre) et de la lettre déjà envoyée, encadrée comme texte non fiable.
 - **Effacement** : supprimer la candidature supprime aussi le brouillon de relance dans Gmail (ou signale qu'il faut le faire à la main).
+
+## Mise à jour 2026-11-11 : offres ajoutées à la main
+
+- **Données** : le texte d'une annonce collé par l'utilisateur (il peut contenir le nom ou l'adresse d'un recruteur, comme les annonces collectées), son lien facultatif et une adresse de contact trouvée dans le texte. Même durée de conservation que les autres offres.
+- **Modèle de langage** : il reçoit le texte expurgé des e-mails, téléphones et liens ; il ne renvoie que l'intitulé, l'entreprise et la ville.
+- **Aucune collecte sur les sites d'emploi** : le lien n'est jamais visité par le serveur.

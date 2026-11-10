@@ -2,7 +2,7 @@
 
 export type ApplyChannel = 'EMAIL' | 'SITE';
 export type OfferSource =
-  'LBA' | 'LBB' | 'ADZUNA' | 'GOOGLE_JOBS' | 'GLASSDOOR' | 'INDEED' | 'LINKEDIN';
+  'LBA' | 'LBB' | 'ADZUNA' | 'GOOGLE_JOBS' | 'GLASSDOOR' | 'INDEED' | 'LINKEDIN' | 'MANUAL';
 
 export type ApplicationStatus =
   | 'TO_REVIEW'

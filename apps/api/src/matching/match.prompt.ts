@@ -81,7 +81,7 @@ export const MATCH_SYSTEM = [
 
 export interface OfferForMatch {
   id: string;
-  source: 'LBA' | 'LBB' | 'ADZUNA' | 'GOOGLE_JOBS' | 'GLASSDOOR' | 'INDEED' | 'LINKEDIN';
+  source: 'LBA' | 'LBB' | 'ADZUNA' | 'GOOGLE_JOBS' | 'GLASSDOOR' | 'INDEED' | 'LINKEDIN' | 'MANUAL';
   /** Plateforme d'origine quand la source est un agrégateur (« LinkedIn », « Indeed »). */
   via?: string | null;
   contractType: string;
@@ -104,6 +104,7 @@ const SOURCE_LABEL = {
     'Indeed (alerte e-mail : intitulé, entreprise, ville et un court extrait seulement : ne pénalise pas l’absence de détails)',
   LINKEDIN:
     'LinkedIn (e-mail d’offres : intitulé, entreprise et ville seulement, AUCUN texte d’annonce : juge sur l’intitulé et ne pénalise pas l’absence de détails)',
+  MANUAL: 'Annonce ajoutée par le candidat lui-même (texte copié depuis un site d’emploi)',
   LBB: 'La Bonne Boîte (entreprise qui recrute souvent : candidature spontanée, pas d’annonce)',
 } as const;
 

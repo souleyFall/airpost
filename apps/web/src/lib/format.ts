@@ -59,6 +59,7 @@ export const SOURCE_LABEL = {
   GLASSDOOR: 'Glassdoor',
   INDEED: 'Indeed',
   LINKEDIN: 'LinkedIn',
+  MANUAL: 'Ajoutée à la main',
 } as const;
 
 /** Classe de couleur du badge de compatibilité (≥75 plein, ≥55 contour, sinon discret) : mêmes seuils que le verdict de l'API. */
