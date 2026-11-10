@@ -9,6 +9,7 @@ import { ENV } from '../config/config.module';
 import type { Env } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 import { CollectionService } from './collection.service';
+import { nextDailyRun } from './next-run';
 
 /** Première collecte une minute après le démarrage : l'API est prête et la base joignable. */
 const FIRST_RUN_DELAY_MS = 60_000;
@@ -30,6 +31,10 @@ export class CollectionScheduler implements OnApplicationBootstrap, OnModuleDest
   ) {}
 
   onApplicationBootstrap(): void {
+    if (this.env.COLLECT_DAILY_AT) {
+      this.scheduleDaily(this.env.COLLECT_DAILY_AT);
+      return;
+    }
     const hours = this.env.COLLECT_EVERY_HOURS;
     if (hours <= 0) {
       return;
@@ -41,6 +46,20 @@ export class CollectionScheduler implements OnApplicationBootstrap, OnModuleDest
     }, FIRST_RUN_DELAY_MS);
     this.first.unref();
     this.logger.log(`Collecte automatique toutes les ${hours} h.`);
+  }
+
+  /** Une collecte par jour à l'heure de Paris demandée ; le minuteur est recalculé après chaque passage (heure d'été/hiver). */
+  private scheduleDaily(hhmm: string): void {
+    const arm = () => {
+      const delay = nextDailyRun(Date.now(), hhmm) - Date.now();
+      this.first = setTimeout(() => {
+        void this.tick();
+        arm();
+      }, delay);
+      this.first.unref();
+    };
+    arm();
+    this.logger.log(`Collecte automatique chaque jour à ${hhmm} (heure de Paris).`);
   }
 
   onModuleDestroy(): void {

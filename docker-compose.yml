@@ -55,6 +55,8 @@ services:
       GLASSDOOR_MAX_SEARCHES: ${GLASSDOOR_MAX_SEARCHES:-4}
       # Collecte automatique : 0 = désactivée (aucun appel externe sans demande). Exemple : 6 pour toutes les 6 heures.
       COLLECT_EVERY_HOURS: ${COLLECT_EVERY_HOURS:-0}
+      # Collecte quotidienne à heure fixe (heure de Paris), prioritaire sur la ligne précédente. Exemple : 08:30.
+      COLLECT_DAILY_AT: ${COLLECT_DAILY_AT:-}
       OFFER_RETENTION_DAYS: ${OFFER_RETENTION_DAYS:-90}
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-100}
       RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}

@@ -271,3 +271,10 @@ En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans N
 
 - **Google Jobs : identifiant d'annonce instable.** Hors du cache d'une heure de SerpApi, la même annonce revient avec un autre `job_id` : chaque collecte recréait les mêmes annonces (18 lignes pour 9 annonces constatées). Pour les sources à identifiant instable (`UNSTABLE_ID_SOURCES`, Google Jobs), l'identité d'une offre est l'empreinte (entreprise, intitulé, ville) : une annonce déjà connue sous un autre identifiant est mise à jour, pas recréée, et le nettoyage supprime les doublons déjà en base (garde la ligne analysée, sinon la plus ancienne ; jamais une ligne qui a une candidature). Les sources à identifiant stable ne sont pas concernées : deux annonces de même titre y restent deux offres.
 - **Écoles sans mot d'école.** ISCOD (citée par l'utilisateur) et SCHOLIA n'avaient ni mot-clé dans leur nom, ni formule typique dans le texte : liste courte de marques ajoutée, extensible par l'utilisateur via « Entreprises à exclure » de son profil.
+
+### D33 : collecte quotidienne à heure fixe (08:30, heure de Paris)
+
+- **Réglage** : `COLLECT_DAILY_AT=HH:MM` (heure de Paris, été comme hiver, vide = désactivé). Prioritaire sur `COLLECT_EVERY_HOURS`. Le minuteur est recalculé après chaque passage, donc le changement d'heure ne décale rien.
+- **Pourquoi 08:30** : les alertes e-mail (Indeed, bientôt LinkedIn et Welcome to the Jungle) sont envoyées de nuit ou tôt le matin ; à 08:30 elles sont arrivées et les offres ont moins de 24 h, avant que la plupart des candidats postulent (la fraîcheur compte beaucoup dans le score). Les recruteurs publient surtout en début de semaine et en matinée.
+- **Pourquoi une seule fois par jour** : une collecte consomme 6 recherches SerpApi (2 Google Jobs + 4 Glassdoor) sur 250 gratuites par mois : 30 collectes = 180, il reste une marge d'environ 70 pour les collectes à la demande. Deux par jour dépasseraient le quota.
+- **Limite** : l'application tourne sur le PC de l'utilisateur ; si le PC est éteint ou en veille à 08:30, la collecte n'a pas lieu ce jour-là (la suivante se fait le lendemain).
