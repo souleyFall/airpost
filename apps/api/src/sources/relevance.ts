@@ -203,12 +203,12 @@ export function detectContractType(
 ${d}`;
   if (/alternan|apprenti|contrat de professionnalisation|contrat pro\b/.test(t))
     return 'ALTERNANCE';
-  if (/\bstage\b|stagiaire|\binternship\b/.test(t)) return 'STAGE';
+  if (/\bstage\b|stagiaire|\binternship\b|\bintern\b/.test(t)) return 'STAGE';
   if (/\bcdi\b/.test(t)) return 'CDI';
   if (/\bcdd\b|interim|temps partiel/.test(t)) return 'CDD';
   if (/alternan|apprenti|contrat de professionnalisation|contrat pro\b/.test(both))
     return 'ALTERNANCE';
-  if (/\bstage\b|stagiaire|\binternship\b/.test(both)) return 'STAGE';
+  if (/\bstage\b|stagiaire|\binternship\b|\bintern\b/.test(both)) return 'STAGE';
   if (/\bcdi\b/.test(both)) return 'CDI';
   if (/\bcdd\b/.test(both)) return 'CDD';
   return 'AUTRE';

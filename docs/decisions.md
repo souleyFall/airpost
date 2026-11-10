@@ -287,3 +287,10 @@ En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans N
 - **Jetons** : les liens reçus contiennent des jetons personnels, dont un jeton de connexion à usage unique. Ils ne sont jamais stockés : l'adresse publique est reconstruite à partir du seul numéro (`https://www.linkedin.com/jobs/view/<numéro>/`).
 - **Déjà postulé** : l'annonce d'un message « votre candidature a été envoyée » n'est pas reprise (elle est déjà dans le suivi) ; les offres similaires du même message le sont.
 - **Limites** : pas de texte d'annonce ni de date de publication (l'IA note sur l'intitulé) ; un lieu donné comme un département n'est pas géolocalisé ; Welcome to the Jungle attend toujours un premier e-mail d'alerte réel.
+
+### D35 : l'IA n'analyse que les offres au contrat recherché
+
+- **Règle** : une offre n'est envoyée au modèle (collecte, affichage de la liste) que si son type de contrat est un de ceux du profil (`search.contracts` : alternance, stage). Le type est déduit du texte de l'annonce par `detectContractType` (alternance, apprentissage, contrat de professionnalisation, stage, internship, intern...), donc le tri ne coûte aucune requête.
+- **Les autres** (contrat non précisé, CDI, CDD, candidature spontanée) restent dans la liste, sans note, en fin de liste, de la plus récente à la plus ancienne (date de publication, à défaut date de première apparition). Elles ne comptent pas comme « en attente d'analyse ». Si l'utilisateur en ouvre une, elle est analysée comme avant.
+- **Pourquoi pas des mots-clés libres** : le seul filtre utile ici est le contrat, déjà détecté. Des mots-clés de métier risquaient d'écarter de bonnes offres décrites autrement ou en anglais, surtout quand la source ne donne que l'intitulé (LinkedIn).
+- **Limites** : une annonce qui ne dit jamais « alternance » ni « stage » (ni dans le titre ni dans le texte) n'est pas notée avant d'être ouverte ; une source à texte court (extrait) peut manquer le mot ; les candidatures spontanées de La Bonne Boîte ne sont plus notées automatiquement.

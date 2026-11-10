@@ -50,9 +50,20 @@ export class MatchService {
     private readonly llm: LlmService,
   ) {}
 
-  /** Nombre d'offres sans analyse à jour (jamais analysées, ou analysées avec un autre profil/prompt). */
-  private pendingWhere(fingerprint: string): Prisma.OfferWhereInput {
-    return { OR: [{ analyzedAt: null }, { profileHash: { not: fingerprint } }] };
+  /**
+   * Offres à analyser : sans analyse à jour (jamais analysées, ou analysées avec un autre profil/prompt) ET dont le
+   * type de contrat est un de ceux que l'utilisateur recherche (alternance, stage...). Une offre dont le contrat n'est
+   * pas précisé (ou autre : CDI, CDD) n'est pas envoyée au modèle : elle reste en fin de liste, sans note, et
+   * n'est analysée que si l'utilisateur l'ouvre. Le type de contrat est déduit du texte de l'annonce (voir
+   * `detectContractType` : alternance, apprentissage, stage...), donc le tri ne coûte aucune requête.
+   */
+  private pendingWhere(fingerprint: string, profile: Profile): Prisma.OfferWhereInput {
+    return {
+      AND: [
+        { OR: [{ analyzedAt: null }, { profileHash: { not: fingerprint } }] },
+        { contractType: { in: profile.search.contracts } },
+      ],
+    };
   }
 
   /**
@@ -66,7 +77,7 @@ export class MatchService {
     ids?: string[],
   ): Promise<AnalysisReport> {
     const fingerprint = matchFingerprint(profile);
-    const pending = this.pendingWhere(fingerprint);
+    const pending = this.pendingWhere(fingerprint, profile);
     const where: Prisma.OfferWhereInput = ids ? { AND: [pending, { id: { in: ids } }] } : pending;
     const offers = await this.prisma.offer.findMany({
       where,

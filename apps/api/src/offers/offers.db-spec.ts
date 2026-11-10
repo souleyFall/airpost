@@ -66,6 +66,8 @@ describe('Offres et analyse IA (e2e, base réelle)', () => {
         company: 'Exemple SA',
         channel: 'SITE',
         description: 'Longue description confidentielle',
+        // Le profil de test recherche une alternance : seules les offres de ce contrat sont envoyées au modèle.
+        contractType: 'ALTERNANCE',
         ...extra,
       },
     });
@@ -176,6 +178,47 @@ describe('Offres et analyse IA (e2e, base réelle)', () => {
       const report = await app.get(MatchService).analyzePending(exampleProfile());
 
       expect(report).toEqual({ analyzed: 4, remaining: 2 });
+    });
+
+    describe('seules les offres au contrat recherché sont envoyées au modèle', () => {
+      it('n’analyse pas une offre au contrat non précisé, en CDI ou en stage quand seule l’alternance est recherchée', async () => {
+        await seed('alt', { contractType: 'ALTERNANCE' });
+        await seed('autre', { contractType: 'AUTRE' });
+        await seed('cdi', { contractType: 'CDI' });
+        await seed('stage', { contractType: 'STAGE' });
+        await seed('spont', { contractType: 'SPONTANEE' });
+        model.queue.push({ results: [result(1, 70)] });
+
+        const report = await app.get(MatchService).analyzePending(exampleProfile());
+
+        // Une seule offre dans la requête, et les autres ne sont pas comptées « en attente ».
+        expect(report).toEqual({ analyzed: 1, remaining: 0 });
+        expect(model.requests).toHaveLength(1);
+        const analyzed = await prisma.offer.findMany({ where: { analyzedAt: { not: null } } });
+        expect(analyzed.map((o) => o.externalId)).toEqual(['alt']);
+      });
+
+      it('envoie aussi les stages quand le profil recherche alternance et stage', async () => {
+        await seed('alt', { contractType: 'ALTERNANCE' });
+        await seed('stage', { contractType: 'STAGE' });
+        await seed('autre', { contractType: 'AUTRE' });
+        model.queue.push({ results: [result(1, 70), result(2, 60)] });
+        const profile = exampleProfile();
+        profile.search.contracts = ['ALTERNANCE', 'STAGE'];
+
+        const report = await app.get(MatchService).analyzePending(profile);
+
+        expect(report).toEqual({ analyzed: 2, remaining: 0 });
+      });
+
+      it('une offre au contrat non précisé reste analysable quand l’utilisateur l’ouvre', async () => {
+        const row = await seed('autre', { contractType: 'AUTRE' });
+        model.queue.push({ results: [result(1, 55)] });
+
+        await app.get(MatchService).analyzeOne(exampleProfile(), row.id);
+
+        expect((await prisma.offer.findFirstOrThrow()).score).toBe(55);
+      });
     });
 
     it('ignore une entrée dont le numéro est hors plage ou répété (l’offre sera retentée)', async () => {
@@ -512,6 +555,31 @@ describe('Offres et analyse IA (e2e, base réelle)', () => {
         'Offre vieille',
         'Offre recente',
         'Offre sans-date',
+      ]);
+    });
+
+    it('tri par note : les offres notées d’abord, puis celles sans note de la plus récente à la plus ancienne', async () => {
+      const day = 86_400_000;
+      const now = Date.now();
+      await seed('note-moyenne', { score: 60, analyzedAt: new Date(), publishedAt: new Date(now) });
+      await seed('note-haute', {
+        score: 90,
+        analyzedAt: new Date(),
+        publishedAt: new Date(now - 9 * day),
+      });
+      await seed('autre-vieille', { contractType: 'AUTRE', publishedAt: new Date(now - 5 * day) });
+      await seed('autre-recente', { contractType: 'AUTRE', publishedAt: new Date(now - day) });
+      await seed('autre-sans-date', {
+        contractType: 'AUTRE',
+        firstSeenAt: new Date(now - 2 * day),
+      });
+
+      expect(titles(await get('?sort=score'))).toEqual([
+        'Offre note-haute',
+        'Offre note-moyenne',
+        'Offre autre-recente',
+        'Offre autre-vieille',
+        'Offre autre-sans-date',
       ]);
     });
 
