@@ -48,6 +48,29 @@ describe('CollectionScheduler', () => {
     scheduler.onModuleDestroy();
   });
 
+  it('collecte quotidienne : une seule fois par jour à l’heure de Paris, pas au démarrage', async () => {
+    vi.setSystemTime(new Date('2026-11-10T06:00:00Z'));
+    const run = vi.fn(async () => ({}));
+    const scheduler = new CollectionScheduler(
+      { COLLECT_EVERY_HOURS: 6, COLLECT_DAILY_AT: '08:30' } as Env,
+      { run } as unknown as CollectionService,
+      { user: { findFirst: async () => ({ id: 'u1' }) } } as unknown as PrismaService,
+    );
+    scheduler.onApplicationBootstrap();
+
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+    expect(run).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(31 * 60 * 1000);
+    expect(run).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(23 * 60 * 60 * 1000);
+    expect(run).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000);
+    expect(run).toHaveBeenCalledTimes(2);
+
+    scheduler.onModuleDestroy();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('s’arrête proprement : plus de minuteur après la fermeture', () => {
     const { scheduler } = setup(6);
     scheduler.onApplicationBootstrap();

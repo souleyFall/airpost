@@ -40,6 +40,15 @@ export const envSchema = z
     DATABASE_URL: databaseUrl,
     /** Collecte automatique des offres toutes les N heures (0 : désactivée, collecte à la demande seulement). */
     COLLECT_EVERY_HOURS: z.coerce.number().int().min(0).max(168).default(0),
+    /**
+     * Collecte automatique une fois par jour à cette heure de Paris (« HH:MM », vide : désactivée). Prioritaire sur
+     * COLLECT_EVERY_HOURS : une heure fixe évite de consommer le quota SerpApi à chaque redémarrage.
+     */
+    COLLECT_DAILY_AT: z
+      .string()
+      .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Format attendu : HH:MM')
+      .or(z.literal(''))
+      .default(''),
     /** Durée de conservation des offres sans candidature (RGPD) : plus anciennes, elles sont supprimées. */
     OFFER_RETENTION_DAYS: z.coerce.number().int().min(7).max(365).default(90),
     /**
