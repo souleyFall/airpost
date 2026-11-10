@@ -16,12 +16,15 @@ import { z } from 'zod';
 import type { AuthenticatedRequest } from '../auth/auth.guard';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import type { Prisma } from '../generated/prisma/client';
+import { ContractType, OfferSource } from '../generated/prisma/enums';
 import { MatchService } from '../matching/match.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProfileService } from '../profile/profile.service';
 
-const SOURCES = ['LBA', 'LBB', 'ADZUNA'] as const;
-const CONTRACTS = ['ALTERNANCE', 'STAGE', 'CDI', 'CDD', 'SPONTANEE', 'AUTRE'] as const;
+// Dérivés de l'énumération de la base : une nouvelle source ou un nouveau contrat ne peut pas être oublié ici
+// (une liste recopiée à la main avait fait refuser « GOOGLE_JOBS » par le filtre).
+const SOURCES = Object.values(OfferSource) as [OfferSource, ...OfferSource[]];
+const CONTRACTS = Object.values(ContractType) as [ContractType, ...ContractType[]];
 
 /** « A,B » → ['A', 'B'] ; vide ou absent → []. Les valeurs inconnues sont refusées par l'énumération. */
 const csv = <T extends readonly [string, ...string[]]>(values: T) =>
