@@ -26,7 +26,7 @@ const message = (overrides: Partial<MessageContent> = {}): MessageContent => ({
 
 function setup(messages: Record<string, MessageContent> = { m1: message() }, configured = true) {
   const searchMessageIds = vi.fn(async (_query: string, _max: number) => Object.keys(messages));
-  const messageContent = vi.fn(async (id: string) => messages[id] as MessageContent);
+  const messageContent = vi.fn(async (id: string) => messages[id]);
   const geocodeCity = vi.fn(async () => ({ latitude: 48.86, longitude: 2.35 }));
   const gmail = {
     isConfigured: () => configured,
