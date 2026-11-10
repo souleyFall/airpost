@@ -7,6 +7,7 @@ import type { Profile } from '../profile/profile.schema';
 import type { ProfileService } from '../profile/profile.service';
 import type { AdzunaConnector } from '../sources/adzuna/adzuna.connector';
 import { dedupKey } from '../sources/dedup';
+import type { GoogleJobsConnector } from '../sources/google-jobs/google-jobs.connector';
 import type { LbaConnector } from '../sources/lba/lba.connector';
 import type { LbbConnector } from '../sources/lbb/lbb.connector';
 import { UNKNOWN_COMPANY } from '../sources/normalize';
@@ -14,7 +15,7 @@ import type { MatchService } from '../matching/match.service';
 import type { OffersService } from '../sources/offers.service';
 import { type NormalizedOffer, type SearchQuery, SourceError } from '../sources/source.types';
 import { CollectionService, radiusFromCommute } from './collection.service';
-import type { GeocoderService } from './geocoder.service';
+import type { GeocoderService } from '../sources/geocoder.service';
 
 function offer(
   source: OfferSource,
@@ -41,6 +42,7 @@ function setup(
     lba?: Search;
     adzuna?: Search;
     lbb?: Search;
+    googleJobs?: Search;
     inDatabase?: Map<string, Set<OfferSource>>;
   } = {},
 ) {
@@ -48,6 +50,7 @@ function setup(
   const lba = vi.fn(options.lba ?? empty);
   const adzuna = vi.fn(options.adzuna ?? empty);
   const lbb = vi.fn(options.lbb ?? empty);
+  const googleJobs = vi.fn(options.googleJobs ?? empty);
   const saveMany = vi.fn(async (offers: NormalizedOffer[]) => ({
     created: offers.length,
     updated: 0,
@@ -77,12 +80,14 @@ function setup(
     { search: lba } as unknown as LbaConnector,
     { search: lbb } as unknown as LbbConnector,
     { search: adzuna } as unknown as AdzunaConnector,
+    { search: googleJobs } as unknown as GoogleJobsConnector,
   );
   return {
     service,
     lba,
     adzuna,
     lbb,
+    googleJobs,
     saveMany,
     purgeStale,
     analyzePending,
@@ -117,6 +122,7 @@ describe('CollectionService', () => {
       romeCodes: ['M1805'],
       where: 'Paris',
       keywords: ['TypeScript', 'React', 'Node.js'],
+      contracts: ['ALTERNANCE'],
     };
     expect(lba).toHaveBeenCalledWith(expected);
     expect(adzuna).toHaveBeenCalledWith(expected);
@@ -144,13 +150,14 @@ describe('CollectionService', () => {
 
     const report = await service.run('u1');
 
-    expect(saveMany).toHaveBeenCalledTimes(3);
+    expect(saveMany).toHaveBeenCalledTimes(4);
     expect(
       report.sources.map((s) => [s.source, s.status, s.fetched, s.created, s.skipped]),
     ).toEqual([
       ['LBA', 'ok', 2, 2, 1],
       ['ADZUNA', 'ok', 1, 1, 0],
       ['LBB', 'ok', 0, 0, 0],
+      ['GOOGLE_JOBS', 'ok', 0, 0, 0],
     ]);
     expect(report.purged).toBe(2);
     expect(service.lastReport()).toBe(report);
@@ -167,6 +174,13 @@ describe('CollectionService', () => {
       lbb: async () => {
         throw new Error('plantage inattendu avec SECRET');
       },
+      googleJobs: async () => {
+        throw new SourceError(
+          'GOOGLE_JOBS',
+          'rate_limited',
+          'quota avec https://x/?api_key=SECRET',
+        );
+      },
     });
 
     const report = await service.run('u1');
@@ -175,6 +189,7 @@ describe('CollectionService', () => {
       ['LBA', 'error', 'rate_limited'],
       ['ADZUNA', 'disabled', 'not_configured'],
       ['LBB', 'error', 'unexpected'],
+      ['GOOGLE_JOBS', 'error', 'rate_limited'],
     ]);
     expect(JSON.stringify(report)).not.toContain('SECRET');
     expect(saveMany).not.toHaveBeenCalled();
@@ -231,6 +246,7 @@ describe('CollectionService', () => {
       ['LBA', 'error', 'unexpected'],
       ['ADZUNA', 'ok', undefined],
       ['LBB', 'ok', undefined],
+      ['GOOGLE_JOBS', 'ok', undefined],
     ]);
     expect(JSON.stringify(report)).not.toContain('SECRET');
     expect(purgeStale).toHaveBeenCalled();
@@ -381,6 +397,34 @@ describe('CollectionService', () => {
     const report = await service.run('u1');
 
     expect(report.sources[0]).toMatchObject({ irrelevant: 1, created: 0 });
+  });
+
+  it('Google Jobs : désactivée sans clé, hors-sujet écarté (source non fiable), les contrats du profil sont transmis', async () => {
+    const profile = exampleProfile();
+    profile.search.contracts = ['ALTERNANCE', 'STAGE'];
+    const { service, googleJobs, saveMany } = setup({
+      profile,
+      googleJobs: async () => ({
+        offers: [
+          offer('GOOGLE_JOBS', 'dev', { title: 'Alternance développeur full stack' }),
+          offer('GOOGLE_JOBS', 'compta', { title: 'Alternance comptable' }),
+        ],
+        skipped: 0,
+      }),
+    });
+
+    const report = await service.run('u1');
+
+    expect(googleJobs.mock.calls[0]?.[0].contracts).toEqual(['ALTERNANCE', 'STAGE']);
+    expect(report.sources[3]).toMatchObject({ source: 'GOOGLE_JOBS', irrelevant: 1, created: 1 });
+    expect(saveMany.mock.calls.flatMap((c) => c[0].map((o) => o.externalId))).toEqual(['dev']);
+
+    const off = setup({
+      googleJobs: async () => {
+        throw new SourceError('GOOGLE_JOBS', 'not_configured', 'absente');
+      },
+    });
+    expect((await off.service.run('u1')).sources[3]).toMatchObject({ status: 'disabled' });
   });
 
   it('purge avec la durée de conservation configurée', async () => {

@@ -90,6 +90,22 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
         ],
       });
     }
+    if (host === 'serpapi.com') {
+      return json({
+        jobs_results: [
+          {
+            job_id: 'gj-1',
+            title: 'Alternance développeur full stack',
+            company_name: 'Nordlys Logiciels',
+            location: 'Paris, Île-de-France, France',
+            via: 'via LinkedIn',
+            description: 'Poste en alternance, React et NestJS.',
+            detected_extensions: { posted_at: 'Il y a 2 jours' },
+            apply_options: [{ title: 'LinkedIn', link: 'https://exemple.test/gj-1' }],
+          },
+        ],
+      });
+    }
     if (host === 'entreprise.francetravail.fr') {
       return json({ access_token: 'jeton', expires_in: 1499 });
     }
@@ -122,6 +138,7 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
     vi.stubEnv('FT_CLIENT_SECRET', 'secret-ft');
     vi.stubEnv('ADZUNA_APP_ID', 'id-adzuna');
     vi.stubEnv('ADZUNA_APP_KEY', 'cle-adzuna');
+    vi.stubEnv('SERPAPI_KEY', 'cle-serpapi');
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(HTTP_FETCH)
       .useValue(fakeHttp)
@@ -187,7 +204,7 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
     expect(calls).toEqual([]);
   });
 
-  it('collecte les trois sources, écarte le doublon entre sources et enregistre en base', async () => {
+  it('collecte les quatre sources, écarte le doublon entre sources et enregistre en base', async () => {
     const session = await withProfile();
 
     const res = await run(session).expect(200);
@@ -200,6 +217,7 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
       ['LBA', 'ok', 2, 0],
       ['ADZUNA', 'ok', 1, 1],
       ['LBB', 'ok', 1, 0],
+      ['GOOGLE_JOBS', 'ok', 1, 0],
     ]);
     const rows = await prisma.offer.findMany({
       orderBy: [{ source: 'asc' }, { externalId: 'asc' }],
@@ -207,9 +225,10 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
     expect(rows.map((r) => `${r.source}:${r.externalId}`)).toEqual([
       'LBA:lba-1',
       'LBA:lba-2',
-      // PostgreSQL trie un type énuméré dans l'ordre de déclaration (LBA, LBB, ADZUNA).
+      // PostgreSQL trie un type énuméré dans l'ordre de déclaration (LBA, LBB, ADZUNA, GOOGLE_JOBS).
       'LBB:12345678900012',
       'ADZUNA:adz-2',
+      'GOOGLE_JOBS:gj-1',
     ]);
     expect(rows[0]).toMatchObject({
       company: 'Exemple Logiciels',
@@ -219,12 +238,23 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
       applyUrl: 'https://exemple.test/lba-1',
     });
     // Chaque offre est analysée par le modèle à la fin de la collecte, et sa distance au domicile calculée.
-    expect(res.body).toMatchObject({ analyzed: 4, pendingAnalysis: 0 });
+    expect(res.body).toMatchObject({ analyzed: 5, pendingAnalysis: 0 });
     expect(rows.every((r) => r.score === 80 && r.analysis !== null)).toBe(true);
     expect(rows.find((r) => r.externalId === 'lba-1')?.distanceKm).toBeLessThan(1);
     expect(rows.find((r) => r.externalId === 'lba-1')?.contractType).toBe('ALTERNANCE');
-    // Seul le code postal part vers le géocodeur, pas le nom du candidat.
-    expect(calls.filter((h) => h === 'data.geopf.fr')).toHaveLength(1);
+    // Google Jobs : plateforme d'origine conservée, ville géocodée, distance calculée, contrat déduit du texte.
+    const google = rows.find((r) => r.externalId === 'gj-1');
+    expect(google).toMatchObject({
+      via: 'LinkedIn',
+      company: 'Nordlys Logiciels',
+      applyUrl: 'https://exemple.test/gj-1',
+      contractType: 'ALTERNANCE',
+    });
+    expect(google?.latitude).not.toBeNull();
+    expect(google?.distanceKm).not.toBeNull();
+    // Vers le géocodeur : le code postal du profil, et la ville de l'offre Google Jobs (jamais le nom du candidat).
+    expect(calls.filter((h) => h === 'data.geopf.fr')).toHaveLength(2);
+    expect(calls.filter((h) => h === 'serpapi.com')).toHaveLength(1);
   });
 
   it('rejouée, la collecte met à jour sans créer de doublon', async () => {
@@ -238,8 +268,9 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
       [0, 2],
       [0, 1],
       [0, 1],
+      [0, 1],
     ]);
-    expect(await prisma.offer.count()).toBe(4);
+    expect(await prisma.offer.count()).toBe(5);
   });
 
   it('une source en panne est signalée sans bloquer les autres', async () => {
@@ -255,7 +286,7 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
       reason: 'rate_limited',
     });
     expect(sources.find((s) => s.source === 'LBA')).toMatchObject({ status: 'ok' });
-    expect(await prisma.offer.count()).toBe(3);
+    expect(await prisma.offer.count()).toBe(4);
   });
 
   it('une source sans clé est signalée « disabled »', async () => {
@@ -285,6 +316,38 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
     );
     expect(adzuna?.status).toBe('disabled');
     expect(calls).not.toContain('api.adzuna.com');
+  });
+
+  it('Google Jobs sans clé SerpApi est « disabled » : aucun appel à SerpApi', async () => {
+    await app.close();
+    vi.stubEnv('SERPAPI_KEY', '');
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(HTTP_FETCH)
+      .useValue(fakeHttp)
+      .overrideProvider(LlmProvider)
+      .useValue(new FakeModel())
+      .compile();
+    app = moduleRef.createNestApplication();
+    configureApp(app, parseEnv());
+    await app.init();
+    prisma = app.get(PrismaService);
+    http = request(app.getHttpServer() as Server);
+    await prisma.user.deleteMany();
+    await prisma.user.create({
+      data: { login: 'alice', passwordHash: await new PasswordService().hash(PASSWORD) },
+    });
+    const session = await withProfile();
+
+    const res = await run(session).expect(200);
+
+    const google = (res.body as { sources: { source: string; status: string }[] }).sources.find(
+      (s) => s.source === 'GOOGLE_JOBS',
+    );
+    expect(google?.status).toBe('disabled');
+    expect(calls).not.toContain('serpapi.com');
+    expect(
+      (await http.get('/collection/status').set('Cookie', session.cookie).expect(200)).body,
+    ).toMatchObject({ sources: { GOOGLE_JOBS: false } });
   });
 
   it('applique la durée de conservation sans jamais supprimer une offre qui a une candidature', async () => {
@@ -319,10 +382,10 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
     const res = await http.get('/collection/status').set('Cookie', session.cookie).expect(200);
 
     expect(res.body).toMatchObject({
-      sources: { LBA: true, LBB: true, ADZUNA: true },
+      sources: { LBA: true, LBB: true, ADZUNA: true, GOOGLE_JOBS: true },
       gemini: { configured: expect.any(Boolean) as unknown },
     });
-    expect(JSON.stringify(res.body)).not.toMatch(/cle-lba|secret-ft|id-ft|cle-adzuna/);
+    expect(JSON.stringify(res.body)).not.toMatch(/cle-lba|secret-ft|id-ft|cle-adzuna|cle-serpapi/);
   });
 
   it('expose le bilan de la dernière collecte', async () => {
@@ -332,7 +395,7 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
     await run(session).expect(200);
     const last = await http.get('/collection/last').set('Cookie', session.cookie).expect(200);
 
-    expect((last.body as { sources: unknown[] }).sources).toHaveLength(3);
+    expect((last.body as { sources: unknown[] }).sources).toHaveLength(4);
   });
 
   it('refuse (409) une collecte lancée pendant qu’une autre tourne', async () => {

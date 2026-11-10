@@ -81,7 +81,9 @@ export const MATCH_SYSTEM = [
 
 export interface OfferForMatch {
   id: string;
-  source: 'LBA' | 'LBB' | 'ADZUNA';
+  source: 'LBA' | 'LBB' | 'ADZUNA' | 'GOOGLE_JOBS';
+  /** Plateforme d'origine quand la source est un agrégateur (« LinkedIn », « Indeed »). */
+  via?: string | null;
   contractType: string;
   title: string;
   company: string;
@@ -95,6 +97,7 @@ export interface OfferForMatch {
 const SOURCE_LABEL = {
   LBA: 'La Bonne Alternance (offre déposée par l’employeur)',
   ADZUNA: 'Adzuna (agrégateur d’annonces)',
+  GOOGLE_JOBS: 'Google Jobs (agrégateur d’annonces)',
   LBB: 'La Bonne Boîte (entreprise qui recrute souvent : candidature spontanée, pas d’annonce)',
 } as const;
 
@@ -137,7 +140,7 @@ function ageDays(offer: OfferForMatch, now: Date): number {
 
 function offerBlock(offer: OfferForMatch, n: number, now: Date): string {
   const facts = [
-    `Source : ${SOURCE_LABEL[offer.source]}`,
+    `Source : ${SOURCE_LABEL[offer.source]}${offer.via ? `, publiée à l’origine sur ${offer.via}` : ''}`,
     `Contrat détecté : ${CONTRACT_LABEL[offer.contractType] ?? 'non déterminé'}`,
     offer.distanceKm === null
       ? 'Distance : inconnue (offre non localisée)'

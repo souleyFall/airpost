@@ -17,6 +17,8 @@ enum OfferSource {
   LBA
   LBB
   ADZUNA
+  /// Google Jobs via SerpApi : reprend des annonces de LinkedIn, Indeed, Welcome to the Jungle...
+  GOOGLE_JOBS
 }
 
 enum ContractType {
@@ -112,6 +114,8 @@ model Offer {
   /// Donnée d'un tiers (recruteur) : facultative, supprimée avec la candidature.
   contactEmail String?
   channel      ApplyChannel
+  /// Plateforme d'origine quand la source est un agrégateur (« LinkedIn », « Indeed » pour Google Jobs).
+  via          String?
   publishedAt  DateTime?
   firstSeenAt  DateTime     @default(now())
   lastSeenAt   DateTime     @default(now())

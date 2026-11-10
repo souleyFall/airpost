@@ -362,6 +362,25 @@ describe('écran À valider', () => {
     );
   });
 
+  it('indique la plateforme d’origine d’une annonce reprise par Google Jobs', async () => {
+    fakeApi({
+      catalogue: [
+        offer('o1', 'Alternance full stack', 91, null, { source: 'GOOGLE_JOBS', via: 'LinkedIn' }),
+      ],
+    });
+    renderApp();
+    const detail = await screen.findByRole('region', { name: 'Détail de l’offre' });
+    expect(detail).toHaveTextContent('Google Jobs, via LinkedIn');
+  });
+
+  it('n’ajoute pas « via » pour une source sans plateforme d’origine', async () => {
+    fakeApi();
+    renderApp();
+    const detail = await screen.findByRole('region', { name: 'Détail de l’offre' });
+    expect(detail).toHaveTextContent('La Bonne Alternance');
+    expect(detail).not.toHaveTextContent('via');
+  });
+
   it('montre le texte de l’annonce à la demande', async () => {
     fakeApi();
     renderApp();
@@ -428,6 +447,22 @@ describe('écran À valider', () => {
         expect(calls.some((c) => decodeURIComponent(c.path).includes('source=ADZUNA,LBA'))).toBe(
           true,
         ),
+      );
+    });
+
+    it('propose Google Jobs comme source et le transmet à l’API', async () => {
+      const calls = fakeApi();
+      const user = userEvent.setup();
+      renderApp();
+      await findList();
+      await user.click(screen.getByRole('button', { name: /^Filtres/ }));
+      await user.click(
+        within(screen.getByRole('group', { name: 'Source' })).getByRole('button', {
+          name: 'Google Jobs',
+        }),
+      );
+      await waitFor(() =>
+        expect(calls.some((c) => c.path.includes('source=GOOGLE_JOBS'))).toBe(true),
       );
     });
 

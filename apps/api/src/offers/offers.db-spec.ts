@@ -574,6 +574,8 @@ describe('Offres et analyse IA (e2e, base réelle)', () => {
         distanceKm: 12.5,
         analysis: { verdict: 'good', brief: { stack: ['React'] } },
         profileHash: 'secret-interne',
+        source: 'GOOGLE_JOBS',
+        via: 'Indeed',
       });
 
       const res = await http.get(`/offers/${offer.id}`).set('Cookie', cookie).expect(200);
@@ -584,6 +586,7 @@ describe('Offres et analyse IA (e2e, base réelle)', () => {
         description: 'Longue description confidentielle',
         contractType: 'ALTERNANCE',
         distanceKm: 12.5,
+        via: 'Indeed',
         analysis: { verdict: 'good', brief: { stack: ['React'] } },
       });
       expect(res.body).not.toHaveProperty('dedupKey');

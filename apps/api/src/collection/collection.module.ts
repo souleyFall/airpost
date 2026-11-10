@@ -5,12 +5,11 @@ import { SourcesModule } from '../sources/sources.module';
 import { CollectionController } from './collection.controller';
 import { CollectionScheduler } from './collection.scheduler';
 import { CollectionService } from './collection.service';
-import { GeocoderService } from './geocoder.service';
 
 @Module({
   imports: [SourcesModule, ProfileModule, MatchingModule],
   controllers: [CollectionController],
-  providers: [CollectionService, CollectionScheduler, GeocoderService],
+  providers: [CollectionService, CollectionScheduler],
   exports: [CollectionService],
 })
 export class CollectionModule {}

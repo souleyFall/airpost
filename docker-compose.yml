@@ -48,6 +48,9 @@ services:
       FT_CLIENT_SECRET: ${FT_CLIENT_SECRET:-}
       ADZUNA_APP_ID: ${ADZUNA_APP_ID:-}
       ADZUNA_APP_KEY: ${ADZUNA_APP_KEY:-}
+      # Google Jobs via SerpApi : facultatif, 250 recherches gratuites par mois. Plafond par collecte ci-dessous.
+      SERPAPI_KEY: ${SERPAPI_KEY:-}
+      SERPAPI_MAX_SEARCHES: ${SERPAPI_MAX_SEARCHES:-6}
       # Collecte automatique : 0 = désactivée (aucun appel externe sans demande). Exemple : 6 pour toutes les 6 heures.
       COLLECT_EVERY_HOURS: ${COLLECT_EVERY_HOURS:-0}
       OFFER_RETENTION_DAYS: ${OFFER_RETENTION_DAYS:-90}

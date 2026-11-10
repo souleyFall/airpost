@@ -119,6 +119,12 @@ export function SourcesPage() {
           status.sources.ADZUNA,
           find('ADZUNA'),
         ),
+        sourceRow(
+          'Google Jobs (SerpApi)',
+          'Reprend des annonces de LinkedIn, Indeed, Welcome to the Jungle… 250 recherches gratuites par mois, 6 au plus par collecte.',
+          status.sources.GOOGLE_JOBS,
+          find('GOOGLE_JOBS'),
+        ),
         {
           name: 'Gemini',
           state: status.gemini.configured ? 'Configuré' : 'Non configuré',

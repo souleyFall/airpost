@@ -68,6 +68,13 @@ export const envSchema = z
     /** Adzuna : identifiant et clé d'application. Secrets, jamais journalisés. */
     ADZUNA_APP_ID: secret(),
     ADZUNA_APP_KEY: secret(),
+    /** SerpApi (Google Jobs) : clé d'API, secret qui voyage dans l'URL (méthode de l'API), jamais journalisée. */
+    SERPAPI_KEY: secret(),
+    /**
+     * Recherches SerpApi au plus par collecte, pages comprises. La formule gratuite donne 250 recherches par mois :
+     * 6 par collecte laissent environ une collecte par jour.
+     */
+    SERPAPI_MAX_SEARCHES: z.coerce.number().int().min(1).max(50).default(6),
     /**
      * Fichiers d'autorisation Gmail (jamais leur contenu ici). Relatifs : cherchés dans le dossier courant puis à la
      * racine du dépôt. Absents : le module Gmail est désactivé (aucun brouillon, aucun suivi).
