@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import type { Env } from '../config/env';
 import type { OfferSource } from '../generated/prisma/enums';
@@ -425,6 +425,37 @@ describe('CollectionService', () => {
       },
     });
     expect((await off.service.run('u1')).sources[3]).toMatchObject({ status: 'disabled' });
+  });
+
+  it('journalise POURQUOI une source est en erreur, sans secret : message de la source, nom d’une erreur inattendue', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const { service } = setup({
+      googleJobs: async () => {
+        throw new SourceError(
+          'GOOGLE_JOBS',
+          'unavailable',
+          'Google Jobs : service injoignable (délai dépassé).',
+        );
+      },
+      lbb: async () => {
+        throw new TypeError('plantage avec https://x/?key=SECRET');
+      },
+      adzuna: async () => {
+        throw new SourceError('ADZUNA', 'not_configured', 'clé absente');
+      },
+    });
+
+    await service.run('u1');
+
+    const lines = warn.mock.calls.map((c) => String(c[0]));
+    expect(lines).toContain(
+      'Source GOOGLE_JOBS en erreur : Google Jobs : service injoignable (délai dépassé).',
+    );
+    expect(lines).toContain('Source LBB : erreur inattendue (TypeError).');
+    // Une source simplement non configurée n'est pas une panne : rien dans les journaux.
+    expect(lines.some((l) => l.includes('ADZUNA'))).toBe(false);
+    expect(lines.join('\n')).not.toContain('SECRET');
+    warn.mockRestore();
   });
 
   it('purge avec la durée de conservation configurée', async () => {

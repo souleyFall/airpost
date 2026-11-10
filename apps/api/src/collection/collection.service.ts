@@ -192,9 +192,18 @@ export class CollectionService {
       if (error instanceof SourceError) {
         report.status = error.reason === 'not_configured' ? 'disabled' : 'error';
         report.reason = error.reason;
+        // Le message d'une SourceError ne contient jamais de secret, d'URL ni de corps de réponse (voir les connecteurs) :
+        // on peut le journaliser, il dit POURQUOI la source est en panne (délai dépassé, réponse 503...).
+        if (report.status === 'error') {
+          this.logger.warn(`Source ${searcher.source} en erreur : ${error.message}`);
+        }
       } else {
         report.status = 'error';
         report.reason = 'unexpected';
+        // Le nom de l'erreur seulement : son message pourrait embarquer une URL ou un secret.
+        this.logger.warn(
+          `Source ${searcher.source} : erreur inattendue (${error instanceof Error ? error.name : 'inconnue'}).`,
+        );
       }
       return report;
     }

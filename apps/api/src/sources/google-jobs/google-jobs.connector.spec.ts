@@ -376,6 +376,46 @@ describe('GoogleJobsConnector', () => {
       expect((await failure(errorBody.connector)).message).not.toContain(KEY);
     });
 
+    it('dit pourquoi le réseau a échoué, sans rien divulguer : délai dépassé, code système, ou « réseau »', async () => {
+      const timeout = Object.assign(new Error(`délai : https://serpapi.com/?api_key=${KEY}`), {
+        name: 'TimeoutError',
+      });
+      const reset = Object.assign(new Error('fetch failed'), { cause: { code: 'ECONNRESET' } });
+      const weird = Object.assign(new Error('fetch failed'), {
+        cause: { code: `x ${KEY} https://serpapi.com` },
+      });
+      const cases: [unknown, string][] = [
+        [timeout, 'délai dépassé'],
+        [reset, 'ECONNRESET'],
+        [weird, 'réseau'],
+        ['texte', 'réseau'],
+      ];
+      for (const [thrown, expected] of cases) {
+        const { connector } = setup(() => {
+          throw thrown;
+        });
+        const error = await failure(connector);
+        expect(error.message).toBe(`Google Jobs : service injoignable (${expected}).`);
+        expect(error.message).not.toContain(KEY);
+        expect(error.message).not.toContain('serpapi.com');
+      }
+    });
+
+    it('joint un extrait du message d’erreur de SerpApi, sans lien ni clé', async () => {
+      const { connector } = setup(() =>
+        json({
+          error: `Quelque chose a échoué sur https://serpapi.com/x?api_key=${KEY} avec ${KEY}`,
+        }),
+      );
+
+      const error = await failure(connector);
+
+      expect(error.reason).toBe('unavailable');
+      expect(error.message).toContain('Quelque chose a échoué');
+      expect(error.message).not.toContain(KEY);
+      expect(error.message).not.toContain('serpapi.com');
+    });
+
     it('refuse de s’appeler sans clé, sans réseau', async () => {
       const { connector, http } = setup(() => json(page([])), { SERPAPI_KEY: undefined });
 
