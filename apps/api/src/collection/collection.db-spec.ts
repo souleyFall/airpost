@@ -273,9 +273,15 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
       channel: 'SITE',
       applyUrl: 'https://exemple.test/lba-1',
     });
-    // Chaque offre est analysée par le modèle à la fin de la collecte, et sa distance au domicile calculée.
-    expect(res.body).toMatchObject({ analyzed: 6, pendingAnalysis: 0 });
-    expect(rows.every((r) => r.score === 80 && r.analysis !== null)).toBe(true);
+    // Seules les offres au contrat recherché (alternance, dans ce profil) sont analysées par le modèle à la fin de la
+    // collecte ; les autres (ici la candidature spontanée) restent sans note, sans être « en attente ».
+    const searched = rows.filter((r) => r.contractType === 'ALTERNANCE');
+    const others = rows.filter((r) => r.contractType !== 'ALTERNANCE');
+    expect(searched.length).toBeGreaterThan(0);
+    expect(others.length).toBeGreaterThan(0);
+    expect(res.body).toMatchObject({ analyzed: searched.length, pendingAnalysis: 0 });
+    expect(searched.every((r) => r.score === 80 && r.analysis !== null)).toBe(true);
+    expect(others.every((r) => r.score === null && r.analysis === null)).toBe(true);
     expect(rows.find((r) => r.externalId === 'lba-1')?.distanceKm).toBeLessThan(1);
     expect(rows.find((r) => r.externalId === 'lba-1')?.contractType).toBe('ALTERNANCE');
     // Google Jobs : plateforme d'origine conservée, ville géocodée, distance calculée, contrat déduit du texte.

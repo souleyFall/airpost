@@ -62,7 +62,13 @@ type AnalyzeBody = z.infer<typeof analyzeBody>;
 export const escapeLike = (value: string) => value.replace(/[\\%_]/g, '\\$&');
 
 const SORTS: Record<ListQuery['sort'], Prisma.OfferOrderByWithRelationInput[]> = {
-  score: [{ score: { sort: 'desc', nulls: 'last' } }, { firstSeenAt: 'desc' }],
+  // Les offres sans note (contrat non précisé ou autre, jamais analysées) restent en fin de liste, de la plus récente
+  // à la plus ancienne : date de publication, à défaut date de première apparition.
+  score: [
+    { score: { sort: 'desc', nulls: 'last' } },
+    { publishedAt: { sort: 'desc', nulls: 'last' } },
+    { firstSeenAt: 'desc' },
+  ],
   fresh: [{ publishedAt: { sort: 'desc', nulls: 'last' } }, { firstSeenAt: 'desc' }],
   distance: [{ distanceKm: { sort: 'asc', nulls: 'last' } }, { firstSeenAt: 'desc' }],
 };
