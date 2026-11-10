@@ -63,6 +63,27 @@ enum ReplyKind {
 }
 
 /// Application mono-utilisateur : une seule ligne en pratique. Pas d'e-mail ici (minimisation).
+/// État d'une connexion externe d'après son dernier appel. Jamais de message d'erreur d'origine (il pourrait contenir une URL ou une clé).
+enum HealthStatus {
+  OK
+  /// Quota ou limite atteint : ne repart pas tant que la limite n'est pas levée.
+  QUOTA
+  /// Clé refusée.
+  AUTH
+  /// Panne ou surcharge, passagère en général.
+  DOWN
+  /// Non configurée (pas de clé).
+  OFF
+}
+
+/// Santé de chaque connexion (une ligne par connexion : LBA, ADZUNA, GLASSDOOR, INDEED, GEMINI...). Mise à jour par les collectes, sans appel de test.
+model ApiHealth {
+  key       String       @id
+  status    HealthStatus
+  checkedAt DateTime
+  lastOkAt  DateTime?
+}
+
 model User {
   id           String   @id @default(uuid(7)) @db.Uuid
   login        String   @unique

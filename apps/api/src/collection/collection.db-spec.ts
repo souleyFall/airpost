@@ -182,6 +182,7 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
     prisma = app.get(PrismaService);
     http = request(app.getHttpServer() as Server);
     await prisma.offer.deleteMany();
+    await prisma.apiHealth.deleteMany();
     await prisma.user.deleteMany();
     await prisma.user.create({
       data: { login: 'alice', passwordHash: await new PasswordService().hash(PASSWORD) },
@@ -582,6 +583,30 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
     const last = await http.get('/collection/last').set('Cookie', session.cookie).expect(200);
 
     expect((last.body as { sources: unknown[] }).sources).toHaveLength(7);
+  });
+
+  it('tient le voyant de santé de chaque connexion à jour, sans message d’erreur, derrière la session', async () => {
+    await http.get('/api-health').expect(401);
+    const session = await withProfile();
+
+    await run(session).expect(200);
+    const res = await http.get('/api-health').set('Cookie', session.cookie).expect(200);
+
+    const items = (
+      res.body as { items: { key: string; status: string; lastOkAt: string | null }[] }
+    ).items;
+    expect(Object.fromEntries(items.map((i) => [i.key, i.status]))).toMatchObject({
+      LBA: 'OK',
+      ADZUNA: 'OK',
+      LBB: 'OK',
+      GOOGLE_JOBS: 'OK',
+      GLASSDOOR: 'OK',
+      INDEED: 'OFF',
+      LINKEDIN: 'OFF',
+    });
+    expect(items.find((i) => i.key === 'LBA')?.lastOkAt).not.toBeNull();
+    expect(items.find((i) => i.key === 'INDEED')?.lastOkAt).toBeNull();
+    expect(JSON.stringify(res.body)).not.toMatch(/cle-|secret|http/i);
   });
 
   it('refuse (409) une collecte lancée pendant qu’une autre tourne', async () => {

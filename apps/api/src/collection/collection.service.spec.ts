@@ -7,6 +7,7 @@ import type { Profile } from '../profile/profile.schema';
 import type { ProfileService } from '../profile/profile.service';
 import type { AdzunaConnector } from '../sources/adzuna/adzuna.connector';
 import { dedupKey } from '../sources/dedup';
+import type { ApiHealthService } from '../api-health/api-health.service';
 import type { IndeedAlertsConnector } from '../sources/alerts/indeed-alerts.connector';
 import type { LinkedinAlertsConnector } from '../sources/alerts/linkedin-alerts.connector';
 import type { GlassdoorConnector } from '../sources/glassdoor/glassdoor.connector';
@@ -60,6 +61,7 @@ function setup(
   const glassdoor = vi.fn(options.glassdoor ?? empty);
   const indeed = vi.fn(options.indeed ?? empty);
   const linkedin = vi.fn(options.linkedin ?? empty);
+  const record = vi.fn(async () => undefined);
   const saveMany = vi.fn(async (offers: NormalizedOffer[]) => ({
     created: offers.length,
     updated: 0,
@@ -93,6 +95,7 @@ function setup(
     { search: glassdoor } as unknown as GlassdoorConnector,
     { search: indeed } as unknown as IndeedAlertsConnector,
     { search: linkedin } as unknown as LinkedinAlertsConnector,
+    { record } as unknown as ApiHealthService,
   );
   return {
     service,
@@ -105,6 +108,7 @@ function setup(
     saveMany,
     purgeStale,
     analyzePending,
+    record,
     refreshDistances,
     cleanup,
   };
@@ -181,7 +185,7 @@ describe('CollectionService', () => {
   });
 
   it('une source en panne ne bloque pas les autres, sans détail technique dans le bilan', async () => {
-    const { service, saveMany } = setup({
+    const { service, saveMany, record } = setup({
       lba: async () => {
         throw new SourceError('LBA', 'rate_limited', 'message avec https://x/?key=SECRET');
       },
@@ -222,6 +226,25 @@ describe('CollectionService', () => {
     ]);
     expect(JSON.stringify(report)).not.toContain('SECRET');
     expect(saveMany).not.toHaveBeenCalled();
+    // Voyant de santé : quota atteint, désactivée, ou panne inattendue ; jamais le message d'origine.
+    expect(record.mock.calls).toEqual([
+      ['LBA', 'QUOTA'],
+      ['ADZUNA', 'OFF'],
+      ['LBB', 'DOWN'],
+      ['GOOGLE_JOBS', 'QUOTA'],
+      ['GLASSDOOR', 'OFF'],
+      ['INDEED', 'OFF'],
+      ['LINKEDIN', 'OFF'],
+    ]);
+  });
+
+  it('une écriture du voyant qui échoue ne fait pas perdre la collecte', async () => {
+    const { service, record } = setup();
+    record.mockRejectedValue(new Error('base indisponible'));
+
+    const report = await service.run('u1');
+
+    expect(report.sources).toHaveLength(7);
   });
 
   it('écarte les entreprises exclues (insensible à la casse et aux accents)', async () => {

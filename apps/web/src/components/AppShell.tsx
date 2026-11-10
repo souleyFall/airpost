@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { ApiError, api } from '../api/client';
-import type { RunReport as BaseRunReport, SourceReport } from '../api/types';
+import type { ApiHealthItem, RunReport as BaseRunReport, SourceReport } from '../api/types';
 import { newOffersLabel } from '../lib/format';
+import { blockedConnections } from '../lib/health';
 import { useAuth } from '../auth/AuthProvider';
 import { Logo } from './Logo';
 import type { ShellContext } from './shellContext';
@@ -81,6 +82,7 @@ export function AppShell() {
   const [lastRun, setLastRun] = useState<RunReport | null | undefined>(undefined);
   const [collecting, setCollecting] = useState(false);
   const [collectError, setCollectError] = useState<string | null>(null);
+  const [health, setHealth] = useState<ApiHealthItem[]>([]);
 
   const setCount = useCallback((key: CountKey, value: number | null) => {
     setCounts((current) => (current[key] === value ? current : { ...current, [key]: value }));
@@ -95,6 +97,17 @@ export function AppShell() {
       cancelled = true;
     };
   }, []);
+
+  // Voyants de santé : relus à l'ouverture et après chaque collecte. Un échec ne gêne rien (pas de bandeau).
+  useEffect(() => {
+    let cancelled = false;
+    api<{ items: ApiHealthItem[] }>('GET', '/api-health')
+      .then((data) => !cancelled && setHealth(data.items))
+      .catch(() => !cancelled && setHealth([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [version]);
 
   async function collect() {
     setCollecting(true);
@@ -113,6 +126,7 @@ export function AppShell() {
     }
   }
 
+  const blocked = blockedConnections(health);
   const newOffers = collecting ? null : newOffersLabel(lastRun?.sources);
   const context = useMemo<ShellContext>(() => ({ version, setCount }), [version, setCount]);
 
@@ -171,6 +185,24 @@ export function AppShell() {
         </div>
       </aside>
       <main className="min-w-0 flex-[999_1_560px] md:h-screen md:overflow-y-auto">
+        {blocked.quota.length > 0 || blocked.auth.length > 0 ? (
+          <div
+            role="alert"
+            className="mx-8 mt-5 flex flex-wrap items-center justify-between gap-3 rounded-md border border-danger bg-surface px-4 py-3 text-danger"
+          >
+            <p className="m-0 font-semibold">
+              {[
+                blocked.quota.length > 0 ? `Quota atteint : ${blocked.quota.join(', ')}.` : '',
+                blocked.auth.length > 0 ? `Clé refusée : ${blocked.auth.join(', ')}.` : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+            </p>
+            <NavLink to="/sources" className="font-semibold underline">
+              Voir les sources
+            </NavLink>
+          </div>
+        ) : null}
         <Outlet context={context} />
       </main>
     </div>

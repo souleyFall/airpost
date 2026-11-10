@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Env } from '../config/env';
 import type { HttpFetch } from '../http/http-fetch';
+import type { ApiHealthService } from '../api-health/api-health.service';
 import { GeminiProvider } from './gemini.provider';
 import { LlmError, type LlmRequest } from './llm.types';
 
@@ -190,6 +191,54 @@ describe('GeminiProvider', () => {
         expect(message).not.toContain('confidentiel');
       }
     });
+  });
+});
+
+describe('GeminiProvider : voyant de santé', () => {
+  function withHealth(response: () => Response, env: Partial<Env> = {}) {
+    const recorded: string[] = [];
+    const health = {
+      recordIfChanged: async (key: string, status: string) => {
+        recorded.push(`${key}:${status}`);
+      },
+    } as unknown as ApiHealthService;
+    const http = vi.fn<HttpFetch>(async () => response());
+    const full = { GEMINI_API_KEY: KEY, GEMINI_MODEL: 'gemini-3.5-flash-lite', ...env } as Env;
+    return { provider: new GeminiProvider(full, http, health), recorded };
+  }
+
+  it('inscrit « OK » après un succès', async () => {
+    const { provider, recorded } = withHealth(() => ok('{}'));
+
+    await provider.generate(REQUEST);
+
+    expect(recorded).toEqual(['GEMINI:OK']);
+  });
+
+  it.each([
+    [429, 'QUOTA'],
+    [503, 'DOWN'],
+    [401, 'AUTH'],
+  ])('inscrit l’état de la connexion après un %i : %s', async (status, expected) => {
+    const { provider, recorded } = withHealth(() => json({}, status));
+
+    await failure(provider);
+
+    expect(recorded).toEqual([`GEMINI:${expected}`]);
+  });
+
+  it('ne dit rien d’une réponse inexploitable ou bloquée : la connexion, elle, fonctionne', async () => {
+    const { provider, recorded } = withHealth(() => ok('{}', 'MAX_TOKENS'));
+
+    await failure(provider);
+
+    expect(recorded).toEqual([]);
+  });
+
+  it('fonctionne sans voyant (tests, ou module absent)', async () => {
+    const { provider } = setup(() => ok('{}'));
+
+    expect((await provider.generate(REQUEST)).text).toBe('{}');
   });
 });
 

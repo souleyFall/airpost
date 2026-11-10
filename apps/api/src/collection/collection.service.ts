@@ -11,6 +11,7 @@ import { MINUTES_PER_KM } from '../sources/geo';
 import { GlassdoorConnector } from '../sources/glassdoor/glassdoor.connector';
 import { GoogleJobsConnector } from '../sources/google-jobs/google-jobs.connector';
 import { IndeedAlertsConnector } from '../sources/alerts/indeed-alerts.connector';
+import { ApiHealthService, statusFromReason } from '../api-health/api-health.service';
 import { LinkedinAlertsConnector } from '../sources/alerts/linkedin-alerts.connector';
 import { LbaConnector } from '../sources/lba/lba.connector';
 import { LbbConnector } from '../sources/lbb/lbb.connector';
@@ -87,6 +88,7 @@ export class CollectionService {
     glassdoor: GlassdoorConnector,
     indeedAlerts: IndeedAlertsConnector,
     linkedinAlerts: LinkedinAlertsConnector,
+    private readonly health: ApiHealthService,
   ) {
     // L'ordre fixe la priorité en cas de doublon entre sources : de vraies annonces d'abord, les
     // entreprises « qui recrutent souvent » (candidatures spontanées) ensuite.
@@ -145,7 +147,19 @@ export class CollectionService {
     // Empreintes déjà retenues pendant cette collecte, avec leur source : sert au dédoublonnage.
     const seen = new Map<string, OfferSource>();
     for (const searcher of this.searchers) {
-      sources.push(await this.collectFrom(searcher, query, profile, seen));
+      const sourceReport = await this.collectFrom(searcher, query, profile, seen);
+      sources.push(sourceReport);
+      // Voyant de santé : le résultat de cette source, sans appel de test en plus. Un échec d'écriture ne perd pas la collecte.
+      await this.health
+        .record(
+          sourceReport.source,
+          sourceReport.status === 'ok'
+            ? 'OK'
+            : sourceReport.status === 'disabled'
+              ? 'OFF'
+              : statusFromReason(sourceReport.reason),
+        )
+        .catch(() => undefined);
     }
 
     const stale = await this.offers.purgeStale(this.env.OFFER_RETENTION_DAYS);

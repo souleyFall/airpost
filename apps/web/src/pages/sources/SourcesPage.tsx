@@ -1,9 +1,16 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api/client';
-import type { FullRunReport, OfferSource, SourceReport, SourcesStatus } from '../../api/types';
+import type {
+  ApiHealthItem,
+  FullRunReport,
+  OfferSource,
+  SourceReport,
+  SourcesStatus,
+} from '../../api/types';
 import { useShell } from '../../components/shellContext';
+import { shortDateTime } from '../../lib/health';
 
-type Tone = 'ok' | 'warn' | 'neutral';
+type Tone = 'ok' | 'warn' | 'bad' | 'neutral';
 
 interface Row {
   name: string;
@@ -20,7 +27,47 @@ const REASONS: Record<string, string> = {
   unexpected: 'erreur inattendue',
 };
 
+/**
+ * Voyant de santé : un quota atteint ou une clé refusée l'emporte sur le dernier bilan (il survit au redémarrage de l'API
+ * et vaut aussi pour Gemini). Une panne passagère passe en orange ; le reste ne change rien.
+ */
+function withHealth(row: Row, health: ApiHealthItem | undefined): Row {
+  if (
+    !health ||
+    (health.status !== 'QUOTA' && health.status !== 'AUTH' && health.status !== 'DOWN')
+  ) {
+    return row;
+  }
+  const since = `Constaté le ${shortDateTime(health.checkedAt)}. Dernier succès : ${
+    health.lastOkAt ? shortDateTime(health.lastOkAt) : 'aucun'
+  }.`;
+  if (health.status === 'DOWN') {
+    return {
+      ...row,
+      state: 'Panne',
+      tone: 'warn',
+      note: `${row.note} ${since} Passe souvent seule.`,
+    };
+  }
+  return {
+    ...row,
+    state: health.status === 'QUOTA' ? 'Quota atteint' : 'Clé refusée',
+    tone: 'bad',
+    note: `${row.note} ${since}`,
+  };
+}
+
 function sourceRow(
+  name: string,
+  note: string,
+  configured: boolean,
+  report: SourceReport | undefined,
+  health?: ApiHealthItem,
+): Row {
+  return withHealth(baseRow(name, note, configured, report), configured ? health : undefined);
+}
+
+function baseRow(
   name: string,
   note: string,
   configured: boolean,
@@ -69,6 +116,7 @@ export function SourcesPage() {
   const [report, setReport] = useState<FullRunReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [gmailConfigured, setGmailConfigured] = useState(false);
+  const [health, setHealth] = useState<ApiHealthItem[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,6 +126,9 @@ export function SourcesPage() {
         const gmail = await api<{ configured: boolean }>('GET', '/gmail/status').catch(() => ({
           configured: false,
         }));
+        const healthItems = await api<{ items: ApiHealthItem[] }>('GET', '/api-health')
+          .then((data) => data.items)
+          .catch(() => [] as ApiHealthItem[]);
         let last: FullRunReport | null = null;
         try {
           last = await api<FullRunReport>('GET', '/collection/last');
@@ -88,6 +139,7 @@ export function SourcesPage() {
           setStatus(current);
           setGmailConfigured(gmail.configured);
           setReport(last);
+          setHealth(healthItems);
         }
       } catch {
         if (!cancelled) setError('Impossible de charger l’état des sources.');
@@ -99,6 +151,7 @@ export function SourcesPage() {
   }, [version]);
 
   const find = (source: OfferSource) => report?.sources.find((s) => s.source === source);
+  const healthOf = (key: string) => health.find((item) => item.key === key);
   const rows: Row[] = status
     ? [
         sourceRow(
@@ -106,52 +159,62 @@ export function SourcesPage() {
           'Offres d’alternance (API officielle).',
           status.sources.LBA,
           find('LBA'),
+          healthOf('LBA'),
         ),
         sourceRow(
           'La Bonne Boîte (France Travail)',
           'Entreprises qui recrutent souvent en alternance : candidatures spontanées.',
           status.sources.LBB,
           find('LBB'),
+          healthOf('LBB'),
         ),
         sourceRow(
           'Adzuna',
           'Jobs by Adzuna : attribution obligatoire, descriptions parfois tronquées.',
           status.sources.ADZUNA,
           find('ADZUNA'),
+          healthOf('ADZUNA'),
         ),
         sourceRow(
           'Google Jobs (SerpApi)',
           'Reprend des annonces de LinkedIn, Indeed, Welcome to the Jungle… 250 recherches gratuites par mois, 6 au plus par collecte.',
           status.sources.GOOGLE_JOBS,
           find('GOOGLE_JOBS'),
+          healthOf('GOOGLE_JOBS'),
         ),
         sourceRow(
           'Glassdoor (SerpApi)',
           'Annonces d’alternance et de stage (30 par recherche), avec un extrait du texte seulement. 4 recherches au plus par collecte.',
           status.sources.GLASSDOOR,
           find('GLASSDOOR'),
+          healthOf('GLASSDOOR'),
         ),
         sourceRow(
           'Indeed (alertes e-mail)',
           'Lit les alertes qu’Indeed envoie à ta boîte Gmail (lecture seule, aucun appel à Indeed). Ajoute des alertes sur Indeed pour alimenter cette source.',
           status.sources.INDEED,
           find('INDEED'),
+          healthOf('INDEED'),
         ),
         sourceRow(
           'LinkedIn (e-mails d’offres)',
           'Lit les offres que LinkedIn envoie à ta boîte Gmail : recommandations, offres enregistrées, alertes (lecture seule, aucun appel à LinkedIn). Intitulé, entreprise et ville seulement.',
           status.sources.LINKEDIN,
           find('LINKEDIN'),
+          healthOf('LINKEDIN'),
         ),
-        {
-          name: 'Gemini',
-          state: status.gemini.configured ? 'Configuré' : 'Non configuré',
-          tone: status.gemini.configured ? 'ok' : 'warn',
-          count: '—',
-          note: `Rédaction des lettres, modèle ${status.gemini.model}. ${
-            status.gemini.configured ? '' : 'Clé absente du fichier .env.'
-          }`.trim(),
-        },
+        withHealth(
+          {
+            name: 'Gemini',
+            state: status.gemini.configured ? 'Configuré' : 'Non configuré',
+            tone: status.gemini.configured ? 'ok' : 'warn',
+            count: '—',
+            note: `Notation des offres et rédaction des lettres, modèle ${status.gemini.model}. ${
+              status.gemini.configured ? '' : 'Clé absente du fichier .env.'
+            }`.trim(),
+          },
+          status.gemini.configured ? healthOf('GEMINI') : undefined,
+        ),
         {
           name: 'Gmail',
           state: gmailConfigured ? 'Autorisation présente' : 'Non configuré',
@@ -226,12 +289,20 @@ export function SourcesPage() {
                         className={`font-semibold ${
                           row.tone === 'ok'
                             ? 'text-ok'
-                            : row.tone === 'warn'
-                              ? 'text-warn-text'
-                              : 'text-muted'
+                            : row.tone === 'bad'
+                              ? 'text-danger'
+                              : row.tone === 'warn'
+                                ? 'text-warn-text'
+                                : 'text-muted'
                         }`}
                       >
-                        {row.tone === 'ok' ? '✓ ' : row.tone === 'warn' ? '⚠ ' : ''}
+                        {row.tone === 'ok'
+                          ? '✓ '
+                          : row.tone === 'bad'
+                            ? '✕ '
+                            : row.tone === 'warn'
+                              ? '⚠ '
+                              : ''}
                         {row.state}
                       </span>
                     </td>
