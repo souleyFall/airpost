@@ -17,7 +17,7 @@ Le RGPD s'applique à toute donnée relative à une personne identifiable, même
 | **Données du candidat** | Identité, coordonnées (e-mail, téléphone, site : facultatifs), ville et code postal (jamais l'adresse complète), parcours, compétences, réalisations, lettres générées, préférences de recherche (rythme, trajet, mots-clés). Stockés dans la table Profile, tailles bornées par un schéma strict. |
 | **Données des tiers**   | Offres publiques (entreprise, lieu, description) ; **adresse e-mail et nom éventuels d'un contact recruteur** quand l'offre les publie ; réponses reçues par e-mail (objet, expéditeur, extrait utile au classement).                                                                              |
 | **Données sensibles**   | Aucune recherchée. Une offre ou un e-mail peut en contenir par accident (santé, handicap) : elles ne sont ni extraites ni conservées au-delà du texte brut nécessaire, et supprimées avec la candidature.                                                                                          |
-| **Origine**             | Le candidat lui-même ; API officielles (La Bonne Alternance, La Bonne Boîte / France Travail, Adzuna) ; sa propre boîte Gmail.                                                                                                                                                                     |
+| **Origine**             | Le candidat lui-même ; API officielles (La Bonne Alternance, La Bonne Boîte / France Travail, Adzuna), Google Jobs via SerpApi ; sa propre boîte Gmail.                                                                                                                                            |
 | **Hébergement**         | Base PostgreSQL dans un conteneur Docker sur le poste du candidat (aucun hébergeur tiers à ce stade).                                                                                                                                                                                              |
 
 ## Destinataires et sous-traitants
@@ -78,3 +78,9 @@ Non requise : traitement à petite échelle, usage personnel, aucune donnée sen
 - **Nouvelle finalité** : classer les offres selon leur adéquation avec le profil et en résumer le contenu. Même sous-traitant (Google Gemini), mêmes données que pour la lettre : extrait minimal du profil (parcours, compétences, critères) et texte de l'offre sans e-mail, téléphone ni lien. Jamais l'identité, la ville ni le code postal : la distance est calculée sur le serveur.
 - **Volume** : jusqu'à 40 offres par collecte (au lieu d'une lettre à la demande). Point de vigilance inchangé sur l'offre gratuite de Gemini (réutilisation possible des contenus) : à trancher avant de rendre l'application publique.
 - **Conservation** : l'analyse (note, explication, brief) est stockée avec l'offre et supprimée avec elle (purge à 90 jours sans réapparition).
+
+## Mise à jour 2026-11-10 : Google Jobs via SerpApi
+
+- **Nouveau sous-traitant : SerpApi** (États-Unis). Il reçoit la requête de recherche (contrat recherché et deux mots-clés de la pile technique), la ville du profil et un rayon, comme Adzuna reçoit déjà la ville. Il ne reçoit ni le nom, ni le téléphone, ni l'adresse, ni le parcours du candidat. Source facultative : sans clé, rien n'est envoyé.
+- **Données reçues en retour** : annonces publiques (intitulé, entreprise, lieu, description, liens). Aucune donnée de tiers à caractère personnel n'est conservée au-delà de ce que publie l'annonce ; elles suivent la durée de conservation des offres (90 jours sans réapparition).
+- **Géocodage** : le nom de la ville de chaque annonce est envoyé au service public de géocodage de l'État, jamais le domicile du candidat.

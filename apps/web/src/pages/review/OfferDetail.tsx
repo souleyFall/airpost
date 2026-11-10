@@ -238,6 +238,7 @@ export function OfferDetail({ offerId, onChanged, onAnalyzed }: Props) {
           <p className="mt-1.5 mb-0 text-muted">
             {meta.join(' · ')} · {ageLabel(offer.publishedAt ?? offer.firstSeenAt)} ·{' '}
             {SOURCE_LABEL[offer.source]}
+            {offer.via ? `, via ${offer.via}` : ''}
             {offer.applyUrl ? (
               <>
                 {' · '}

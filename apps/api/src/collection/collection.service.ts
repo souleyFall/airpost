@@ -8,6 +8,7 @@ import { MatchService } from '../matching/match.service';
 import { AdzunaConnector } from '../sources/adzuna/adzuna.connector';
 import { dedupKey, normalizeText } from '../sources/dedup';
 import { MINUTES_PER_KM } from '../sources/geo';
+import { GoogleJobsConnector } from '../sources/google-jobs/google-jobs.connector';
 import { LbaConnector } from '../sources/lba/lba.connector';
 import { LbbConnector } from '../sources/lbb/lbb.connector';
 import { UNKNOWN_COMPANY } from '../sources/normalize';
@@ -19,7 +20,7 @@ import {
   type SearchResult,
   SourceError,
 } from '../sources/source.types';
-import { GeocoderService } from './geocoder.service';
+import { GeocoderService } from '../sources/geocoder.service';
 
 export interface SourceReport {
   source: OfferSource;
@@ -79,6 +80,7 @@ export class CollectionService {
     lba: LbaConnector,
     lbb: LbbConnector,
     adzuna: AdzunaConnector,
+    googleJobs: GoogleJobsConnector,
   ) {
     // L'ordre fixe la priorité en cas de doublon entre sources : de vraies annonces d'abord, les
     // entreprises « qui recrutent souvent » (candidatures spontanées) ensuite.
@@ -86,6 +88,9 @@ export class CollectionService {
       { source: 'LBA', search: (q) => lba.search(q) },
       { source: 'ADZUNA', search: (q) => adzuna.search(q) },
       { source: 'LBB', search: (q) => lbb.search(q) },
+      // En dernier : les annonces de Google Jobs reprennent celles d'autres sites, les doublons cèdent la place aux
+      // annonces des sources précédentes.
+      { source: 'GOOGLE_JOBS', search: (q) => googleJobs.search(q) },
     ];
   }
 
@@ -123,6 +128,7 @@ export class CollectionService {
       romeCodes: profile.search.romeCodes,
       where: profile.identity.city,
       keywords: profile.search.keywords,
+      contracts: profile.search.contracts,
     };
 
     const sources: SourceReport[] = [];

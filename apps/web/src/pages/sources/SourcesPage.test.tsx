@@ -46,6 +46,17 @@ const report = {
       created: 0,
       updated: 0,
     },
+    {
+      source: 'GOOGLE_JOBS',
+      status: 'ok',
+      fetched: 20,
+      skipped: 0,
+      excluded: 0,
+      irrelevant: 5,
+      duplicates: 1,
+      created: 14,
+      updated: 0,
+    },
   ],
 };
 
@@ -58,7 +69,7 @@ function fakeApi(options: { last: boolean }) {
       if (path === '/auth/me') return json({ login: 'souley.fall', csrfToken: 'csrf' });
       if (path === '/collection/status') {
         return json({
-          sources: { LBA: true, LBB: true, ADZUNA: false },
+          sources: { LBA: true, LBB: true, ADZUNA: false, GOOGLE_JOBS: true },
           gemini: { configured: true, model: 'gemini-3.5-flash-lite' },
         });
       }
@@ -96,6 +107,9 @@ describe('écran Sources', () => {
     expect(rowOf('La Bonne Boîte')).toHaveTextContent('quota atteint');
     expect(rowOf('Adzuna')).toHaveTextContent('Non configurée');
     expect(rowOf('Adzuna')).toHaveTextContent('Jobs by Adzuna');
+    expect(rowOf('Google Jobs')).toHaveTextContent('Connectée');
+    expect(rowOf('Google Jobs')).toHaveTextContent('20 lues, 14 nouvelles');
+    expect(rowOf('Google Jobs')).toHaveTextContent('LinkedIn, Indeed, Welcome to the Jungle');
     expect(rowOf('Gemini')).toHaveTextContent('gemini-3.5-flash-lite');
     expect(rowOf('Gmail')).toHaveTextContent('Non configuré');
   });

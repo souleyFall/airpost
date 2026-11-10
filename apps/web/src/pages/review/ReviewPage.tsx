@@ -72,6 +72,7 @@ const TONE_CLASS = {
 const SOURCE_CHOICES: { id: OfferSource; label: string }[] = [
   { id: 'LBA', label: 'La Bonne Alternance' },
   { id: 'ADZUNA', label: 'Adzuna' },
+  { id: 'GOOGLE_JOBS', label: 'Google Jobs' },
   { id: 'LBB', label: 'La Bonne Boîte' },
 ];
 

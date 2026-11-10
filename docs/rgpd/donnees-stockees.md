@@ -33,3 +33,7 @@ Mots de passe en clair, clés d'API (fichier `.env`), jeton Gmail (fichiers mont
 - **Gemini** : texte de l'offre sans e-mail, téléphone ni lien, et un extrait du profil sans identité, ville ni code postal.
 - **Géocodage** : le code postal seul.
 - **Gmail** : le brouillon de lettre, jamais envoyé automatiquement.
+
+## Mise à jour 2026-11-10 : colonne `via`
+
+Les offres issues de Google Jobs gardent la plateforme d'origine de l'annonce (« LinkedIn », « Indeed »...) dans une colonne `via`. C'est une donnée publique de l'annonce, supprimée avec l'offre (90 jours sans réapparition).

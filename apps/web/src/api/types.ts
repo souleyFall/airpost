@@ -1,7 +1,7 @@
 /** Formes des réponses de l'API utilisées par l'interface (à garder alignées avec apps/api). */
 
 export type ApplyChannel = 'EMAIL' | 'SITE';
-export type OfferSource = 'LBA' | 'LBB' | 'ADZUNA';
+export type OfferSource = 'LBA' | 'LBB' | 'ADZUNA' | 'GOOGLE_JOBS';
 
 export type ApplicationStatus =
   | 'TO_REVIEW'
@@ -49,6 +49,8 @@ export interface OfferSummary {
   postcode: string | null;
   channel: ApplyChannel;
   contractType: ContractType;
+  /** Plateforme d'origine quand la source est un agrégateur (« LinkedIn », « Indeed » pour Google Jobs). */
+  via: string | null;
   /** Distance à vol d'oiseau depuis ton domicile, en km ; null si l'offre n'est pas localisée. */
   distanceKm: number | null;
   applyUrl: string | null;

@@ -137,6 +137,7 @@ export class OffersService {
           applyUrl: o.applyUrl ?? null,
           contactEmail: o.contactEmail ?? null,
           channel: o.channel,
+          via: o.via ?? null,
           contractType: detectContractType(o.title, o.description, o.source),
           publishedAt: o.publishedAt ?? null,
           lastSeenAt: now,

@@ -23,6 +23,7 @@ export const MAX_ANALYSES_PER_RUN = 40;
 const OFFER_SELECT = {
   id: true,
   source: true,
+  via: true,
   contractType: true,
   title: true,
   company: true,

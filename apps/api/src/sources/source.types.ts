@@ -16,6 +16,8 @@ export interface NormalizedOffer {
   /** Donnée d'un tiers (recruteur) : seulement si la source la publie. */
   contactEmail?: string;
   channel: ApplyChannel;
+  /** Plateforme d'origine d'une annonce reprise par un agrégateur (« LinkedIn », « Indeed »...). */
+  via?: string;
   publishedAt?: Date;
 }
 
@@ -28,6 +30,8 @@ export interface SearchQuery {
   where?: string;
   /** Mots-clés de la pile technique (pour les sources qui cherchent par texte). */
   keywords?: string[];
+  /** Contrats recherchés (pour les sources qui cherchent par texte : « alternance », « stage »). */
+  contracts?: ('ALTERNANCE' | 'STAGE')[];
 }
 
 export interface SearchResult {
