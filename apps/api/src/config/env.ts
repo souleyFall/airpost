@@ -71,10 +71,12 @@ export const envSchema = z
     /** SerpApi (Google Jobs) : clé d'API, secret qui voyage dans l'URL (méthode de l'API), jamais journalisée. */
     SERPAPI_KEY: secret(),
     /**
-     * Recherches SerpApi au plus par collecte, pages comprises. La formule gratuite donne 250 recherches par mois :
-     * 6 par collecte laissent environ une collecte par jour.
+     * Recherches SerpApi au plus par collecte, pages comprises, pour chaque source. La formule gratuite donne 250
+     * recherches par mois, partagées par Google Jobs et Glassdoor : 2 + 4 par collecte laissent environ 40 collectes.
+     * Glassdoor rend 30 annonces par recherche (Google Jobs : 10, souvent peu pertinentes) : il reçoit la plus grosse part.
      */
-    SERPAPI_MAX_SEARCHES: z.coerce.number().int().min(1).max(50).default(6),
+    GOOGLE_JOBS_MAX_SEARCHES: z.coerce.number().int().min(1).max(50).default(2),
+    GLASSDOOR_MAX_SEARCHES: z.coerce.number().int().min(1).max(50).default(4),
     /**
      * Fichiers d'autorisation Gmail (jamais leur contenu ici). Relatifs : cherchés dans le dossier courant puis à la
      * racine du dépôt. Absents : le module Gmail est désactivé (aucun brouillon, aucun suivi).

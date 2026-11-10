@@ -63,7 +63,7 @@ function setup(
   const geocodeCity = vi.fn(async (name: string, _near?: { latitude: number; longitude: number }) =>
     geocode(name),
   );
-  const full = { SERPAPI_KEY: KEY, SERPAPI_MAX_SEARCHES: 6, ...env } as Env;
+  const full = { SERPAPI_KEY: KEY, GOOGLE_JOBS_MAX_SEARCHES: 6, ...env } as Env;
   const connector = new GoogleJobsConnector(full, http, {
     geocodeCity,
   } as unknown as GeocoderService);
@@ -266,7 +266,7 @@ describe('GoogleJobsConnector', () => {
     const { connector, http } = setup(
       (_url, call) => json(page([job({ job_id: `j${call}` })], 'encore')),
       {
-        SERPAPI_MAX_SEARCHES: 3,
+        GOOGLE_JOBS_MAX_SEARCHES: 3,
       },
     );
 

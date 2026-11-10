@@ -1,7 +1,7 @@
 /** Formes des réponses de l'API utilisées par l'interface (à garder alignées avec apps/api). */
 
 export type ApplyChannel = 'EMAIL' | 'SITE';
-export type OfferSource = 'LBA' | 'LBB' | 'ADZUNA' | 'GOOGLE_JOBS';
+export type OfferSource = 'LBA' | 'LBB' | 'ADZUNA' | 'GOOGLE_JOBS' | 'GLASSDOOR';
 
 export type ApplicationStatus =
   | 'TO_REVIEW'

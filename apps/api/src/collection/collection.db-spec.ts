@@ -90,6 +90,32 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
         ],
       });
     }
+    if (host === 'serpapi.com' && new URL(url).searchParams.get('engine') === 'glassdoor_jobs') {
+      return json({
+        jobs_results: [
+          {
+            job_id: 'gd-1',
+            title: 'Alternance développeur backend',
+            company_name: 'Studio Exemple',
+            location: 'Paris',
+            link: 'https://exemple.test/glassdoor/gd-1',
+            days_since_posted: 2,
+            snippet: 'Poste en alternance, NestJS et PostgreSQL.',
+            skills: ['NestJS', 'PostgreSQL'],
+          },
+          // Annonce d'école : écartée par le filtre.
+          {
+            job_id: 'gd-2',
+            title: 'Alternance développeur web',
+            company_name: 'CFA INSTA',
+            location: 'Paris',
+            link: 'https://exemple.test/glassdoor/gd-2',
+            days_since_posted: 1,
+            snippet: 'Formation en alternance.',
+          },
+        ],
+      });
+    }
     if (host === 'serpapi.com') {
       return json({
         jobs_results: [
@@ -204,7 +230,7 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
     expect(calls).toEqual([]);
   });
 
-  it('collecte les quatre sources, écarte le doublon entre sources et enregistre en base', async () => {
+  it('collecte les cinq sources, écarte le doublon entre sources et enregistre en base', async () => {
     const session = await withProfile();
 
     const res = await run(session).expect(200);
@@ -218,6 +244,7 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
       ['ADZUNA', 'ok', 1, 1],
       ['LBB', 'ok', 1, 0],
       ['GOOGLE_JOBS', 'ok', 1, 0],
+      ['GLASSDOOR', 'ok', 1, 0],
     ]);
     const rows = await prisma.offer.findMany({
       orderBy: [{ source: 'asc' }, { externalId: 'asc' }],
@@ -225,10 +252,11 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
     expect(rows.map((r) => `${r.source}:${r.externalId}`)).toEqual([
       'LBA:lba-1',
       'LBA:lba-2',
-      // PostgreSQL trie un type énuméré dans l'ordre de déclaration (LBA, LBB, ADZUNA, GOOGLE_JOBS).
+      // PostgreSQL trie un type énuméré dans l'ordre de déclaration (LBA, LBB, ADZUNA, GOOGLE_JOBS, GLASSDOOR).
       'LBB:12345678900012',
       'ADZUNA:adz-2',
       'GOOGLE_JOBS:gj-1',
+      'GLASSDOOR:gd-1',
     ]);
     expect(rows[0]).toMatchObject({
       company: 'Exemple Logiciels',
@@ -238,7 +266,7 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
       applyUrl: 'https://exemple.test/lba-1',
     });
     // Chaque offre est analysée par le modèle à la fin de la collecte, et sa distance au domicile calculée.
-    expect(res.body).toMatchObject({ analyzed: 5, pendingAnalysis: 0 });
+    expect(res.body).toMatchObject({ analyzed: 6, pendingAnalysis: 0 });
     expect(rows.every((r) => r.score === 80 && r.analysis !== null)).toBe(true);
     expect(rows.find((r) => r.externalId === 'lba-1')?.distanceKm).toBeLessThan(1);
     expect(rows.find((r) => r.externalId === 'lba-1')?.contractType).toBe('ALTERNANCE');
@@ -253,8 +281,15 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
     expect(google?.latitude).not.toBeNull();
     expect(google?.distanceKm).not.toBeNull();
     // Vers le géocodeur : le code postal du profil, et la ville de l'offre Google Jobs (jamais le nom du candidat).
+    // Glassdoor : ville géocodée, annonce d'école écartée, et le plafond de recherches respecté.
+    const glassdoor = rows.find((r) => r.externalId === 'gd-1');
+    expect(glassdoor).toMatchObject({ company: 'Studio Exemple', contractType: 'ALTERNANCE' });
+    expect(glassdoor?.distanceKm).not.toBeNull();
+    expect(rows.some((r) => r.externalId === 'gd-2')).toBe(false);
+    expect(report.sources.find((s) => s.source === 'GLASSDOOR')).toMatchObject({ irrelevant: 1 });
+    expect(calls.filter((h) => h === 'serpapi.com')).toHaveLength(2);
+    // Vers le géocodeur : le code postal du profil, et la ville des annonces (Paris, une seule fois).
     expect(calls.filter((h) => h === 'data.geopf.fr')).toHaveLength(2);
-    expect(calls.filter((h) => h === 'serpapi.com')).toHaveLength(1);
   });
 
   it('rejouée, la collecte met à jour sans créer de doublon', async () => {
@@ -269,8 +304,9 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
       [0, 1],
       [0, 1],
       [0, 1],
+      [0, 1],
     ]);
-    expect(await prisma.offer.count()).toBe(5);
+    expect(await prisma.offer.count()).toBe(6);
   });
 
   it('une source en panne est signalée sans bloquer les autres', async () => {
@@ -286,7 +322,7 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
       reason: 'rate_limited',
     });
     expect(sources.find((s) => s.source === 'LBA')).toMatchObject({ status: 'ok' });
-    expect(await prisma.offer.count()).toBe(4);
+    expect(await prisma.offer.count()).toBe(5);
   });
 
   it('une source sans clé est signalée « disabled »', async () => {
@@ -347,7 +383,7 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
     expect(calls).not.toContain('serpapi.com');
     expect(
       (await http.get('/collection/status').set('Cookie', session.cookie).expect(200)).body,
-    ).toMatchObject({ sources: { GOOGLE_JOBS: false } });
+    ).toMatchObject({ sources: { GOOGLE_JOBS: false, GLASSDOOR: false } });
   });
 
   it('applique la durée de conservation sans jamais supprimer une offre qui a une candidature', async () => {
@@ -382,7 +418,7 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
     const res = await http.get('/collection/status').set('Cookie', session.cookie).expect(200);
 
     expect(res.body).toMatchObject({
-      sources: { LBA: true, LBB: true, ADZUNA: true, GOOGLE_JOBS: true },
+      sources: { LBA: true, LBB: true, ADZUNA: true, GOOGLE_JOBS: true, GLASSDOOR: true },
       gemini: { configured: expect.any(Boolean) as unknown },
     });
     expect(JSON.stringify(res.body)).not.toMatch(/cle-lba|secret-ft|id-ft|cle-adzuna|cle-serpapi/);
@@ -395,7 +431,7 @@ describe('Collecte (e2e, base réelle, API simulées)', () => {
     await run(session).expect(200);
     const last = await http.get('/collection/last').set('Cookie', session.cookie).expect(200);
 
-    expect((last.body as { sources: unknown[] }).sources).toHaveLength(4);
+    expect((last.body as { sources: unknown[] }).sources).toHaveLength(5);
   });
 
   it('refuse (409) une collecte lancée pendant qu’une autre tourne', async () => {

@@ -60,7 +60,14 @@ export class OffersService {
   async cleanup(trusted: readonly OfferSource[]): Promise<{ removed: number; updated: number }> {
     const offers = await this.prisma.offer.findMany({
       where: { application: null },
-      select: { id: true, source: true, title: true, description: true, contractType: true },
+      select: {
+        id: true,
+        source: true,
+        title: true,
+        company: true,
+        description: true,
+        contractType: true,
+      },
     });
     const plan = planCleanup(offers, new Set(trusted));
     const { count } = plan.deleteIds.length

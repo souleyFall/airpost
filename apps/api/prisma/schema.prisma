@@ -19,6 +19,8 @@ enum OfferSource {
   ADZUNA
   /// Google Jobs via SerpApi : reprend des annonces de LinkedIn, Indeed, Welcome to the Jungle...
   GOOGLE_JOBS
+  /// Glassdoor via SerpApi : annonces (extrait du texte), souvent des alternances.
+  GLASSDOOR
 }
 
 enum ContractType {

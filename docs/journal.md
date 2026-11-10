@@ -54,3 +54,7 @@
 - Source Google Jobs via SerpApi : voir D30 et les risques R41 à R43. Facultative : ajouter `SERPAPI_KEY` (et éventuellement `SERPAPI_MAX_SEARCHES`) dans `.env`, puis `docker compose build migrate`, `docker compose run --rm migrate` et `docker compose up -d --build`. Aucune collecte réelle n'a été lancée pendant le développement (tests avec faux SerpApi).
 
 - Collecte longue : le proxy coupait à 60 s alors qu'une collecte (sources + géocodage + analyse IA de 40 offres) dure plus longtemps ; l'interface affichait « La collecte a échoué » alors qu'elle se terminait. Délai porté à 300 s pour POST /collection/run seulement. Les sources en erreur sont maintenant journalisées avec leur cause (message sans secret), pas seulement comptées.
+
+## 2026-11-10 : Glassdoor (SerpApi)
+
+- Source Glassdoor : voir D31 et les risques R44 et R45. Après fusion : `docker compose build migrate`, `docker compose run --rm migrate`, `docker compose up -d --build`. Les variables `GOOGLE_JOBS_MAX_SEARCHES` et `GLASSDOOR_MAX_SEARCHES` remplacent `SERPAPI_MAX_SEARCHES`.

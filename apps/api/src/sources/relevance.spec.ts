@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectContractType, isRelevantOffer } from './relevance';
+import { detectContractType, isRelevantOffer, isSchoolAd } from './relevance';
 
 describe('isRelevantOffer', () => {
   it.each([
@@ -111,5 +111,37 @@ describe('detectContractType', () => {
     expect(
       detectContractType('Développeur', 'Alternance de 12 mois, après un stage de découverte'),
     ).toBe('ALTERNANCE');
+  });
+});
+
+describe('isSchoolAd', () => {
+  it.each([
+    'CFA INSTA',
+    'École Exemple',
+    'Campus Numérique',
+    'Institut de formation',
+    'Digital School',
+    'Université Paris Nord',
+    'Académie du Web',
+  ])('écarte l’annonce de « %s »', (company) => {
+    expect(isSchoolAd(company)).toBe(true);
+  });
+
+  it.each(['Atelier Exemple', 'Nordlys Logiciels', 'Natixis CIB France', 'SCHOLIA', 'Capgemini'])(
+    'garde l’annonce de « %s »',
+    (company) => {
+      expect(isSchoolAd(company)).toBe(false);
+    },
+  );
+
+  it('une description qui cite un titre RNCP révèle une formation', () => {
+    expect(isSchoolAd('Marque Exemple', 'Titre RNCP niveau 6, formation en alternance')).toBe(true);
+    expect(isSchoolAd('Marque Exemple', 'Vous développez des API REST')).toBe(false);
+    expect(isSchoolAd('Marque Exemple', null)).toBe(false);
+  });
+
+  it('ne se laisse pas tromper par des fragments de mots', () => {
+    expect(isSchoolAd('Formations Dupont SARL')).toBe(false);
+    expect(isSchoolAd('Cfasoft')).toBe(false);
   });
 });

@@ -125,6 +125,12 @@ export function SourcesPage() {
           status.sources.GOOGLE_JOBS,
           find('GOOGLE_JOBS'),
         ),
+        sourceRow(
+          'Glassdoor (SerpApi)',
+          'Annonces d’alternance et de stage (30 par recherche), avec un extrait du texte seulement. 4 recherches au plus par collecte.',
+          status.sources.GLASSDOOR,
+          find('GLASSDOOR'),
+        ),
         {
           name: 'Gemini',
           state: status.gemini.configured ? 'Configuré' : 'Non configuré',
