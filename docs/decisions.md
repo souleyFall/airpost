@@ -312,3 +312,12 @@ En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans N
 - **Gemini** : l'état est écrit seulement quand il change (il est appelé souvent). Une réponse inexploitable ou bloquée ne dit rien de la connexion et n'est pas inscrite.
 - **Sécurité** : jamais de message d'erreur d'origine en base ni à l'écran (il pourrait contenir une URL ou une clé) : seulement l'état.
 - **Limites** : le voyant ne reflète que le dernier appel (une panne survenue entre deux collectes n'apparaît qu'à la suivante) ; il ne distingue pas une limite par minute d'une limite par jour (les deux sont « quota atteint ») ; une source en QUOTA est quand même rappelée à la collecte suivante, il n'y a pas de saut automatique.
+
+### D38 : relance des candidatures sans réponse
+
+- **Règle (côté serveur, une seule définition)** : une candidature envoyée (ou accusée, ou classée « sans réponse ») est « à relancer » quand le dernier contact (l'envoi, ou le dernier mail reçu s'il est plus récent) date de 8 à 30 jours, et qu'elle n'a jamais été relancée. Avant 8 jours, c'est trop tôt ; après 30 jours, la relance n'a plus de sens. Une seule relance par candidature.
+- **Après la relance** : « on attend » ; 10 jours plus tard, sans réponse, l'application propose de la classer « sans suite » (bouton explicite, jamais automatique). Une candidature déjà « sans réponse » reste « on attend ».
+- **Le message** : rédigé par Gemini à partir du profil et de la lettre déjà envoyée (pour ne pas se répéter), 60 à 130 mots, un élément nouveau et une proposition concrète. Mêmes garde-fous que la lettre (aucun chiffre ni fait inventé, aucune coordonnée, aucun repère à compléter, aucune mention d'IA), avec une longueur propre à la relance (50 à 150 mots). L'objet, la signature et les coordonnées sont ajoutés localement, jamais par le modèle.
+- **Rien n'est envoyé** : l'utilisateur relit et modifie, puis crée un brouillon Gmail (ou copie le texte) et l'envoie lui-même. La relance n'est inscrite (date, brouillon) qu'à la création du brouillon, ou quand l'utilisateur déclare avoir relancé autrement (téléphone, LinkedIn).
+- **Données** : deux colonnes sur la candidature (`followedUpAt`, `followUpDraftId`). Supprimer la candidature supprime aussi le brouillon de relance (il contient un texte personnel).
+- **Limites** : le modèle n'écrit pas dans le fil du mail d'origine (un nouveau brouillon, objet « Relance : … ») ; les 8 jours sont un chiffre fixe, pas un réglage ; une candidature par LinkedIn ou formulaire peut être relancée par copie du texte seulement.

@@ -8,6 +8,7 @@ import type { ApplicationStatus } from '../generated/prisma/enums';
 import { GmailService } from '../gmail/gmail.service';
 import { cleanSubject } from '../letters/letter.prompt';
 import { PrismaService } from '../prisma/prisma.service';
+import { FOLLOW_UP_STATUSES, followUpState } from './follow-up';
 import { canTransitionManually } from './transitions';
 
 const OFFER_SUMMARY = {
@@ -29,8 +30,8 @@ export class ApplicationsService {
   ) {}
 
   /** Candidatures, les plus récemment modifiées d'abord, avec un résumé de l'offre (sans la description). */
-  list(status?: ApplicationStatus, limit = 200) {
-    return this.prisma.application.findMany({
+  async list(status?: ApplicationStatus, limit = 200) {
+    const rows = await this.prisma.application.findMany({
       where: status ? { status } : {},
       orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
       take: limit,
@@ -40,6 +41,7 @@ export class ApplicationsService {
         subject: true,
         validatedAt: true,
         appliedAt: true,
+        followedUpAt: true,
         createdAt: true,
         updatedAt: true,
         offer: { select: OFFER_SUMMARY },
@@ -51,6 +53,11 @@ export class ApplicationsService {
         },
       },
     });
+    const now = new Date();
+    return rows.map((row) => ({
+      ...row,
+      followUp: followUpState({ ...row, lastReplyAt: row.replies[0]?.receivedAt ?? null }, now),
+    }));
   }
 
   async get(id: string) {
@@ -64,6 +71,7 @@ export class ApplicationsService {
         gmailDraftId: true,
         validatedAt: true,
         appliedAt: true,
+        followedUpAt: true,
         createdAt: true,
         updatedAt: true,
         offer: {
@@ -78,7 +86,28 @@ export class ApplicationsService {
     if (!application) {
       throw new NotFoundException('Candidature introuvable');
     }
-    return application;
+    return {
+      ...application,
+      followUp: followUpState(
+        { ...application, lastReplyAt: application.replies[0]?.receivedAt ?? null },
+        new Date(),
+      ),
+    };
+  }
+
+  /**
+   * L'utilisateur déclare avoir relancé par un autre moyen (téléphone, message LinkedIn, formulaire) : la candidature
+   * sort de « à relancer ». Une seule relance par candidature, comme pour le brouillon.
+   */
+  async markFollowedUp(id: string) {
+    const { count } = await this.prisma.application.updateMany({
+      where: { id, status: { in: [...FOLLOW_UP_STATUSES] }, followedUpAt: null },
+      data: { followedUpAt: new Date() },
+    });
+    if (count === 0) {
+      await this.explainMiss(id, 'Cette candidature ne peut pas (ou plus) être relancée');
+    }
+    return this.get(id);
   }
 
   /** Modifie l'objet et/ou le texte, seulement tant que la candidature est « à valider ». */
@@ -159,7 +188,7 @@ export class ApplicationsService {
   async remove(id: string): Promise<{ gmailDraftDeleted: boolean | null }> {
     const application = await this.prisma.application.findUnique({
       where: { id },
-      select: { offerId: true, gmailDraftId: true },
+      select: { offerId: true, gmailDraftId: true, followUpDraftId: true },
     });
     if (!application) {
       throw new NotFoundException('Candidature introuvable');
@@ -167,6 +196,10 @@ export class ApplicationsService {
     const gmailDraftDeleted = application.gmailDraftId
       ? await this.gmail.deleteDraftQuietly(application.gmailDraftId)
       : null;
+    // Le brouillon de relance contient aussi un texte personnel : il part avec la candidature.
+    if (application.followUpDraftId) {
+      await this.gmail.deleteDraftQuietly(application.followUpDraftId);
+    }
     await this.prisma.$transaction([
       this.prisma.application.delete({ where: { id } }),
       this.prisma.offer.update({

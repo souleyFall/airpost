@@ -10,7 +10,8 @@ import {
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { assembleLetter } from '../letters/letter.prompt';
+import { FOLLOW_UP_STATUSES } from '../applications/follow-up';
+import { assembleLetter, cleanSubject } from '../letters/letter.prompt';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProfileService } from '../profile/profile.service';
 import { GmailClient, GmailError } from './gmail.client';
@@ -91,6 +92,73 @@ export class GmailService {
       data: { status: 'DRAFT_CREATED', gmailDraftId: draftId },
     });
     if (count === 0) {
+      await this.deleteDraftQuietly(draftId);
+      throw new ConflictException('La candidature a changé entre-temps ; recharge la page');
+    }
+    return { applicationId, draftId, to };
+  }
+
+  /**
+   * Crée le brouillon Gmail de la RELANCE d'une candidature envoyée (jamais d'envoi : tu l'envoies toi-même depuis Gmail).
+   * Une seule relance par candidature : la date est posée ici, conditionnée à l'état lu, comme pour la lettre.
+   */
+  async createFollowUpDraft(
+    userId: string,
+    applicationId: string,
+    input: { subject: string; body: string },
+  ): Promise<DraftResult> {
+    const application = await this.prisma.application.findUnique({
+      where: { id: applicationId },
+      select: {
+        status: true,
+        followedUpAt: true,
+        offer: { select: { contactEmail: true, channel: true } },
+      },
+    });
+    if (!application) {
+      throw new NotFoundException('Candidature introuvable');
+    }
+    if (!FOLLOW_UP_STATUSES.includes(application.status) || application.followedUpAt) {
+      throw new ConflictException('Cette candidature ne peut pas (ou plus) être relancée');
+    }
+    const subject = cleanSubject(input.subject);
+    const body = input.body.trim();
+    if (!subject || !body) {
+      throw new UnprocessableEntityException('Objet et message requis');
+    }
+    // Même règle que pour la lettre : un repère à compléter entre crochets ne part pas.
+    if (/\[[^\]\n]{1,60}\]/.test(`${subject}\n${body}`)) {
+      throw new UnprocessableEntityException(
+        'Le message contient un repère entre crochets à remplacer',
+      );
+    }
+    const profile = await this.profiles.get(userId);
+    if (!profile) {
+      throw new BadRequestException('Renseigne ton profil avant de créer un brouillon');
+    }
+
+    const contact = application.offer.contactEmail;
+    const to =
+      application.offer.channel === 'EMAIL' && contact && isValidRecipient(contact)
+        ? contact
+        : null;
+    const raw = buildRawMessage({
+      ...(to ? { to } : {}),
+      subject,
+      body: assembleLetter(profile.identity, body),
+    });
+
+    const draftId = await this.guard(() => this.client.createDraft(raw));
+    const { count } = await this.prisma.application.updateMany({
+      where: {
+        id: applicationId,
+        status: { in: [...FOLLOW_UP_STATUSES] },
+        followedUpAt: null,
+      },
+      data: { followedUpAt: new Date(), followUpDraftId: draftId },
+    });
+    if (count === 0) {
+      // Relancée (ou changée) pendant l'appel à Gmail : pas de brouillon orphelin dans la boîte.
       await this.deleteDraftQuietly(draftId);
       throw new ConflictException('La candidature a changé entre-temps ; recharge la page');
     }

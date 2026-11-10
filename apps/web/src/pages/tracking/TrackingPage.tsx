@@ -1,15 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { ApiError, api } from '../../api/client';
 import type { ApplicationRow, ApplicationStatus, ReplyKind, SyncReport } from '../../api/types';
 import { useShell } from '../../components/shellContext';
-import {
-  FOLLOW_UP_DAYS,
-  MANUAL_NEXT,
-  STATUS_LABEL,
-  daysSince,
-  needsFollowUp,
-  shortDate,
-} from '../../lib/status';
+import { FOLLOW_UP_DAYS, MANUAL_NEXT, STATUS_LABEL, daysSince, shortDate } from '../../lib/status';
+import { FollowUpPanel } from './FollowUpPanel';
 
 const KIND_LABEL: Record<ReplyKind, string> = {
   ACKNOWLEDGEMENT: 'Accusé de réception',
@@ -37,7 +31,7 @@ function matches(row: ApplicationRow, filter: Filter): boolean {
     case 'TO_SEND':
       return row.status === 'VALIDATED' || row.status === 'DRAFT_CREATED';
     case 'FOLLOW_UP':
-      return needsFollowUp(row.status, row.appliedAt);
+      return row.followUp === 'due';
     default:
       return row.status === filter;
   }
@@ -116,6 +110,7 @@ export function TrackingPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [lastSync, setLastSync] = useState<string | null>(null);
+  const [followUpOpen, setFollowUpOpen] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -355,167 +350,214 @@ export function TrackingPage() {
             <tbody>
               {visible.map((row) => {
                 const days = daysSince(row.appliedAt ?? row.validatedAt);
-                const followUp = needsFollowUp(row.status, row.appliedAt);
                 const next = MANUAL_NEXT[row.status].filter((status) => status !== 'TO_REVIEW');
                 return (
-                  <tr key={row.id} className="align-top hover:bg-hover">
-                    <td className="border-b border-line px-3 py-3">
-                      <span className="inline-flex items-center gap-2 font-semibold">
-                        <StatusIcon status={row.status} />
-                        {STATUS_LABEL[row.status]}
-                      </span>
-                      {days !== null ? (
-                        <div className="mt-0.5 ml-[22px] text-xs text-muted">J+{days}</div>
-                      ) : null}
-                    </td>
-                    <td className="border-b border-line px-3 py-3">
-                      <div className="font-semibold">{row.offer.title}</div>
-                      <div className="text-[13px] text-muted">{row.offer.company}</div>
-                    </td>
-                    <td className="border-b border-line px-3 py-3 text-[13px] text-muted">
-                      {row.offer.channel === 'EMAIL' ? 'E-mail' : 'Site'}
-                    </td>
-                    <td className="border-b border-line px-3 py-3 text-[13px] whitespace-nowrap text-muted">
-                      {shortDate(row.appliedAt)}
-                    </td>
-                    <td className="max-w-[340px] border-b border-line px-3 py-3 text-[13px]">
-                      {row.replies[0] ? (
-                        <div className="flex flex-col gap-1.5">
-                          <span>
-                            Mail du {shortDate(row.replies[0].receivedAt)} :{' '}
-                            {row.replies[0].snippet
-                              ? `« ${row.replies[0].snippet.slice(0, 90)} »`
-                              : ''}
-                          </span>
-                          <label className="flex items-center gap-1.5 text-xs text-muted">
-                            Catégorie
-                            <select
-                              className="field !h-8 !w-auto !px-2 !text-[13px]"
-                              value={row.replies[0].kind}
-                              aria-label={`Catégorie du dernier mail de ${row.offer.company}`}
-                              onChange={(event) =>
-                                void correctReply(
-                                  row,
-                                  row.replies[0].id,
-                                  event.target.value as ReplyKind,
-                                )
-                              }
-                            >
-                              {(Object.keys(KIND_LABEL) as ReplyKind[]).map((kind) => (
-                                <option key={kind} value={kind}>
-                                  {KIND_LABEL[kind]}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                        </div>
-                      ) : (
-                        'Aucun mail reçu'
-                      )}
-                    </td>
-                    <td className="border-b border-line px-3 py-3">
-                      <div className="flex flex-col items-start gap-2">
-                        {row.status === 'VALIDATED' &&
-                        gmailReady &&
-                        row.offer.channel === 'EMAIL' ? (
-                          <button
-                            type="button"
-                            className="btn btn-primary !h-8 !text-[13px]"
-                            disabled={creatingDraft === row.id}
-                            onClick={() => void createDraft(row)}
-                          >
-                            {creatingDraft === row.id ? 'Création…' : 'Créer le brouillon Gmail'}
-                          </button>
+                  <Fragment key={row.id}>
+                    <tr className="align-top hover:bg-hover">
+                      <td className="border-b border-line px-3 py-3">
+                        <span className="inline-flex items-center gap-2 font-semibold">
+                          <StatusIcon status={row.status} />
+                          {STATUS_LABEL[row.status]}
+                        </span>
+                        {days !== null ? (
+                          <div className="mt-0.5 ml-[22px] text-xs text-muted">J+{days}</div>
                         ) : null}
-                        {row.status === 'DRAFT_CREATED' ? (
-                          <a
-                            href="https://mail.google.com/mail/#drafts"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[13px]"
-                          >
-                            Ouvrir le brouillon dans Gmail
-                          </a>
-                        ) : null}
-                        {row.status === 'VALIDATED' || row.status === 'DRAFT_CREATED' ? (
-                          <button
-                            type="button"
-                            className={`btn !h-8 !text-[13px] ${
-                              row.status === 'DRAFT_CREATED' ||
-                              !gmailReady ||
-                              row.offer.channel !== 'EMAIL'
-                                ? 'btn-primary'
-                                : ''
-                            }`}
-                            onClick={() => void changeStatus(row, 'APPLIED')}
-                          >
-                            Marquer envoyée
-                          </button>
-                        ) : followUp ? (
-                          <span className="text-[13px] font-medium text-warn-text">
-                            Sans nouvelle depuis {days} jours
-                          </span>
-                        ) : row.status === 'APPLIED' ? (
-                          <span className="text-[13px] text-muted">
-                            Attendre {FOLLOW_UP_DAYS} jours
-                          </span>
-                        ) : null}
-                        {next.length > 0 ? (
-                          <label className="flex items-center gap-1.5 text-xs text-muted">
-                            <span className="sr-only">Changer le statut de {row.offer.title}</span>
-                            <select
-                              className="field !h-8 !w-auto !px-2 !text-[13px]"
-                              value=""
-                              aria-label={`Changer le statut de ${row.offer.title}`}
-                              onChange={(event) => {
-                                if (event.target.value) {
-                                  void changeStatus(row, event.target.value as ApplicationStatus);
+                      </td>
+                      <td className="border-b border-line px-3 py-3">
+                        <div className="font-semibold">{row.offer.title}</div>
+                        <div className="text-[13px] text-muted">{row.offer.company}</div>
+                      </td>
+                      <td className="border-b border-line px-3 py-3 text-[13px] text-muted">
+                        {row.offer.channel === 'EMAIL' ? 'E-mail' : 'Site'}
+                      </td>
+                      <td className="border-b border-line px-3 py-3 text-[13px] whitespace-nowrap text-muted">
+                        {shortDate(row.appliedAt)}
+                      </td>
+                      <td className="max-w-[340px] border-b border-line px-3 py-3 text-[13px]">
+                        {row.replies[0] ? (
+                          <div className="flex flex-col gap-1.5">
+                            <span>
+                              Mail du {shortDate(row.replies[0].receivedAt)} :{' '}
+                              {row.replies[0].snippet
+                                ? `« ${row.replies[0].snippet.slice(0, 90)} »`
+                                : ''}
+                            </span>
+                            <label className="flex items-center gap-1.5 text-xs text-muted">
+                              Catégorie
+                              <select
+                                className="field !h-8 !w-auto !px-2 !text-[13px]"
+                                value={row.replies[0].kind}
+                                aria-label={`Catégorie du dernier mail de ${row.offer.company}`}
+                                onChange={(event) =>
+                                  void correctReply(
+                                    row,
+                                    row.replies[0].id,
+                                    event.target.value as ReplyKind,
+                                  )
                                 }
-                              }}
-                            >
-                              <option value="">Changer le statut…</option>
-                              {next.map((status) => (
-                                <option key={status} value={status}>
-                                  {STATUS_LABEL[status]}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                        ) : null}
-                        {confirmDelete === row.id ? (
-                          <span className="flex items-center gap-2 text-[13px]">
-                            <button
-                              type="button"
-                              className="btn !h-8 !text-[13px] !text-danger"
-                              onClick={() => void remove(row)}
-                            >
-                              Confirmer la suppression
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-quiet !h-8 !text-[13px]"
-                              onClick={() => setConfirmDelete(null)}
-                            >
-                              Annuler
-                            </button>
-                          </span>
+                              >
+                                {(Object.keys(KIND_LABEL) as ReplyKind[]).map((kind) => (
+                                  <option key={kind} value={kind}>
+                                    {KIND_LABEL[kind]}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          </div>
                         ) : (
-                          <button
-                            type="button"
-                            className="btn btn-quiet !h-8 !px-2 !text-[13px]"
-                            onClick={() => setConfirmDelete(row.id)}
-                          >
-                            Supprimer
-                          </button>
+                          'Aucun mail reçu'
                         )}
-                        {rowError?.id === row.id ? (
-                          <span role="alert" className="text-[13px] text-danger">
-                            {rowError.message}
-                          </span>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
+                      </td>
+                      <td className="border-b border-line px-3 py-3">
+                        <div className="flex flex-col items-start gap-2">
+                          {row.status === 'VALIDATED' &&
+                          gmailReady &&
+                          row.offer.channel === 'EMAIL' ? (
+                            <button
+                              type="button"
+                              className="btn btn-primary !h-8 !text-[13px]"
+                              disabled={creatingDraft === row.id}
+                              onClick={() => void createDraft(row)}
+                            >
+                              {creatingDraft === row.id ? 'Création…' : 'Créer le brouillon Gmail'}
+                            </button>
+                          ) : null}
+                          {row.status === 'DRAFT_CREATED' ? (
+                            <a
+                              href="https://mail.google.com/mail/#drafts"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[13px]"
+                            >
+                              Ouvrir le brouillon dans Gmail
+                            </a>
+                          ) : null}
+                          {row.status === 'VALIDATED' || row.status === 'DRAFT_CREATED' ? (
+                            <button
+                              type="button"
+                              className={`btn !h-8 !text-[13px] ${
+                                row.status === 'DRAFT_CREATED' ||
+                                !gmailReady ||
+                                row.offer.channel !== 'EMAIL'
+                                  ? 'btn-primary'
+                                  : ''
+                              }`}
+                              onClick={() => void changeStatus(row, 'APPLIED')}
+                            >
+                              Marquer envoyée
+                            </button>
+                          ) : row.followUp === 'due' ? (
+                            <>
+                              <span className="text-[13px] font-medium text-warn-text">
+                                Sans nouvelle depuis {days} jours
+                              </span>
+                              <button
+                                type="button"
+                                className="btn btn-primary !h-8 !text-[13px]"
+                                onClick={() => setFollowUpOpen(row.id)}
+                                disabled={followUpOpen === row.id}
+                              >
+                                Préparer la relance
+                              </button>
+                            </>
+                          ) : row.followUp === 'done' ? (
+                            <span className="text-[13px] text-muted">
+                              Relancée le {shortDate(row.followedUpAt)} : on attend
+                            </span>
+                          ) : row.followUp === 'give_up' ? (
+                            <>
+                              <span className="text-[13px] font-medium text-warn-text">
+                                Relancée le {shortDate(row.followedUpAt)}, toujours sans réponse
+                              </span>
+                              <button
+                                type="button"
+                                className="btn !h-8 !text-[13px]"
+                                onClick={() => void changeStatus(row, 'NO_RESPONSE')}
+                              >
+                                Classer sans suite
+                              </button>
+                            </>
+                          ) : row.status === 'APPLIED' ? (
+                            <span className="text-[13px] text-muted">
+                              Relance possible après {FOLLOW_UP_DAYS} jours
+                            </span>
+                          ) : null}
+                          {next.length > 0 ? (
+                            <label className="flex items-center gap-1.5 text-xs text-muted">
+                              <span className="sr-only">
+                                Changer le statut de {row.offer.title}
+                              </span>
+                              <select
+                                className="field !h-8 !w-auto !px-2 !text-[13px]"
+                                value=""
+                                aria-label={`Changer le statut de ${row.offer.title}`}
+                                onChange={(event) => {
+                                  if (event.target.value) {
+                                    void changeStatus(row, event.target.value as ApplicationStatus);
+                                  }
+                                }}
+                              >
+                                <option value="">Changer le statut…</option>
+                                {next.map((status) => (
+                                  <option key={status} value={status}>
+                                    {STATUS_LABEL[status]}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          ) : null}
+                          {confirmDelete === row.id ? (
+                            <span className="flex items-center gap-2 text-[13px]">
+                              <button
+                                type="button"
+                                className="btn !h-8 !text-[13px] !text-danger"
+                                onClick={() => void remove(row)}
+                              >
+                                Confirmer la suppression
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-quiet !h-8 !text-[13px]"
+                                onClick={() => setConfirmDelete(null)}
+                              >
+                                Annuler
+                              </button>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn-quiet !h-8 !px-2 !text-[13px]"
+                              onClick={() => setConfirmDelete(row.id)}
+                            >
+                              Supprimer
+                            </button>
+                          )}
+                          {rowError?.id === row.id ? (
+                            <span role="alert" className="text-[13px] text-danger">
+                              {rowError.message}
+                            </span>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                    {followUpOpen === row.id ? (
+                      <tr>
+                        <td colSpan={6} className="border-b border-line p-0">
+                          <FollowUpPanel
+                            applicationId={row.id}
+                            company={row.offer.company}
+                            gmailReady={gmailReady}
+                            onClose={() => setFollowUpOpen(null)}
+                            onDone={(message) => {
+                              setFollowUpOpen(null);
+                              setNotice(message);
+                              void load();
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
                 );
               })}
             </tbody>
@@ -527,8 +569,10 @@ export function TrackingPage() {
         Le brouillon Gmail n’est jamais envoyé par airpost : tu l’envoies toi-même depuis Gmail,
         puis tu marques la candidature « envoyée ». La synchronisation classe les réponses par
         mots-clés (corrige la catégorie si elle est fausse, le statut suit) ; une candidature passe
-        en « sans réponse » après 14 jours sans mail. Supprimer une candidature efface aussi son
-        brouillon Gmail et le contact du recruteur enregistré.
+        en « sans réponse » après 14 jours sans mail. Après 8 jours sans nouvelle, « Préparer la
+        relance » rédige un message court à relire (une seule relance par candidature, jamais
+        envoyée par airpost). Supprimer une candidature efface aussi ses brouillons Gmail et le
+        contact du recruteur enregistré.
       </p>
     </div>
   );

@@ -8,9 +8,24 @@ import { AuthProvider } from '../../auth/AuthProvider';
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
 
-const row = (id: string, status: string, title: string, appliedDays: number | null) => ({
+const row = (
+  id: string,
+  status: string,
+  title: string,
+  appliedDays: number | null,
+  followUp: string | null | undefined = undefined,
+  followedUpDays: number | null = null,
+) => ({
   id,
   status,
+  // Règle du serveur : « à relancer » après 8 jours sans nouvelle ; ici le faux serveur la reproduit.
+  followUp:
+    followUp !== undefined
+      ? followUp
+      : status === 'APPLIED' && appliedDays !== null && appliedDays >= 8
+        ? 'due'
+        : null,
+  followedUpAt: followedUpDays === null ? null : daysAgo(followedUpDays),
   subject: 'Objet',
   validatedAt: daysAgo(5),
   appliedAt: appliedDays === null ? null : daysAgo(appliedDays),
@@ -29,7 +44,14 @@ const row = (id: string, status: string, title: string, appliedDays: number | nu
   },
 });
 
-function fakeApi(options: { draftDeleted?: boolean | null } = {}) {
+function fakeApi(
+  options: {
+    draftDeleted?: boolean | null;
+    extraRows?: ReturnType<typeof row>[];
+    followUpStatus?: number;
+    gmail?: boolean;
+  } = {},
+) {
   const draftDeleted = options.draftDeleted ?? null;
   const calls: { method: string; path: string; body?: unknown }[] = [];
   let rows = [
@@ -38,7 +60,16 @@ function fakeApi(options: { draftDeleted?: boolean | null } = {}) {
     row('c', 'APPLIED', 'Poste récent', 2),
     row('d', 'REJECTED', 'Poste refusé', 30),
     row('e', 'TO_REVIEW', 'Encore en relecture', null),
+    ...(options.extraRows ?? []),
   ];
+  const followUpText = {
+    applicationId: 'b',
+    subject: 'Relance : Objet',
+    body: 'Madame, Monsieur, voici ma relance.',
+    preview: 'Madame, Monsieur, voici ma relance.\n\nCordialement,\nCamille Exemple',
+    warnings: [] as string[],
+    to: 'rh@exemple.test',
+  };
   const json = (data: unknown, code = 200) => new Response(JSON.stringify(data), { status: code });
   vi.stubGlobal(
     'fetch',
@@ -48,7 +79,19 @@ function fakeApi(options: { draftDeleted?: boolean | null } = {}) {
       const body = init?.body ? (JSON.parse(init.body as string) as unknown) : undefined;
       calls.push({ method, path, body });
       if (path === '/auth/me') return json({ login: 'souley.fall', csrfToken: 'csrf' });
-      if (path === '/gmail/status') return json({ configured: true });
+      if (path === '/gmail/status') return json({ configured: options.gmail ?? true });
+      const followUp = /^\/applications\/(\w+)\/follow-up(\/draft|\/done)?$/.exec(path);
+      if (followUp && method === 'POST') {
+        if (!followUp[2]) {
+          return options.followUpStatus
+            ? json({ message: 'refus' }, options.followUpStatus)
+            : json({ ...followUpText, applicationId: followUp[1] });
+        }
+        rows = rows.map((r) =>
+          r.id === followUp[1] ? { ...r, followUp: 'done', followedUpAt: daysAgo(0) } : r,
+        );
+        return json({ applicationId: followUp[1], draftId: 'd2', to: 'rh@exemple.test' });
+      }
       if (path === '/gmail/sync' && method === 'POST') {
         rows = rows.map((r) =>
           r.id === 'c'
@@ -127,6 +170,169 @@ afterEach(() => {
   setCsrfToken(null);
 });
 
+describe('relance des candidatures', () => {
+  it('rédige la relance, laisse la modifier, puis crée le brouillon Gmail avec le texte modifié', async () => {
+    const calls = fakeApi();
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByText('Poste ancien');
+
+    await user.click(screen.getByRole('button', { name: 'Préparer la relance' }));
+
+    const panel = await screen.findByRole('region', { name: /Relance de Entreprise b/ });
+    const message = await within(panel).findByLabelText('Message');
+    expect(message).toHaveValue('Madame, Monsieur, voici ma relance.');
+    expect(within(panel).getByLabelText('Objet')).toHaveValue('Relance : Objet');
+    expect(within(panel).getByText('rh@exemple.test')).toBeInTheDocument();
+    await user.type(message, ' Un mot de plus.');
+    await user.click(within(panel).getByRole('button', { name: 'Créer le brouillon Gmail' }));
+
+    await waitFor(() =>
+      expect(calls).toContainEqual({
+        method: 'POST',
+        path: '/applications/b/follow-up/draft',
+        body: {
+          subject: 'Relance : Objet',
+          body: 'Madame, Monsieur, voici ma relance. Un mot de plus.',
+        },
+      }),
+    );
+    expect(
+      await screen.findByText(/Brouillon de relance créé dans Gmail pour Entreprise b/),
+    ).toBeInTheDocument();
+    // La candidature est maintenant « relancée » : plus de bouton, une mention.
+    expect(await screen.findByText(/Relancée le .* : on attend/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Préparer la relance' })).not.toBeInTheDocument();
+  });
+
+  it('copie le message complet avec la signature du serveur, texte modifié compris', async () => {
+    fakeApi();
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByText('Poste ancien');
+    await user.click(screen.getByRole('button', { name: 'Préparer la relance' }));
+    const panel = await screen.findByRole('region', { name: /Relance de Entreprise b/ });
+    const message = await within(panel).findByLabelText('Message');
+    await user.type(message, ' Ajout.');
+
+    await user.click(within(panel).getByRole('button', { name: 'Copier' }));
+
+    expect(await navigator.clipboard.readText()).toBe(
+      'Relance : Objet\n\nMadame, Monsieur, voici ma relance. Ajout.\n\nCordialement,\nCamille Exemple',
+    );
+    expect(await within(panel).findByRole('button', { name: 'Copié' })).toBeInTheDocument();
+  });
+
+  it('sans Gmail, seule la copie est proposée (pas de brouillon)', async () => {
+    fakeApi({ gmail: false });
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByText('Poste ancien');
+    await user.click(screen.getByRole('button', { name: 'Préparer la relance' }));
+    const panel = await screen.findByRole('region', { name: /Relance de Entreprise b/ });
+    await within(panel).findByLabelText('Message');
+
+    expect(within(panel).queryByRole('button', { name: 'Créer le brouillon Gmail' })).toBeNull();
+    expect(within(panel).getByRole('button', { name: 'Copier' })).toBeInTheDocument();
+  });
+
+  it('bloque le brouillon tant que le texte contient un repère entre crochets', async () => {
+    fakeApi();
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByText('Poste ancien');
+    await user.click(screen.getByRole('button', { name: 'Préparer la relance' }));
+    const panel = await screen.findByRole('region', { name: /Relance de Entreprise b/ });
+    const message = await within(panel).findByLabelText('Message');
+
+    // « [[ » est la façon d'écrire un « [ » littéral avec user-event.
+    await user.type(message, ' Bonjour [[prénom].');
+
+    expect(within(panel).getByRole('button', { name: 'Créer le brouillon Gmail' })).toBeDisabled();
+    expect(within(panel).getByText(/repère entre crochets/)).toBeInTheDocument();
+  });
+
+  it('« j’ai déjà relancé autrement » note la relance sans brouillon', async () => {
+    const calls = fakeApi();
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByText('Poste ancien');
+    await user.click(screen.getByRole('button', { name: 'Préparer la relance' }));
+    const panel = await screen.findByRole('region', { name: /Relance de Entreprise b/ });
+    await within(panel).findByLabelText('Message');
+
+    await user.click(within(panel).getByRole('button', { name: 'J’ai déjà relancé autrement' }));
+
+    await waitFor(() =>
+      expect(calls).toContainEqual({
+        method: 'POST',
+        path: '/applications/b/follow-up/done',
+        body: undefined,
+      }),
+    );
+    expect(
+      await screen.findByText('Relance de Entreprise b notée comme faite.'),
+    ).toBeInTheDocument();
+    expect(calls.some((c) => c.path.endsWith('/follow-up/draft'))).toBe(false);
+  });
+
+  it.each([
+    [429, /Quota du modèle atteint/],
+    [422, /garde-fous/],
+    [503, /clé Gemini/],
+    [409, /ne peut plus être relancée/],
+  ])('explique l’échec de la rédaction (%i) et propose de réessayer', async (status, message) => {
+    fakeApi({ followUpStatus: status });
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByText('Poste ancien');
+
+    await user.click(screen.getByRole('button', { name: 'Préparer la relance' }));
+
+    const panel = await screen.findByRole('region', { name: /Relance de Entreprise b/ });
+    expect(await within(panel).findByRole('alert')).toHaveTextContent(message);
+    expect(within(panel).getByRole('button', { name: 'Réessayer' })).toBeInTheDocument();
+  });
+
+  it('une candidature relancée depuis assez longtemps propose de la classer sans suite', async () => {
+    const calls = fakeApi({
+      extraRows: [row('f', 'APPLIED', 'Poste silencieux', 30, 'give_up', 11)],
+    });
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByText('Poste silencieux');
+    expect(screen.getByText(/toujours sans réponse/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Classer sans suite' }));
+
+    await waitFor(() =>
+      expect(calls).toContainEqual({
+        method: 'POST',
+        path: '/applications/f/status',
+        body: { status: 'NO_RESPONSE' },
+      }),
+    );
+  });
+
+  it('une candidature envoyée depuis peu indique quand la relance sera possible', async () => {
+    fakeApi();
+    renderApp();
+    await screen.findByText('Poste récent');
+
+    expect(screen.getByText(/Relance possible après 8 jours/)).toBeInTheDocument();
+  });
+
+  it('une candidature déjà relancée n’offre plus de relance', async () => {
+    fakeApi({ extraRows: [row('g', 'APPLIED', 'Poste relancé', 12, 'done', 2)] });
+    renderApp();
+    await screen.findByText('Poste relancé');
+
+    expect(screen.getByText(/Relancée le .* : on attend/)).toBeInTheDocument();
+    // Seule « Poste ancien » (b) reste à relancer.
+    expect(screen.getAllByRole('button', { name: 'Préparer la relance' })).toHaveLength(1);
+  });
+});
+
 describe('écran Suivi', () => {
   it('liste les candidatures suivies, sans celles encore en relecture', async () => {
     fakeApi();
@@ -136,7 +342,7 @@ describe('écran Suivi', () => {
     expect(screen.getByText(/4\s+candidatures/)).toBeInTheDocument();
   });
 
-  it('signale « à relancer » après 14 jours et filtre', async () => {
+  it('signale « à relancer » après 8 jours et filtre', async () => {
     fakeApi();
     const user = userEvent.setup();
     renderApp();

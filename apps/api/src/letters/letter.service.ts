@@ -9,9 +9,19 @@ import { LlmService } from '../llm/llm.service';
 import { translateLlmError } from '../llm/llm-http';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProfileService } from '../profile/profile.service';
+import { isValidRecipient } from '../gmail/mime';
+import { FOLLOW_UP_STATUSES } from '../applications/follow-up';
 import { type Violation, checkLetter, claimedTechNotInProfile } from './guardrails';
 import {
+  FOLLOW_UP_SYSTEM,
+  FOLLOW_UP_WORDS,
+  buildFollowUpPrompt,
+  followUpSchema,
+  followUpSubject,
+} from './follow-up.prompt';
+import {
   LETTER_SYSTEM,
+  REMINDERS,
   assembleLetter,
   buildLetterPrompt,
   cleanSubject,
@@ -28,6 +38,18 @@ export interface LetterResult {
   preview: string;
   /** Points à vérifier à la relecture (technologies citées absentes du profil...). */
   warnings: string[];
+}
+
+export interface FollowUpResult {
+  applicationId: string;
+  subject: string;
+  /** Corps généré, sans signature : c'est ce que l'utilisateur relit et modifie. */
+  body: string;
+  /** Message complet tel qu'il partirait : corps + formule de politesse + signature. */
+  preview: string;
+  warnings: string[];
+  /** Destinataire pré-rempli (candidature par e-mail), ou null. */
+  to: string | null;
 }
 
 const MAX_ATTEMPTS = 2;
@@ -91,6 +113,114 @@ export class LetterService {
       message: 'La lettre générée ne respecte pas les garde-fous ; réessaie.',
       violations,
     });
+  }
+
+  /**
+   * Rédige la relance d'une candidature envoyée et sans réponse. Rien n'est enregistré ni envoyé : l'utilisateur relit,
+   * modifie, puis crée lui-même le brouillon Gmail. Une seule relance par candidature.
+   */
+  async generateFollowUp(userId: string, applicationId: string): Promise<FollowUpResult> {
+    const profile = await this.profiles.get(userId);
+    if (!profile) {
+      throw new BadRequestException('Renseigne ton profil avant de rédiger une relance');
+    }
+    const application = await this.prisma.application.findUnique({
+      where: { id: applicationId },
+      select: {
+        status: true,
+        subject: true,
+        body: true,
+        followedUpAt: true,
+        offer: {
+          select: {
+            title: true,
+            company: true,
+            description: true,
+            channel: true,
+            contactEmail: true,
+          },
+        },
+      },
+    });
+    if (!application) {
+      throw new NotFoundException('Candidature introuvable');
+    }
+    if (!FOLLOW_UP_STATUSES.includes(application.status)) {
+      throw new ConflictException(
+        'Seule une candidature envoyée, sans entretien ni refus, se relance',
+      );
+    }
+    if (application.followedUpAt) {
+      throw new ConflictException('Cette candidature a déjà été relancée : une seule relance');
+    }
+
+    const sentLetter = application.body ?? '';
+    // Chiffres permis : ceux de l'offre et de la lettre déjà envoyée, en plus du profil.
+    const offerText = `${application.offer.title}\n${application.offer.description ?? ''}\n${sentLetter}`;
+    let violations: Violation[] = [];
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      const feedback =
+        attempt === 0
+          ? undefined
+          : `Ta réponse précédente a été refusée. ${violations
+              .map((v) =>
+                v === 'length' ? 'Respecte la longueur : entre 60 et 130 mots.' : REMINDERS[v],
+              )
+              .join(' ')} Réécris le message complet.`;
+      const generated = await this.askFollowUp(
+        profile,
+        { offer: application.offer, sentLetter },
+        feedback,
+      );
+      const subject = followUpSubject(application.subject);
+      const result = checkLetter(
+        { subject, body: generated.body, usedFacts: generated.usedFacts },
+        { profile, offerText, words: FOLLOW_UP_WORDS },
+      );
+      if (result.violations.length > 0) {
+        violations = result.violations;
+        continue;
+      }
+      const contact = application.offer.contactEmail;
+      return {
+        applicationId,
+        subject,
+        body: generated.body,
+        preview: assembleLetter(profile.identity, generated.body),
+        warnings: claimedTechNotInProfile(generated.body, profile).map(
+          (tech) =>
+            `« ${tech} » est cité dans le message mais ne figure pas dans ton profil : vérifie la formulation.`,
+        ),
+        to:
+          application.offer.channel === 'EMAIL' && contact && isValidRecipient(contact)
+            ? contact
+            : null,
+      };
+    }
+    throw new UnprocessableEntityException({
+      message: 'La relance générée ne respecte pas les garde-fous ; réessaie.',
+      violations,
+    });
+  }
+
+  private async askFollowUp(
+    profile: Parameters<typeof buildFollowUpPrompt>[0],
+    context: Parameters<typeof buildFollowUpPrompt>[1],
+    feedback?: string,
+  ) {
+    try {
+      return await this.llm.generateObject({
+        system: FOLLOW_UP_SYSTEM,
+        user: buildFollowUpPrompt(profile, context, feedback),
+        schema: followUpSchema,
+        temperature: 0.4,
+        maxOutputTokens: 800,
+        // Comme pour la lettre : « Régénérer » doit produire un autre texte.
+        useCache: false,
+      });
+    } catch (error) {
+      throw translateLlmError(error);
+    }
   }
 
   /**

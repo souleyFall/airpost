@@ -110,6 +110,8 @@ export interface GuardrailContext {
   /** Textes de l'offre dont les chiffres sont permis (intitulé, description). */
   offerText: string;
   now?: Date;
+  /** Longueur permise en mots (défaut : celle d'une lettre). Une relance est bien plus courte. */
+  words?: { min: number; max: number };
 }
 
 export interface GuardrailResult {
@@ -121,7 +123,8 @@ export interface GuardrailResult {
 export function checkLetter(letter: GuardrailInput, context: GuardrailContext): GuardrailResult {
   const violations = new Set<Violation>();
   const words = wordCount(letter.body);
-  if (words < MIN_WORDS || words > MAX_WORDS) violations.add('length');
+  const limits = context.words ?? { min: MIN_WORDS, max: MAX_WORDS };
+  if (words < limits.min || words > limits.max) violations.add('length');
 
   const text = `${letter.subject}\n${letter.body}`;
   if (PLACEHOLDER.test(text)) violations.add('placeholder');

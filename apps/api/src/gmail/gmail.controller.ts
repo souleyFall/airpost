@@ -18,6 +18,13 @@ import { ReplyKind } from '../generated/prisma/enums';
 import { type DraftResult, GmailService } from './gmail.service';
 import { ReplySyncService, type SyncReport } from './reply-sync.service';
 
+// Objet et texte relus par l'utilisateur ; tailles bornées (le texte part dans un brouillon Gmail).
+const followUpBody = z.strictObject({
+  subject: z.string().trim().min(1).max(120),
+  body: z.string().trim().min(20).max(1_500),
+});
+type FollowUpBody = z.infer<typeof followUpBody>;
+
 const kindBody = z.strictObject({
   kind: z.enum(Object.values(ReplyKind) as [ReplyKind, ...ReplyKind[]]),
 });
@@ -46,6 +53,18 @@ export class GmailController {
     @Param('id', new ParseUUIDPipe()) id: string,
   ): Promise<DraftResult> {
     return this.gmail.createDraft(req.auth.userId, id);
+  }
+
+  /** Crée le brouillon Gmail de la relance (une seule par candidature). Limité : chaque appel utilise le quota Gmail. */
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('applications/:id/follow-up/draft')
+  @HttpCode(200)
+  createFollowUpDraft(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body(new ZodValidationPipe(followUpBody)) body: FollowUpBody,
+  ): Promise<DraftResult> {
+    return this.gmail.createFollowUpDraft(req.auth.userId, id, body);
   }
 
   /** Cherche les réponses aux candidatures envoyées. Limité : 3 par minute. */

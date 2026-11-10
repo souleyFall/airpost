@@ -100,3 +100,9 @@ Non requise : traitement à petite échelle, usage personnel, aucune donnée sen
 - **Lecture** : jusqu'à 50 messages des 14 derniers jours, de trois expéditeurs LinkedIn d'offres uniquement (recherche Gmail bornée). Le corps est analysé en mémoire et jamais stocké.
 - **Stocké** : intitulé, entreprise, ville et numéro public de l'annonce. Aucun lien reçu, aucun jeton, aucune donnée du compte LinkedIn.
 - **Base légale et durée** : inchangées (intérêt de l'utilisateur pour sa propre recherche ; durée de conservation des offres).
+
+## Mise à jour 2026-11-10 : relance des candidatures
+
+- **Nouvelles données** : la date de la relance et l'identifiant du brouillon Gmail de relance, sur la candidature. Le texte de la relance n'est pas stocké par airpost : il vit dans le brouillon Gmail de l'utilisateur.
+- **Modèle de langage** : la relance est rédigée à partir du profil (sans nom, mail ni téléphone, comme pour la lettre) et de la lettre déjà envoyée, encadrée comme texte non fiable.
+- **Effacement** : supprimer la candidature supprime aussi le brouillon de relance dans Gmail (ou signale qu'il faut le faire à la main).
