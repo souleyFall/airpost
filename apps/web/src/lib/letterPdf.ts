@@ -8,9 +8,18 @@ export interface LetterSender {
   city?: string;
 }
 
+/** Destinataire : ce que l'offre en dit (les annonces ne donnent presque jamais la rue). */
+export interface LetterRecipient {
+  company?: string;
+  postcode?: string | null;
+  city?: string | null;
+}
+
 export interface LetterContent {
   /** En-tête : prénom nom, titre, adresse mail, téléphone (les lignes absentes du profil sont omises). */
   header: string[];
+  /** Destinataire : nom de l'entreprise puis « code postal ville » (lignes absentes omises). */
+  recipient: string[];
   /** « Ville, le 10 novembre 2026 ». */
   dateLine: string;
   subjectLine: string;
@@ -34,6 +43,7 @@ export function letterContent(
   subject: string,
   body: string,
   date: Date = new Date(),
+  to: LetterRecipient = {},
 ): LetterContent {
   const fullName = tidy(`${sender.firstName} ${sender.lastName}`);
   const header = [fullName, sender.headline, sender.email, sender.phone]
@@ -41,6 +51,9 @@ export function letterContent(
     .filter((line) => line !== '');
   const day = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
   const city = tidy(sender.city ?? '');
+  const recipient = [to.company ?? '', `${to.postcode ?? ''} ${to.city ?? ''}`]
+    .map(tidy)
+    .filter((line) => line !== '');
 
   const paragraphs = body
     .split(/\r?\n\s*\r?\n/)
@@ -58,6 +71,7 @@ export function letterContent(
   }
   return {
     header,
+    recipient,
     dateLine: city ? `${city}, le ${day}` : `Le ${day}`,
     subjectLine: `Objet : ${tidy(subject)}`,
     paragraphs,
@@ -148,6 +162,10 @@ export async function buildLetterPdf(content: LetterContent): Promise<Uint8Array
   if (name) write(name, bold, 14);
   for (const line of details) write(line);
   gap(1.5);
+  const [company, ...address] = content.recipient;
+  if (company) write(company, bold, SIZE, 'right');
+  for (const line of address) write(line, regular, SIZE, 'right');
+  if (content.recipient.length > 0) gap(0.8);
   write(content.dateLine, regular, SIZE, 'right');
   gap(1.5);
   write(content.subjectLine, bold);
