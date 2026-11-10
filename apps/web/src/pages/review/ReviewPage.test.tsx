@@ -482,6 +482,20 @@ describe('écran À valider', () => {
       );
     });
 
+    it('propose Indeed comme source et le transmet à l’API', async () => {
+      const calls = fakeApi();
+      const user = userEvent.setup();
+      renderApp();
+      await findList();
+      await user.click(screen.getByRole('button', { name: /^Filtres/ }));
+      await user.click(
+        within(screen.getByRole('group', { name: 'Source' })).getByRole('button', {
+          name: 'Indeed',
+        }),
+      );
+      await waitFor(() => expect(calls.some((c) => c.path.includes('source=INDEED'))).toBe(true));
+    });
+
     it('filtre par contrat, compatibilité minimale et distance', async () => {
       const calls = fakeApi();
       const user = userEvent.setup();

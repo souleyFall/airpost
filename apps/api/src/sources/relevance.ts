@@ -160,8 +160,16 @@ export function isRelevantOffer(title: string, description?: string | null): boo
 const SCHOOL_COMPANY =
   /\b(cfa|ecole|ecoles|school|campus|institut|academy|academie|universite|university|formation)\b/;
 
+/**
+ * Formules typiques d'une annonce d'école, relevées sur de vraies annonces (« Vous souhaitez préparer une formation
+ * en développement informatique de niveau Bac+2 à Bac+5 », « spécialiste de la formation en Digital Learning,
+ * recherche pour son entreprise partenaire »).
+ */
+const SCHOOL_TEXT =
+  /\b(rncp|preparer une formation|centre de formation|organisme de formation|specialiste de la formation|entreprise partenaire|ecole partenaire)\b/;
+
 export function isSchoolAd(company: string, description?: string | null): boolean {
-  return SCHOOL_COMPANY.test(fold(company)) || /\brncp\b/.test(fold(description ?? ''));
+  return SCHOOL_COMPANY.test(fold(company)) || SCHOOL_TEXT.test(fold(description ?? ''));
 }
 
 /**

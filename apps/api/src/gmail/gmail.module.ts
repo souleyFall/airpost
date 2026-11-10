@@ -9,6 +9,7 @@ import { ReplySyncService } from './reply-sync.service';
   imports: [ProfileModule],
   controllers: [GmailController],
   providers: [GmailClient, GmailService, ReplySyncService],
-  exports: [GmailService],
+  // Le client est exporté pour la lecture des alertes d'offres (sources/alerts) : seul usage d'un corps de message.
+  exports: [GmailService, GmailClient],
 })
 export class GmailModule {}

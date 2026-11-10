@@ -11,6 +11,7 @@ import {
   UNKNOWN_COMPANY,
   cleanText,
   isValidGeoQuery,
+  parsePostedAt,
   safeUrl,
 } from '../normalize';
 import { type Page, cityOf, locateOffers, runSearches, serpapiGet } from '../serpapi/serpapi';
@@ -23,8 +24,8 @@ import {
 
 // Outils communs aux connecteurs SerpApi, ré-exportés ici pour les tests et les appelants existants.
 export { cityOf, isGeocodable, networkCause } from '../serpapi/serpapi';
+export { parsePostedAt } from '../normalize';
 
-const DAY_MS = 86_400_000;
 /** En dessous de cette longueur (caractères), la description est jugée courte et complétée par les « points forts ». */
 const HIGHLIGHTS_ONLY_BELOW = 400;
 const jobSchema = z.object({
@@ -49,28 +50,6 @@ const responseSchema = z.object({
   jobs_results: z.array(z.unknown()).optional(),
   serpapi_pagination: z.object({ next_page_token: z.string().nullish() }).nullish(),
 });
-
-/**
- * « Il y a 3 jours », « il y a 8 heures », « il y a 1 mois », « 3 days ago » → date approximative.
- * Google n'indique qu'un âge arrondi : c'est une estimation, suffisante pour trier par fraîcheur.
- */
-export function parsePostedAt(text: string | null | undefined, now: Date): Date | undefined {
-  if (!text) return undefined;
-  const t = text.toLowerCase();
-  if (/aujourd|today|à l'instant|just now/.test(t)) return now;
-  const match =
-    /(\d{1,3})\s*\+?\s*(minute|min|heure|h|hour|jour|j|day|semaine|week|mois|month)/.exec(t);
-  if (!match) return undefined;
-  const n = Number(match[1]);
-  const unit = match[2] ?? '';
-  let ms: number;
-  if (/^(minute|min)/.test(unit)) ms = n * 60_000;
-  else if (/^(heure|h|hour)/.test(unit)) ms = n * 3_600_000;
-  else if (/^(jour|j|day)/.test(unit)) ms = n * DAY_MS;
-  else if (/^(semaine|week)/.test(unit)) ms = n * 7 * DAY_MS;
-  else ms = n * 30 * DAY_MS;
-  return new Date(now.getTime() - ms);
-}
 
 export function normalizeGoogleJob(job: Job, now: Date): NormalizedOffer {
   const highlights = (job.job_highlights ?? [])

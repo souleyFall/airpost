@@ -21,6 +21,8 @@ enum OfferSource {
   GOOGLE_JOBS
   /// Glassdoor via SerpApi : annonces (extrait du texte), souvent des alternances.
   GLASSDOOR
+  /// Alertes e-mail d'Indeed lues dans la boîte Gmail de l'utilisateur (aucun appel à Indeed).
+  INDEED
 }
 
 enum ContractType {

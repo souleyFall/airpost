@@ -140,6 +140,26 @@ describe('isSchoolAd', () => {
     expect(isSchoolAd('Marque Exemple', null)).toBe(false);
   });
 
+  it.each([
+    'Vous souhaitez préparer une formation en développement informatique de niveau Bac+2 à Bac+5. Participer au développement front-end.',
+    'L’ISCOD, spécialiste de la formation en Digital Learning, recherche pour son entreprise partenaire, spécialisée dans le Conseil',
+    'Rejoignez notre centre de formation pour développeurs',
+  ])('reconnaît une annonce d’école à son texte (« %s »)', (description) => {
+    expect(isSchoolAd('ISCOD', description)).toBe(true);
+  });
+
+  it('ne prend pas pour une école une annonce qui parle d’équipe ou de formation interne', () => {
+    expect(
+      isSchoolAd(
+        'Atelier Exemple',
+        'Vous rejoignez une équipe produit et bénéficiez d’une formation interne continue.',
+      ),
+    ).toBe(false);
+    expect(isSchoolAd('Atelier Exemple', 'Concevoir des API REST et des microservices.')).toBe(
+      false,
+    );
+  });
+
   it('ne se laisse pas tromper par des fragments de mots', () => {
     expect(isSchoolAd('Formations Dupont SARL')).toBe(false);
     expect(isSchoolAd('Cfasoft')).toBe(false);

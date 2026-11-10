@@ -131,6 +131,12 @@ export function SourcesPage() {
           status.sources.GLASSDOOR,
           find('GLASSDOOR'),
         ),
+        sourceRow(
+          'Indeed (alertes e-mail)',
+          'Lit les alertes qu’Indeed envoie à ta boîte Gmail (lecture seule, aucun appel à Indeed). Ajoute des alertes sur Indeed pour alimenter cette source.',
+          status.sources.INDEED,
+          find('INDEED'),
+        ),
         {
           name: 'Gemini',
           state: status.gemini.configured ? 'Configuré' : 'Non configuré',
