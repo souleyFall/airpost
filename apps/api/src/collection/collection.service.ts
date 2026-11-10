@@ -60,7 +60,8 @@ interface Searcher {
 
 /** Sources déjà filtrées par code ROME à la source : La Bonne Boîte, et La Bonne Alternance quand des codes sont configurés. */
 export function trustedSources(romeCodes: string[]): OfferSource[] {
-  return romeCodes.length > 0 ? ['LBB', 'LBA'] : ['LBB'];
+  // Une offre ajoutée à la main est un choix de l'utilisateur : jamais supprimée par le tri de pertinence.
+  return romeCodes.length > 0 ? ['LBB', 'LBA', 'MANUAL'] : ['LBB', 'MANUAL'];
 }
 
 /** Rayon de recherche (km) déduit du temps de trajet accepté, borné pour rester utile et raisonnable. */

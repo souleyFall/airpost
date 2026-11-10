@@ -8,6 +8,7 @@ import type {
   OfferSummary,
 } from '../../api/types';
 import { useShell } from '../../components/shellContext';
+import { AddOfferPanel } from './AddOfferPanel';
 import { CONTRACT_LABEL, distanceLabel, place, scoreTone, shortAge } from '../../lib/format';
 import { OfferDetail } from './OfferDetail';
 
@@ -76,6 +77,7 @@ const SOURCE_CHOICES: { id: OfferSource; label: string }[] = [
   { id: 'GLASSDOOR', label: 'Glassdoor' },
   { id: 'INDEED', label: 'Indeed' },
   { id: 'LINKEDIN', label: 'LinkedIn' },
+  { id: 'MANUAL', label: 'Ajoutées à la main' },
   { id: 'LBB', label: 'La Bonne Boîte' },
 ];
 
@@ -137,6 +139,10 @@ export function ReviewPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [analyzingCount, setAnalyzingCount] = useState(0);
+  // Ajout d'une offre à la main : le panneau remplace le détail ; l'offre ajoutée s'ouvre ensuite, même hors de la page.
+  const [adding, setAdding] = useState(false);
+  const [addedId, setAddedId] = useState<string | null>(null);
+  const [addNotice, setAddNotice] = useState<string | null>(null);
   // Offres déjà soumises à l'analyse : un échec (quota) ne doit pas relancer la demande en boucle.
   const attempted = useRef(new Set<string>());
   const listRef = useRef<HTMLDivElement>(null);
@@ -301,6 +307,17 @@ export function ReviewPage() {
                 · analyse IA en cours…
               </span>
             ) : null}
+            <button
+              type="button"
+              className="btn btn-quiet ml-auto !h-8 !text-[13px]"
+              onClick={() => {
+                setAdding(true);
+                setAddNotice(null);
+              }}
+              disabled={adding}
+            >
+              + Ajouter une offre
+            </button>
           </div>
 
           <input
@@ -462,7 +479,12 @@ export function ReviewPage() {
                   <button
                     type="button"
                     aria-current={offer.id === selectedId}
-                    onClick={() => setSelectedId(offer.id)}
+                    onClick={() => {
+                      setSelectedId(offer.id);
+                      setAdding(false);
+                      setAddedId(null);
+                      setAddNotice(null);
+                    }}
                     className={`grid w-full cursor-pointer grid-cols-[44px_minmax(0,1fr)_auto] items-start gap-3 border-0 border-b border-line px-4 py-3 text-left font-[inherit] text-ink ${
                       offer.id === selectedId ? 'bg-selected' : 'bg-transparent hover:bg-hover'
                     }`}
@@ -533,10 +555,29 @@ export function ReviewPage() {
       </section>
 
       <div ref={detailRef} className="min-w-0 flex-[1_1_520px] md:h-full md:overflow-y-auto">
-        {selectedId ? (
+        {addNotice ? (
+          <p
+            role="status"
+            className="mx-8 mt-5 mb-0 rounded-md border border-line bg-surface px-4 py-3"
+          >
+            {addNotice}
+          </p>
+        ) : null}
+        {adding ? (
+          <AddOfferPanel
+            onCancel={() => setAdding(false)}
+            onAdded={(id, message) => {
+              setAdding(false);
+              setAddedId(id);
+              setAddNotice(message);
+              void load();
+              void refreshBadge();
+            }}
+          />
+        ) : (addedId ?? selectedId) ? (
           <OfferDetail
-            key={selectedId}
-            offerId={selectedId}
+            key={addedId ?? selectedId ?? ''}
+            offerId={(addedId ?? selectedId) as string}
             onAnalyzed={(id, score, excluded) => {
               setItems((current) =>
                 current ? current.map((o) => (o.id === id ? { ...o, score } : o)) : current,

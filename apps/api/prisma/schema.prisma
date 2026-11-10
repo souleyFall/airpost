@@ -25,6 +25,8 @@ enum OfferSource {
   INDEED
   /// E-mails d'offres de LinkedIn lus dans la boîte Gmail de l'utilisateur (aucun appel à LinkedIn).
   LINKEDIN
+  /// Offre ajoutée à la main : texte de l'annonce collé par l'utilisateur (rien n'est téléchargé).
+  MANUAL
 }
 
 enum ContractType {

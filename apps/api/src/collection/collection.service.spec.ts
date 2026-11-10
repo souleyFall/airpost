@@ -410,7 +410,8 @@ describe('CollectionService', () => {
 
     const report = await service.run('u1');
 
-    expect(cleanup).toHaveBeenCalledWith(['LBB', 'LBA']);
+    // Les offres ajoutées à la main sont un choix de l'utilisateur : jamais supprimées par le tri.
+    expect(cleanup).toHaveBeenCalledWith(['LBB', 'LBA', 'MANUAL']);
     expect(report.purged).toBe(7);
   });
 
@@ -421,7 +422,7 @@ describe('CollectionService', () => {
 
     await service.run('u1');
 
-    expect(cleanup).toHaveBeenCalledWith(['LBB']);
+    expect(cleanup).toHaveBeenCalledWith(['LBB', 'MANUAL']);
   });
 
   it('ne refiltre pas La Bonne Alternance quand des codes ROME sont configurés (déjà filtrée à la source)', async () => {
