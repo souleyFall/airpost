@@ -18,9 +18,11 @@ describe('letterContent', () => {
       'Candidature alternance',
       'Bonjour,\n\nPremier paragraphe.\nSuite.\n\nCordialement,',
       DATE,
+      { company: 'Atelier Exemple', postcode: '75011', city: 'Paris' },
     );
 
     expect(content).toEqual({
+      recipient: ['Atelier Exemple', '75011 Paris'],
       header: [
         'Alice Martin',
         'Développeuse Full Stack',
@@ -44,6 +46,14 @@ describe('letterContent', () => {
 
     expect(content.header).toEqual(['Alice Martin', 'Développeuse']);
     expect(content.dateLine).toBe('Le 10 novembre 2026');
+    expect(content.recipient).toEqual([]);
+    expect(
+      letterContent(SENDER, 'O', 'T.', DATE, {
+        company: 'Atelier Exemple',
+        postcode: null,
+        city: 'Paris',
+      }).recipient,
+    ).toEqual(['Atelier Exemple', 'Paris']);
   });
 
   it('ne signe pas deux fois quand le texte se termine déjà par le nom', () => {

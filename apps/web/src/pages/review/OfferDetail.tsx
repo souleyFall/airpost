@@ -225,7 +225,13 @@ export function OfferDetail({ offerId, onChanged, onAnalyzed }: Props) {
     try {
       const profile = await api<Profile>('GET', '/profile');
       const sender = { ...profile.identity, headline: profile.headline };
-      const bytes = await buildLetterPdf(letterContent(sender, subject, body));
+      const bytes = await buildLetterPdf(
+        letterContent(sender, subject, body, new Date(), {
+          company: offer.company,
+          postcode: offer.postcode,
+          city: offer.city,
+        }),
+      );
       downloadPdf(bytes, letterFileName(sender, offer.company));
     } catch {
       setActionError('Le PDF n’a pas pu être créé.');
