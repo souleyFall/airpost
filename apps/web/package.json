@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:demo": "tsc --noEmit && vite build --mode demo && node scripts/check-demo-build.mjs",
+    "check:demo": "node scripts/check-demo-build.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "preview": "vite preview"

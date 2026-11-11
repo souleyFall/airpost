@@ -34,3 +34,13 @@ pnpm db:backup    # sauvegarde de la base dans backups/ (ignoré par Git)
 - Sécurité : [SECURITY.md](SECURITY.md) et [registre des risques](docs/securite/registre-risques.md)
 - RGPD : [registre des traitements](docs/rgpd/registre-traitements.md)
 - Feuille de route : [docs/roadmap.md](docs/roadmap.md)
+
+## Démo publique
+
+Une version de l'interface sans serveur (données fictives, textes préparés) peut être publiée pour la présentation :
+
+```bash
+pnpm --filter @airpost/web build:demo
+```
+
+Le dossier `apps/web/dist-demo` contient des fichiers statiques à héberger à part de l'application réelle (le fichier `_headers` interdit toute requête réseau). Voir `docs/decisions.md`, D42.

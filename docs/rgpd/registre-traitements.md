@@ -116,3 +116,7 @@ Non requise : traitement à petite échelle, usage personnel, aucune donnée sen
 ## Mise à jour 2026-11-11 : tableau de bord Résultats
 
 - **Aucune nouvelle donnée** : l'écran additionne des données déjà stockées (statuts, dates d'envoi, dates et catégories des réponses, sources). Il n'envoie rien à un tiers ni au modèle de langage, et n'affiche ni texte de lettre, ni extrait de mail, ni contact.
+
+## Mise à jour 2026-11-11 : démo publique
+
+- **Aucune donnée personnelle** : la démo ne contient que des données inventées (candidate, entreprises, annonces). Elle ne collecte rien, n'a ni serveur, ni cookie, ni stockage, ni suivi, et ne contacte aucun service. Elle est séparée de l'application réelle.

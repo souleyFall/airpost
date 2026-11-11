@@ -32,7 +32,18 @@ export function setCsrfToken(token: string | null): void {
 
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
+/**
+ * Version « démo » : vrai quand l'application est construite avec `vite build --mode demo`. La valeur est remplacée à
+ * la construction : dans la version réelle, la condition est fausse et le code de la démo n'est pas inclus du tout.
+ */
+export const IS_DEMO = import.meta.env.MODE === 'demo';
+
 export async function api<T>(method: Method, path: string, body?: unknown): Promise<T> {
+  if (IS_DEMO) {
+    // Faux serveur en mémoire (données fictives) : aucune requête réseau, aucun appel d'API possible.
+    const { demoApi } = await import('../demo/demoApi');
+    return demoApi<T>(method, path, body);
+  }
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (body !== undefined) {
     headers['Content-Type'] = 'application/json';
