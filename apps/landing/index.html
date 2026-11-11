@@ -1,0 +1,375 @@
+﻿<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>airpost : chercher une alternance sans se noyer dans les onglets</title>
+    <meta
+      name="description"
+      content="airpost collecte les offres d’alternance chaque matin, les note selon ton profil, rédige des lettres vérifiées et relance au bon moment. Projet personnel de Souleymane Fall, développeur Full Stack et IA."
+    />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      property="og:title"
+      content="airpost : chercher une alternance sans se noyer dans les onglets"
+    />
+    <meta
+      property="og:description"
+      content="Collecte, notation, lettres vérifiées et relances. Tu décides de chaque envoi."
+    />
+    <meta property="og:type" content="website" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip" href="#contenu">Aller au contenu</a>
+
+    <header class="top">
+      <div class="wrap">
+        <a class="brand" href="#" aria-label="airpost, accueil">
+          <svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true">
+            <rect width="64" height="64" rx="16" fill="#1e3fa8" />
+            <path d="M14 30 50 14 40 50 30 36 14 30Z" fill="#fff" />
+            <path d="M30 36 50 14" stroke="#1e3fa8" stroke-width="3" stroke-linecap="round" />
+          </svg>
+          airpost
+        </a>
+        <nav class="nav" aria-label="Navigation principale">
+          <a href="#fonctions">Fonctions</a>
+          <a href="#demo">Démo</a>
+          <a href="#confiance">Confiance</a>
+          <a href="#technique">Technique</a>
+          <a class="btn primary" href="demo/">Essayer la démo</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="contenu">
+      <section class="hero">
+        <div class="wrap">
+          <p class="eyebrow">Projet personnel · Alternance et stage en développement</p>
+          <h1>Chercher une alternance, <em>sans se noyer</em> dans les onglets.</h1>
+          <p class="lead">
+            airpost collecte les offres chaque matin, les note selon ton profil, rédige des lettres
+            vérifiées et te relance au bon moment. Tu décides de chaque envoi.
+          </p>
+          <div class="actions">
+            <a class="btn primary" href="demo/">Essayer la démo</a>
+            <a class="btn" href="https://github.com/souleyFall/airpost">Voir le code</a>
+          </div>
+          <p class="note">
+            La démo tourne dans ton navigateur : données fictives, aucun serveur, rien n’est envoyé.
+          </p>
+
+          <div class="player">
+            <video
+              controls
+              preload="metadata"
+              poster="poster.jpg"
+              aria-label="Présentation d’airpost en 80 secondes"
+            >
+              <source src="airpost.mp4" type="video/mp4" />
+              Ta navigation ne lit pas la vidéo.
+              <a href="airpost.mp4">Télécharger la vidéo (MP4)</a>.
+            </video>
+          </div>
+
+          <ul class="proof" aria-label="En chiffres">
+            <li><strong>7</strong><span>sources d’offres, dont tes alertes e-mail</span></li>
+            <li><strong>0</strong><span>envoi automatique : tu relis, tu envoies</span></li>
+            <li><strong>800+</strong><span>tests automatisés</span></li>
+            <li><strong>42</strong><span>décisions documentées, risques suivis</span></li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="alt" aria-labelledby="probleme">
+        <div class="wrap">
+          <h2 id="probleme">Le problème, c’est tout ce qui entoure la candidature.</h2>
+          <p class="section-lead">
+            Postuler prend vingt minutes. Trouver, trier, suivre et relancer prend le reste.
+          </p>
+          <div class="problem">
+            <p>
+              <b>TROP DE SITES</b>Les offres sont éparpillées sur une dizaine de plateformes, avec
+              des doublons partout.
+            </p>
+            <p>
+              <b>TROP DE BRUIT</b>La moitié des résultats n’a rien à voir avec le développement, ou
+              se trouve à 200 km.
+            </p>
+            <p>
+              <b>PLUS DE SUIVI</b>Qui a répondu ? Qui faut-il relancer ? Au bout d’un mois, plus
+              personne ne sait.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="fonctions" aria-labelledby="fonctions-titre">
+        <div class="wrap">
+          <h2 id="fonctions-titre">Ce que fait airpost, du matin au suivi.</h2>
+          <p class="section-lead">Chaque étape est automatisée. Aucune ne te retire la décision.</p>
+          <div class="grid">
+            <article class="card">
+              <div class="icon" aria-hidden="true">
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 7v5l3 2" />
+                </svg>
+              </div>
+              <h3>Une collecte chaque matin</h3>
+              <p>
+                À 08:30, airpost interroge les sources, lit tes alertes e-mail, écarte le hors-sujet
+                et les écoles déguisées en offres, et supprime les doublons.
+              </p>
+            </article>
+            <article class="card">
+              <div class="icon" aria-hidden="true">
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M4 20V10M10 20V4M16 20v-8M22 20H2" />
+                </svg>
+              </div>
+              <h3>Une note de compatibilité</h3>
+              <p>
+                Chaque offre au contrat recherché reçoit une note sur 100, avec ses points forts et
+                ses manques. Les meilleures remontent, les autres restent en bas de liste.
+              </p>
+            </article>
+            <article class="card">
+              <div class="icon" aria-hidden="true">
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M4 4h16v16H4zM8 9h8M8 13h8M8 17h5" />
+                </svg>
+              </div>
+              <h3>Une lettre vérifiée</h3>
+              <p>
+                Rédigée à partir de ton seul profil, puis contrôlée : aucun chiffre ni fait inventé.
+                Tu la relis, la copies en un clic ou la télécharges en PDF avec ton en-tête.
+              </p>
+            </article>
+            <article class="card">
+              <div class="icon" aria-hidden="true">
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5" />
+                </svg>
+              </div>
+              <h3>Des relances au bon moment</h3>
+              <p>
+                Après 8 jours sans nouvelle, airpost prépare une relance courte avec un élément
+                nouveau. Une seule par candidature, jamais envoyée sans toi.
+              </p>
+            </article>
+            <article class="card">
+              <div class="icon" aria-hidden="true">
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="8" y="3" width="12" height="16" rx="2" />
+                  <path d="M16 21H6a2 2 0 0 1-2-2V7" />
+                </svg>
+              </div>
+              <h3>Ajouter une offre en collant</h3>
+              <p>
+                Une annonce vue ailleurs ? Colle son texte : l’IA propose l’intitulé, l’entreprise
+                et la ville. Le lien est gardé, jamais visité.
+              </p>
+            </article>
+            <article class="card">
+              <div class="icon" aria-hidden="true">
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M3 3v18h18M7 15l4-4 3 3 5-6" />
+                </svg>
+              </div>
+              <h3>Un tableau de bord honnête</h3>
+              <p>
+                Réponses, entretiens, délai médian, résultats par source. Quand l’échantillon est
+                trop petit, il le dit au lieu d’afficher un pourcentage trompeur.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="demo" class="alt" aria-labelledby="demo-titre">
+        <div class="wrap">
+          <div class="demo">
+            <div>
+              <h2 id="demo-titre">Essaie-la, sans rien installer.</h2>
+              <p class="section-lead" style="margin-bottom: 0">
+                C’est la vraie interface, avec une candidate et des offres inventées.
+              </p>
+              <ul>
+                <li>Trie et filtre les offres, ouvre une analyse, génère une lettre.</li>
+                <li>Prépare une relance, ajoute une offre, regarde le tableau de bord.</li>
+                <li>Télécharge le PDF de la lettre : il est fabriqué dans ton navigateur.</li>
+              </ul>
+              <div class="actions" style="justify-content: flex-start">
+                <a class="btn primary" href="demo/">Ouvrir la démo</a>
+              </div>
+            </div>
+            <div class="fake" role="note">
+              <strong>Ce qui est simulé</strong>
+              Les textes de l’IA sont préparés à l’avance et la collecte fait arriver trois offres
+              d’exemple. Aucun serveur ne répond : la page ne fait aucune requête réseau, et tout
+              repart de zéro à chaque rechargement.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="confiance" aria-labelledby="confiance-titre">
+        <div class="wrap">
+          <h2 id="confiance-titre">Pensé pour qu’on puisse lui faire confiance.</h2>
+          <p class="section-lead">
+            Un outil qui touche à ta boîte mail et à ta candidature doit être prudent par
+            construction.
+          </p>
+          <div class="grid">
+            <article class="card">
+              <div class="icon ok" aria-hidden="true">✓</div>
+              <h3>Jamais d’envoi automatique</h3>
+              <p>
+                airpost crée des brouillons. L’envoi reste manuel, depuis ta boîte mail, après
+                relecture.
+              </p>
+            </article>
+            <article class="card">
+              <div class="icon ok" aria-hidden="true">✓</div>
+              <h3>Aucune connexion aux sites d’emploi</h3>
+              <p>
+                Pas de robot sur LinkedIn ou Indeed, jamais ton compte : airpost lit les alertes que
+                ces sites t’envoient, en lecture seule.
+              </p>
+            </article>
+            <article class="card">
+              <div class="icon ok" aria-hidden="true">✓</div>
+              <h3>Des données minimisées</h3>
+              <p>
+                Ni ton nom, ni ton mail, ni ton téléphone ne sont envoyés au modèle de langage. Tout
+                est stocké chez toi.
+              </p>
+            </article>
+            <article class="card">
+              <div class="icon ok" aria-hidden="true">✓</div>
+              <h3>Un modèle qui ne peut pas tout casser</h3>
+              <p>
+                Ses réponses sont validées par un schéma, ses textes passent des garde-fous, et un
+                quota atteint met un voyant au rouge au lieu de tomber en panne.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="technique" class="alt" aria-labelledby="technique-titre">
+        <div class="wrap">
+          <h2 id="technique-titre">Sous le capot.</h2>
+          <p class="section-lead">
+            Le projet est construit comme un produit : chaque changement est testé, relu et
+            documenté.
+          </p>
+          <div class="stack">
+            <ul class="pills" aria-label="Technologies">
+              <li>React</li>
+              <li>TypeScript</li>
+              <li>NestJS</li>
+              <li>Prisma</li>
+              <li>PostgreSQL</li>
+              <li>Zod</li>
+              <li>Vitest</li>
+              <li>Docker</li>
+              <li>Gemini</li>
+              <li>Gmail API</li>
+            </ul>
+            <ul class="pills ok" aria-label="Pratiques">
+              <li>Authentification et CSRF</li>
+              <li>RGPD : registre des traitements</li>
+              <li>Registre des risques</li>
+              <li>Revue de chaque changement</li>
+              <li>Démo sans serveur, sans secret</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="auteur">
+        <div class="wrap about">
+          <div>
+            <h2 id="auteur">Un projet de Souleymane Fall.</h2>
+            <p>
+              Développeur Full Stack et IA, en recherche d’alternance. airpost est né de ma propre
+              recherche : je l’ai construit, testé et documenté comme j’aimerais travailler en
+              équipe.
+            </p>
+          </div>
+          <div class="actions" style="margin: 0">
+            <a class="btn primary" href="https://souleyfall.github.io/portfolio"
+              >Voir mon portfolio</a
+            >
+            <a class="btn" href="https://github.com/souleyFall/airpost">Code sur GitHub</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <span>airpost · projet personnel, non commercial.</span>
+        <span>La démo ne contient que des données fictives.</span>
+      </div>
+    </footer>
+  </body>
+</html>

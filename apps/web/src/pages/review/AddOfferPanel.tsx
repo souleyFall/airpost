@@ -122,8 +122,8 @@ export function AddOfferPanel({ onAdded, onCancel }: Props) {
             </label>
             <textarea
               id="add-text"
-              className="block w-full resize-y rounded-md border border-line bg-surface px-4 py-3 text-sm leading-relaxed"
-              style={{ minHeight: 240 }}
+              className="block min-h-[240px] w-full resize-y rounded-md border border-line bg-surface px-4 py-3 text-sm leading-relaxed"
+
               maxLength={20_000}
               value={text}
               onChange={(event) => setText(event.target.value)}

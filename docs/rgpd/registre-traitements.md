@@ -120,3 +120,8 @@ Non requise : traitement à petite échelle, usage personnel, aucune donnée sen
 ## Mise à jour 2026-11-11 : démo publique
 
 - **Aucune donnée personnelle** : la démo ne contient que des données inventées (candidate, entreprises, annonces). Elle ne collecte rien, n'a ni serveur, ni cookie, ni stockage, ni suivi, et ne contacte aucun service. Elle est séparée de l'application réelle.
+
+## Mise à jour 2026-11-11 : page d'accueil publique
+
+- **Aucune donnée collectée** : la page est statique, sans script, sans cookie, sans formulaire, sans statistiques et sans ressource tierce (polices hébergées). Elle ne traite aucune donnée personnelle de ses visiteurs. Les journaux d'accès de l'hébergeur choisi relèvent de cet hébergeur : à indiquer dans ses propres mentions.
+- **Mentions** : la page cite le nom de l'auteur et deux liens publics (portfolio, dépôt) qu'il a choisis de publier. Aucune adresse e-mail ni numéro de téléphone n'y figure.

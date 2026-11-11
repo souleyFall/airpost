@@ -197,8 +197,8 @@ export function FollowUpPanel({ applicationId, company, gmailReady, onDone, onCl
             </div>
             <textarea
               id={`fu-body-${applicationId}`}
-              className="block w-full resize-y rounded-md border border-line bg-surface px-4 py-3 font-serif text-base leading-[1.6]"
-              style={{ minHeight: 200, maxWidth: '72ch' }}
+              className="block min-h-[200px] w-full max-w-[72ch] resize-y rounded-md border border-line bg-surface px-4 py-3 font-serif text-base leading-[1.6]"
+
               maxLength={1500}
               value={body}
               onChange={(event) => setBody(event.target.value)}
