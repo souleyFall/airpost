@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Guide de démarrage d’airpost : installer et utiliser l’outil, pas à pas</title>
+    <meta
+      name="description"
+      content="Installer airpost sur ton ordinateur et l’utiliser pour ta propre recherche d’alternance : récupérer le code, obtenir les clés gratuites, lancer l’application, remplir ton profil, brancher Gmail."
+    />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="../favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body>
+    <a class="skip" href="#contenu">Aller au contenu</a>
+
+    <header class="top">
+      <div class="wrap">
+        <a class="brand" href="../" aria-label="airpost, retour à l’accueil">
+          <svg width="30" height="30" viewBox="0 0 64 64" aria-hidden="true">
+            <rect width="64" height="64" rx="16" fill="#1e3fa8" />
+            <path d="M14 30 50 14 40 50 30 36 14 30Z" fill="#fff" />
+            <path d="M30 36 50 14" stroke="#1e3fa8" stroke-width="3" stroke-linecap="round" />
+          </svg>
+          airpost
+        </a>
+        <nav class="nav" aria-label="Navigation principale">
+          <a href="../">Accueil</a>
+          <a href="#problemes">Si ça bloque</a>
+          <a class="btn primary" href="../demo/">Essayer la démo</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="contenu">
+      <section class="hero guide-hero">
+        <div class="wrap">
+          <p class="eyebrow">Guide de démarrage · environ 45 minutes</p>
+          <h1>Installe airpost et fais-en <em>ton</em> outil de recherche.</h1>
+          <p class="lead">
+            Du clonage du code à ta première lettre prête à relire. Tout est gratuit, tout tourne
+            sur ton ordinateur, et rien n’est envoyé sans que tu l’aies décidé.
+          </p>
+        </div>
+      </section>
+
+      <section class="guide">
+        <div class="wrap guide-grid">
+          <nav class="toc" aria-label="Sommaire">
+            <p class="toc-title">Les étapes</p>
+            <ol start="0">
+              <li><a href="#avant">Avant de commencer</a></li>
+              <li><a href="#outils">Installer les outils</a></li>
+              <li><a href="#code">Récupérer le code</a></li>
+              <li><a href="#config">Préparer la configuration</a></li>
+              <li><a href="#cles">Obtenir les clés gratuites</a></li>
+              <li><a href="#lancer">Lancer l’application</a></li>
+              <li><a href="#compte">Créer ton compte</a></li>
+              <li><a href="#profil">Remplir ton profil</a></li>
+              <li><a href="#collecte">Première collecte</a></li>
+              <li><a href="#gmail">Brancher Gmail (facultatif)</a></li>
+              <li><a href="#quotidien">Au quotidien</a></li>
+              <li><a href="#entretien">Mettre à jour, sauvegarder</a></li>
+              <li><a href="#problemes">Si ça bloque</a></li>
+              <li><a href="#regles">Les règles à garder</a></li>
+            </ol>
+          </nav>
+
+          <div class="steps">
+            <article id="avant">
+              <h2><span class="num">0</span> Avant de commencer</h2>
+              <p>
+                airpost est une application personnelle : un seul compte, installée sur ton
+                ordinateur, qui n’est pas faite pour être mise en ligne. Elle collecte des offres
+                par des API officielles, les note selon ton profil, rédige des lettres avec Gemini
+                (l’IA de Google) et prépare des <strong>brouillons Gmail</strong>. Elle n’envoie
+                jamais rien toute seule et ne fait aucun scraping de LinkedIn, Indeed ou Welcome to
+                the Jungle.
+              </p>
+              <p>Il te faut :</p>
+              <ul>
+                <li>un ordinateur Windows, macOS ou Linux avec 4 Go de mémoire libre ;</li>
+                <li>
+                  une connexion internet et environ 3 Go de disque (Docker et la base de données) ;
+                </li>
+                <li>un compte Google (pour la clé Gemini et, plus tard, Gmail) ;</li>
+                <li>
+                  aucune carte bancaire : toutes les formules utilisées sont gratuites, avec des
+                  quotas suffisants pour un usage personnel.
+                </li>
+              </ul>
+              <p class="callout">
+                <strong>Tes données restent chez toi.</strong> Ton profil et tes offres sont dans
+                une base PostgreSQL sur ta machine. Seuls les textes nécessaires partent vers Gemini
+                (profil + offre) pour noter et rédiger.
+              </p>
+            </article>
+
+            <article id="outils">
+              <h2><span class="num">1</span> Installer les outils</h2>
+              <p>Quatre outils, tous gratuits. Installe-les dans cet ordre :</p>
+              <ol>
+                <li><strong>Git</strong> (git-scm.com) pour récupérer le code.</li>
+                <li>
+                  <strong>Docker Desktop</strong> (docker.com) : il fait tourner la base de données,
+                  l’API et l’interface. Lance-le et attends que la baleine soit stable avant de
+                  continuer.
+                </li>
+                <li>
+                  <strong>Node.js 24</strong> (nodejs.org, version « LTS » ou plus récente que 24).
+                </li>
+                <li><strong>pnpm</strong>, qui s’active avec Node :</li>
+              </ol>
+              <pre><code>corepack enable</code></pre>
+              <p>Vérifie que tout répond (chaque commande affiche un numéro de version) :</p>
+              <pre><code>git --version
+docker --version
+node --version
+pnpm --version</code></pre>
+              <p class="tip">
+                Sous Windows, ouvre « PowerShell » ; sous macOS ou Linux, le Terminal. Les commandes
+                de ce guide fonctionnent dans les trois.
+              </p>
+            </article>
+
+            <article id="code">
+              <h2><span class="num">2</span> Récupérer le code</h2>
+              <pre><code>git clone https://github.com/souleyFall/airpost.git
+cd airpost
+pnpm install</code></pre>
+              <p>
+                <code>pnpm install</code> télécharge les dépendances (quelques minutes). Toutes les
+                commandes suivantes se lancent depuis ce dossier <code>airpost</code>.
+              </p>
+            </article>
+
+            <article id="config">
+              <h2><span class="num">3</span> Préparer la configuration</h2>
+              <p>
+                Le fichier <code>.env</code> contient tes réglages et tes clés. Il n’est
+                <strong>jamais</strong> envoyé sur GitHub. Crée-le à partir du modèle :
+              </p>
+              <pre><code>cp .env.example .env</code></pre>
+              <p>
+                Génère ensuite un mot de passe pour la base de données (il s’affiche une seule fois,
+                copie-le) :
+              </p>
+              <pre><code>node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"</code></pre>
+              <p>
+                Ouvre <code>.env</code> dans un éditeur de texte et renseigne ces trois lignes avec
+                ce mot de passe :
+              </p>
+              <pre><code>POSTGRES_PASSWORD=le_mot_de_passe_genere
+DATABASE_URL=postgresql://airpost:le_mot_de_passe_genere@localhost:5432/airpost</code></pre>
+              <p>
+                Le mot de passe est le même aux deux endroits. Pour recevoir ta collecte chaque
+                matin à 08 h 30 (heure de Paris), ajoute aussi cette ligne :
+              </p>
+              <pre><code>COLLECT_DAILY_AT=08:30</code></pre>
+              <p class="callout">
+                Docker a besoin que deux fichiers existent à la racine, même vides (Gmail les
+                remplira plus tard). Sans eux, il crée des dossiers à leur place et l’application ne
+                démarre pas correctement :
+              </p>
+              <pre><code>node -e "for (const f of ['credentials.json','token.json']) if (!require('fs').existsSync(f)) require('fs').writeFileSync(f, '')"</code></pre>
+            </article>
+
+            <article id="cles">
+              <h2><span class="num">4</span> Obtenir les clés gratuites</h2>
+              <p>
+                Colle chaque clé dans <code>.env</code>, sur la ligne qui porte son nom, sans
+                guillemets ni espace. Une source sans clé est simplement désactivée : tu peux
+                commencer avec peu et en ajouter ensuite.
+              </p>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th scope="col">Service</th>
+                      <th scope="col">Sert à</th>
+                      <th scope="col">Variables</th>
+                      <th scope="col">Obligatoire</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <th scope="row">Gemini (Google AI Studio)</th>
+                      <td>Noter les offres, rédiger les lettres et les relances</td>
+                      <td><code>GEMINI_API_KEY</code></td>
+                      <td>Oui</td>
+                    </tr>
+                    <tr>
+                      <th scope="row">La Bonne Alternance</th>
+                      <td>Offres d’alternance officielles</td>
+                      <td><code>LBA_API_KEY</code></td>
+                      <td>Recommandée</td>
+                    </tr>
+                    <tr>
+                      <th scope="row">France Travail (API La Bonne Boîte)</th>
+                      <td>Entreprises qui recrutent</td>
+                      <td><code>FT_CLIENT_ID</code>, <code>FT_CLIENT_SECRET</code></td>
+                      <td>Facultative</td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Adzuna</th>
+                      <td>Annonces agrégées</td>
+                      <td><code>ADZUNA_APP_ID</code>, <code>ADZUNA_APP_KEY</code></td>
+                      <td>Facultative</td>
+                    </tr>
+                    <tr>
+                      <th scope="row">SerpApi</th>
+                      <td>Google Jobs et Glassdoor (250 recherches gratuites par mois)</td>
+                      <td><code>SERPAPI_KEY</code></td>
+                      <td>Facultative</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <h3>Où les obtenir</h3>
+              <ul>
+                <li>
+                  <strong>Gemini</strong> : va sur aistudio.google.com, connecte-toi, clique sur «
+                  Get API key » puis « Create API key ». La formule gratuite suffit.
+                </li>
+                <li>
+                  <strong>La Bonne Alternance</strong> :
+                  labonnealternance.apprentissage.beta.gouv.fr, rubrique pour les développeurs :
+                  l’accès à l’API est gratuit sur demande.
+                </li>
+                <li>
+                  <strong>France Travail</strong> : francetravail.io, crée un compte, puis une «
+                  application » à laquelle tu ajoutes l’API « La Bonne Boîte » ; tu obtiens un
+                  identifiant et un secret.
+                </li>
+                <li><strong>Adzuna</strong> : developer.adzuna.com, inscription gratuite.</li>
+                <li><strong>SerpApi</strong> : serpapi.com, inscription gratuite.</li>
+              </ul>
+              <p class="callout">
+                <strong>Ne publie jamais une clé</strong> : ni dans un message, ni dans une capture
+                d’écran, ni sur GitHub. Si l’une fuite, révoque-la sur le site du service et
+                recommence.
+              </p>
+            </article>
+
+            <article id="lancer">
+              <h2><span class="num">5</span> Lancer l’application</h2>
+              <p>
+                Docker Desktop doit être ouvert. Le premier démarrage construit tout (5 à 10
+                minutes) :
+              </p>
+              <pre><code>docker compose up -d --build
+docker compose run --rm migrate</code></pre>
+              <p>
+                La première commande démarre la base, l’API et l’interface. La seconde crée les
+                tables dans la base. Contrôle que les trois services sont « healthy » :
+              </p>
+              <pre><code>docker compose ps</code></pre>
+            </article>
+
+            <article id="compte">
+              <h2><span class="num">6</span> Créer ton compte</h2>
+              <p>
+                Il n’y a pas d’inscription en ligne, volontairement : le compte se crée depuis ta
+                machine. Choisis un identifiant (lettres, chiffres, point, tiret) puis un mot de
+                passe d’au moins 12 caractères ; il est demandé sans s’afficher.
+              </p>
+              <pre><code>pnpm --filter @airpost/api user:create ton_identifiant</code></pre>
+              <p>
+                Ouvre ensuite <strong>http://localhost:8080</strong> et connecte-toi. L’application
+                n’est accessible que depuis ton ordinateur.
+              </p>
+            </article>
+
+            <article id="profil">
+              <h2><span class="num">7</span> Remplir ton profil</h2>
+              <p>
+                Dans le menu, ouvre <strong>Profil</strong>. C’est la seule source de vérité : les
+                lettres ne citent que ce qui s’y trouve, rien n’est inventé.
+              </p>
+              <ul>
+                <li>
+                  <strong>Identité</strong> : nom, ville, code postal (pour estimer le trajet). Pas
+                  d’adresse complète ni de date de naissance.
+                </li>
+                <li><strong>Formation et expériences</strong>, avec des réalisations chiffrées.</li>
+                <li><strong>Compétences</strong> : langages, frameworks, outils.</li>
+                <li>
+                  <strong>Recherche</strong> : alternance et/ou stage, rythme accepté, date de
+                  début, trajet maximal, mots-clés de ta pile, code ROME (M1805 : développement
+                  informatique), entreprises à exclure.
+                </li>
+              </ul>
+              <p class="tip">
+                Écris chaque réalisation en trois temps : ce que tu as obtenu, mesuré par un
+                chiffre, en faisant quoi. « Réduit de 40 % le temps d’import (5 min vers 3 min) en
+                ajoutant un cache » vaut mieux que « participé à l’optimisation ».
+              </p>
+              <p>
+                Un profil complet fait toute la qualité des lettres : prends dix minutes pour le
+                soigner.
+              </p>
+            </article>
+
+            <article id="collecte">
+              <h2><span class="num">8</span> Première collecte</h2>
+              <p>
+                Clique sur <strong>Lancer la collecte</strong> dans la barre latérale. Les offres
+                arrivent puis sont notées : la page <strong>Sources</strong> montre l’état de chaque
+                source (un voyant vert, ou la raison de la panne : clé absente, quota atteint…).
+              </p>
+              <ul>
+                <li>
+                  La liste d’accueil classe les offres par score, les plus pertinentes en haut.
+                </li>
+                <li>
+                  Seules les offres du contrat que tu cherches sont notées par l’IA : les autres
+                  restent en fin de liste, non notées.
+                </li>
+                <li>
+                  Tu as trouvé une annonce ailleurs ? Bouton <strong>+ Ajouter une offre</strong> :
+                  colle le texte, airpost en extrait le poste, l’entreprise et la ville.
+                </li>
+              </ul>
+              <p>
+                Avec <code>COLLECT_DAILY_AT=08:30</code>, la collecte se fait seule chaque matin,
+                tant que l’ordinateur est allumé à cette heure.
+              </p>
+            </article>
+
+            <article id="gmail">
+              <h2><span class="num">9</span> Brancher Gmail (facultatif)</h2>
+              <p>
+                Sans Gmail, tout fonctionne sauf les <strong>brouillons</strong> et le
+                <strong>suivi des réponses</strong>. Avec Gmail, airpost demande deux autorisations
+                seulement : créer des brouillons et lire tes e-mails pour repérer les réponses. Il
+                ne demande jamais celle d’envoyer : il en est incapable.
+              </p>
+              <ol>
+                <li>
+                  Va sur console.cloud.google.com et crée un projet (nom libre, par exemple «
+                  airpost »).
+                </li>
+                <li>
+                  Dans « API et services », <strong>Bibliothèque</strong> : cherche « Gmail API » et
+                  active-la.
+                </li>
+                <li>
+                  <strong>Écran de consentement OAuth</strong> : type « Externe », nom « airpost »,
+                  ton adresse comme contact. À l’étape « Utilisateurs de test », ajoute ta propre
+                  adresse Gmail.
+                </li>
+                <li>
+                  <strong>Identifiants</strong> : « Créer des identifiants », « ID client OAuth »,
+                  type d’application <strong>Application de bureau</strong>. Télécharge le fichier
+                  JSON.
+                </li>
+                <li>
+                  Renomme-le <code>credentials.json</code> et remplace le fichier vide à la racine
+                  du projet.
+                </li>
+                <li>Lance l’autorisation :</li>
+              </ol>
+              <pre><code>node scripts/gmail-authorize.mjs</code></pre>
+              <p>
+                Le script affiche un lien : ouvre-le, connecte-toi, accepte les deux autorisations.
+                Google affichera un avertissement « application non vérifiée » : c’est normal, c’est
+                ta propre application ; clique sur « Paramètres avancés » puis « Accéder à airpost
+                ». Le script écrit <code>token.json</code> (le jeton n’est jamais affiché).
+                Redémarre ensuite l’API :
+              </p>
+              <pre><code>docker compose up -d --build api</code></pre>
+              <p class="callout">
+                <strong>Jeton qui expire au bout de 7 jours ?</strong> Tant que l’écran de
+                consentement est en mode « Test », Google invalide le jeton après une semaine. Dans
+                « Écran de consentement », clique sur « Publier l’application » (reste réservée à
+                toi, personne d’autre n’y a accès), puis relance
+                <code>node scripts/gmail-authorize.mjs --force</code>.
+              </p>
+              <p>
+                Pour recevoir des offres par e-mail, crée des alertes sur Indeed (ou les autres
+                sites qui en proposent) vers cette adresse Gmail : airpost les lit chaque matin.
+              </p>
+            </article>
+
+            <article id="quotidien">
+              <h2><span class="num">10</span> Au quotidien</h2>
+              <ol>
+                <li>
+                  <strong>Offres</strong> : parcours la liste, ouvre une offre, lis le score et ses
+                  raisons.
+                </li>
+                <li>
+                  <strong>Lettre</strong> : demande la lettre, relis-la, corrige-la. Les garde-fous
+                  refusent les chiffres, les employeurs ou les technologies que ton profil ne
+                  contient pas.
+                </li>
+                <li>
+                  <strong>Brouillon</strong> : valide, et le brouillon apparaît dans ton Gmail, avec
+                  ta signature. <strong>C’est toi qui cliques sur « Envoyer »</strong>, dans Gmail.
+                </li>
+                <li>
+                  <strong>Suivi</strong> : les candidatures avancent selon les réponses détectées.
+                  Après 8 jours sans nouvelle, airpost te propose une relance (une seule par
+                  candidature), à relire comme une lettre.
+                </li>
+                <li>
+                  <strong>Résultats</strong> : le tableau de bord mesure ce qui marche (sources,
+                  taux de réponse, délais).
+                </li>
+              </ol>
+            </article>
+
+            <article id="entretien">
+              <h2><span class="num">11</span> Mettre à jour, sauvegarder</h2>
+              <p>Pour récupérer les nouveautés du projet :</p>
+              <pre><code>git pull
+pnpm install
+docker compose up -d --build
+docker compose run --rm migrate</code></pre>
+              <p>
+                Pour sauvegarder tes données (le fichier est écrit dans <code>backups/</code>,
+                ignoré par Git) :
+              </p>
+              <pre><code>pnpm db:backup</code></pre>
+              <p>Pour tout arrêter sans rien perdre : <code>docker compose down</code>.</p>
+            </article>
+
+            <article id="problemes">
+              <h2><span class="num">?</span> Si ça bloque</h2>
+              <dl class="faq">
+                <dt>« Cannot connect to the Docker daemon »</dt>
+                <dd>
+                  Docker Desktop n’est pas lancé. Ouvre-le, attends qu’il soit prêt, recommence.
+                </dd>
+
+                <dt>Le port 8080 ou 5432 est déjà utilisé</dt>
+                <dd>
+                  Un autre programme l’occupe (souvent un PostgreSQL déjà installé). Arrête-le, ou
+                  change le port à gauche des deux-points dans <code>docker-compose.yml</code>.
+                </dd>
+
+                <dt>« password authentication failed »</dt>
+                <dd>
+                  Le mot de passe de <code>.env</code> n’est pas celui avec lequel la base a été
+                  créée (la base garde celui du premier lancement). Si tu n’as encore aucune donnée
+                  : <code>docker compose down -v</code> (ceci supprime la base) puis relance l’étape
+                  5.
+                </dd>
+
+                <dt>Le mot de passe de ton compte est oublié</dt>
+                <dd>
+                  Relance <code>pnpm --filter @airpost/api user:create ton_identifiant</code> : il
+                  remplace le compte.
+                </dd>
+
+                <dt>Une source est en rouge ou grise</dt>
+                <dd>
+                  La page Sources dit pourquoi : clé absente ou refusée, quota atteint, service
+                  indisponible. Un bandeau rouge en haut de l’écran signale aussi une API en panne.
+                </dd>
+
+                <dt>Gemini répond « quota »</dt>
+                <dd>
+                  La formule gratuite a une limite par modèle. airpost essaie des modèles de secours
+                  ; si tout est saturé, attends quelques minutes ou le lendemain.
+                </dd>
+
+                <dt>Gmail dit « non autorisé » après quelques jours</dt>
+                <dd>
+                  Voir l’encadré de l’étape 9 : publie l’application puis relance l’autorisation.
+                </dd>
+
+                <dt>Les offres n’arrivent pas à 08 h 30</dt>
+                <dd>
+                  L’ordinateur était éteint ou en veille, ou <code>COLLECT_DAILY_AT</code> n’est pas
+                  dans <code>.env</code> (redémarre ensuite avec <code>docker compose up -d</code>).
+                  La collecte manuelle marche toujours.
+                </dd>
+              </dl>
+            </article>
+
+            <article id="regles">
+              <h2><span class="num">!</span> Les règles à garder</h2>
+              <ul>
+                <li>
+                  Ne mets <strong>jamais</strong> sur GitHub : <code>.env</code>,
+                  <code>credentials.json</code>, <code>token.json</code>. Ils sont déjà ignorés par
+                  Git : ne force rien.
+                </li>
+                <li>
+                  N’expose pas l’application sur internet : elle est conçue pour un seul
+                  utilisateur, sur ta machine.
+                </li>
+                <li>
+                  Ne lui fais pas scraper LinkedIn, Indeed ou Welcome to the Jungle : leurs
+                  conditions d’utilisation l’interdisent et ton compte risquerait d’être suspendu.
+                </li>
+                <li>Relis chaque lettre avant d’envoyer : tu signes ce que tu envoies.</li>
+              </ul>
+              <p>
+                Pour comprendre les choix techniques : le fichier <code>docs/decisions.md</code> du
+                dépôt, et <code>SECURITY.md</code> pour la sécurité.
+              </p>
+              <div class="actions" style="justify-content: flex-start">
+                <a class="btn primary" href="https://github.com/souleyFall/airpost"
+                  >Le code sur GitHub</a
+                >
+                <a class="btn" href="../demo/">Essayer la démo</a>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <span>airpost · projet personnel, non commercial.</span>
+        <a href="../">Retour à l’accueil</a>
+      </div>
+    </footer>
+  </body>
+</html>

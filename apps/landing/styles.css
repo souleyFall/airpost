@@ -444,3 +444,157 @@ footer .wrap {
   gap: 8px 24px;
   justify-content: space-between;
 }
+
+/* ---- guide de démarrage ---- */
+.guide-hero {
+  padding-bottom: 8px;
+}
+.guide {
+  padding-top: 32px;
+}
+.guide-grid {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 48px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .guide-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+}
+.toc {
+  position: sticky;
+  top: 84px;
+  font-size: 15px;
+}
+@media (max-width: 900px) {
+  .toc {
+    position: static;
+    padding: 16px 20px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+}
+.toc-title {
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+.toc ol {
+  margin: 0;
+  padding-left: 22px;
+}
+.toc li {
+  margin: 4px 0;
+}
+.steps article {
+  padding: 8px 0 40px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 36px;
+  scroll-margin-top: 84px;
+}
+.steps article:last-child {
+  border-bottom: 0;
+}
+.steps h2 {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: clamp(24px, 3vw, 30px);
+}
+.steps h3 {
+  margin: 24px 0 8px;
+  font-size: 19px;
+}
+.steps p,
+.steps li,
+.steps dd {
+  max-width: 68ch;
+}
+.steps ul,
+.steps ol {
+  padding-left: 24px;
+}
+.steps li {
+  margin: 8px 0;
+}
+.num {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 18px;
+  font-weight: 600;
+}
+.steps code {
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+}
+.steps pre {
+  margin: 14px 0;
+  padding: 16px 18px;
+  overflow-x: auto;
+  border-radius: 12px;
+  background: #15171c;
+  color: #f1efe8;
+  font-size: 15px;
+  line-height: 1.55;
+}
+.steps pre code {
+  padding: 0;
+  background: none;
+  font-size: inherit;
+  color: inherit;
+  overflow-wrap: normal;
+}
+.callout,
+.tip {
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+}
+.callout {
+  border-left: 5px solid var(--accent);
+}
+.tip {
+  border-left: 5px solid var(--ok);
+}
+.table-wrap {
+  overflow-x: auto;
+  margin: 16px 0;
+}
+.steps table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+.steps th,
+.steps td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+.steps thead th {
+  color: var(--muted);
+  font-weight: 600;
+}
+.faq dt {
+  margin-top: 18px;
+  font-weight: 600;
+}
+.faq dd {
+  margin: 4px 0 0;
+  color: var(--muted);
+}

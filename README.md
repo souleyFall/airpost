@@ -6,6 +6,8 @@ Aucun scraping de LinkedIn, Indeed ou Welcome to the Jungle.
 
 ## Lancer
 
+> Premier pas, de A à Z (outils, clés gratuites, profil, Gmail) : le [guide de démarrage](apps/landing/guide/index.html), aussi publié sur la page d'accueil du site.
+
 Prérequis : Docker Desktop, Node 24, pnpm.
 
 ```bash
@@ -17,7 +19,7 @@ pnpm --filter @airpost/api user:create <identifiant>
 
 L'application est sur http://localhost:8080. Le premier lancement demande aussi de renseigner ton profil (`PUT /profile`).
 
-Les fichiers `credentials.json` et `token.json` (autorisation Gmail) restent à la racine, hors de Git ; sans eux, tout fonctionne sauf les brouillons et le suivi des réponses.
+Les fichiers `credentials.json` et `token.json` (autorisation Gmail) restent à la racine, hors de Git ; sans eux, tout fonctionne sauf les brouillons et le suivi des réponses. Ils doivent exister, même vides, avant `docker compose up` ; `node scripts/gmail-authorize.mjs` produit `token.json` (étendues compose et readonly, jamais d'envoi).
 
 ## Développer
 
