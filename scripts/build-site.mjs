@@ -43,6 +43,7 @@ const LANDING_CSP =
 const landingHeaders = [
   '/',
   '/index.html',
+  '/guide/*',
   '/styles.css',
   '/fonts/*',
   '/airpost.mp4',

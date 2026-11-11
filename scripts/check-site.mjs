@@ -13,9 +13,14 @@ if (!existsSync(SITE)) {
 }
 
 const html = readFileSync(join(SITE, 'index.html'), 'utf8');
+const guide = existsSync(join(SITE, 'guide', 'index.html'))
+  ? readFileSync(join(SITE, 'guide', 'index.html'), 'utf8')
+  : null;
+if (guide === null) fail('guide/index.html manquant.');
 
 // 1. Aucun script sur la page d'accueil, aucune ressource tierce chargée automatiquement.
 if (/<script\b/i.test(html)) fail('index.html contient un <script>.');
+if (guide && /<script\b|\son[a-z]+\s*=/i.test(guide)) fail('guide/index.html contient un script.');
 if (/\son[a-z]+\s*=/i.test(html)) fail('index.html contient un gestionnaire d’événement en ligne.');
 for (const match of html.matchAll(
   /<(?:link|img|source|video|iframe)\b[^>]*\b(?:src|href|poster)\s*=\s*"(https?:)?\/\/[^"]+"/gi,
@@ -37,6 +42,21 @@ for (const match of css.matchAll(/url\('?([^')]+)'?\)/g)) {
   if (!existsSync(join(SITE, match[1]))) fail(`Police ou ressource CSS introuvable : ${match[1]}`);
 }
 
+// Le guide : liens locaux (relatifs à guide/) et ancres internes valides.
+if (guide) {
+  for (const match of guide.matchAll(/\b(?:href|src)="([^"#:]+)(?:#[^"]*)?"/g)) {
+    const target = match[1];
+    if (target === '' || target.startsWith('mailto')) continue;
+    const path = join(SITE, 'guide', target);
+    if (!existsSync(path)) fail(`guide : lien local cassé : ${target}`);
+  }
+  const ids = new Set([...guide.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
+  for (const match of guide.matchAll(/\bhref="#([^"]+)"/g))
+    if (!ids.has(match[1])) fail(`guide : ancre introuvable : #${match[1]}`);
+  if ((guide.match(/<h1\b/g) ?? []).length !== 1) fail('guide : exactement un <h1> attendu.');
+}
+if (!/href="guide\/"/.test(html)) fail('La page d’accueil ne renvoie pas vers guide/.');
+
 // 3. Accessibilité de base : langue, titre, vidéo avec commandes, un seul h1, texte alternatif des images.
 if (!/<html[^>]*\blang="fr"/.test(html)) fail('Attribut lang="fr" absent.');
 if (!/<title>[^<]{10,}<\/title>/.test(html)) fail('Titre de page absent ou trop court.');
@@ -49,8 +69,8 @@ for (const img of html.matchAll(/<img\b[^>]*>/g))
 const SECRET = [
   /AIza[0-9A-Za-z_-]{20,}/,
   /sk-[A-Za-z0-9]{20,}/,
-  /GEMINI_API_KEY/,
-  /SERPAPI_KEY/,
+  // Le nom d'une variable (documenté dans le guide) est permis ; une valeur affectée ne l'est pas.
+  /(?:GEMINI_API_KEY|SERPAPI_KEY|LBA_API_KEY|ADZUNA_APP_KEY|FT_CLIENT_SECRET)\s*=\s*[A-Za-z0-9_-]{8,}/,
   /-----BEGIN [A-Z ]*PRIVATE KEY/,
 ];
 function walk(dir) {
@@ -71,6 +91,8 @@ for (const file of walk(SITE).filter((f) =>
 const headers = existsSync(join(SITE, '_headers'))
   ? readFileSync(join(SITE, '_headers'), 'utf8')
   : '';
+if (!/\/guide\/\*\s+Content-Security-Policy: default-src 'none'/.test(headers))
+  fail('_headers : politique du guide absente.');
 if (!headers.includes("default-src 'none'; style-src 'self'"))
   fail('_headers : politique de la page d’accueil absente.');
 if (!/\/demo\/\*[\s\S]*connect-src 'none'/.test(headers))
