@@ -18,6 +18,8 @@
     "test": "pnpm -r test",
     "test:db": "pnpm --filter @airpost/api test:db",
     "build": "pnpm -r build",
+    "build:site": "pnpm --filter @airpost/web build:demo && node scripts/build-site.mjs",
+    "check:site": "node scripts/check-site.mjs",
     "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
     "prepare": "node scripts/install-hooks.mjs"
   },

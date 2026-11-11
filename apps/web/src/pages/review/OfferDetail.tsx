@@ -526,8 +526,8 @@ export function OfferDetail({ offerId, onChanged, onAnalyzed }: Props) {
               </div>
               <textarea
                 id="letter-body"
-                className="block w-full resize-y rounded-b-md border-0 bg-transparent px-8 py-6 font-serif text-base leading-[1.65]"
-                style={{ minHeight: 320, maxWidth: '72ch' }}
+                className="block min-h-[320px] w-full max-w-[72ch] resize-y rounded-b-md border-0 bg-transparent px-8 py-6 font-serif text-base leading-[1.65]"
+
                 maxLength={3000}
                 value={body}
                 onChange={(event) => {

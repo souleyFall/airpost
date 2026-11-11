@@ -44,3 +44,14 @@ pnpm --filter @airpost/web build:demo
 ```
 
 Le dossier `apps/web/dist-demo` contient des fichiers statiques à héberger à part de l'application réelle (le fichier `_headers` interdit toute requête réseau). Voir `docs/decisions.md`, D42.
+
+## Page d'accueil et site public
+
+La page d'accueil (`apps/landing`, HTML et CSS seulement) et la démo s'assemblent en un seul dossier à héberger :
+
+```bash
+pnpm build:site -- --video chemin/airpost.mp4 --poster chemin/poster.jpg
+pnpm check:site
+```
+
+Le dossier `site/` contient la page, la démo (`/demo/`), la vidéo et les en-têtes de sécurité (`_headers`). Voir `docs/decisions.md`, D43.
