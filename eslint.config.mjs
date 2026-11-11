@@ -43,6 +43,11 @@ export default defineConfig(
     files: ['apps/web/public/sw.js'],
     languageOptions: { globals: { ...globals.serviceworker } },
   },
+  // Script de la page d'accueil : s'exécute dans le navigateur.
+  {
+    files: ['apps/landing/**/*.js'],
+    languageOptions: { globals: { ...globals.browser } },
+  },
   // Les fichiers JavaScript de configuration ne sont pas dans un tsconfig : pas de règles typées.
   { files: ['**/*.{js,mjs}'], extends: [tseslint.configs.disableTypeChecked] },
   // Toujours en dernier : désactive les règles de style qui entreraient en conflit avec Prettier.
