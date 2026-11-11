@@ -65,7 +65,9 @@
           <div class="player">
             <video
               controls
-              preload="metadata"
+              muted
+              playsinline
+              preload="auto"
               poster="poster.jpg"
               aria-label="Présentation d’airpost en 80 secondes"
             >
@@ -74,6 +76,10 @@
               <a href="airpost.mp4">Télécharger la vidéo (MP4)</a>.
             </video>
           </div>
+          <p class="note">
+            La vidéo démarre sans le son quand elle apparaît à l’écran. Clique sur le haut-parleur
+            pour activer la musique.
+          </p>
 
           <ul class="proof" aria-label="En chiffres">
             <li><strong>7</strong><span>sources d’offres, dont tes alertes e-mail</span></li>
@@ -249,7 +255,7 @@
           <div class="demo">
             <div>
               <h2 id="demo-titre">Essaie-la, sans rien installer.</h2>
-              <p class="section-lead" style="margin-bottom: 0">
+              <p class="section-lead flush-bottom">
                 C’est la vraie interface, avec une candidate et des offres inventées.
               </p>
               <ul>
@@ -257,7 +263,7 @@
                 <li>Prépare une relance, ajoute une offre, regarde le tableau de bord.</li>
                 <li>Télécharge le PDF de la lettre : il est fabriqué dans ton navigateur.</li>
               </ul>
-              <div class="actions" style="justify-content: flex-start">
+              <div class="actions actions-start">
                 <a class="btn primary" href="demo/">Ouvrir la démo</a>
               </div>
             </div>
@@ -356,7 +362,7 @@
               équipe.
             </p>
           </div>
-          <div class="actions" style="margin: 0">
+          <div class="actions actions-flush">
             <a class="btn primary" href="https://souleyfall.github.io/portfolio"
               >Voir mon portfolio</a
             >
@@ -372,5 +378,6 @@
         <span>La démo ne contient que des données fictives.</span>
       </div>
     </footer>
+    <script src="scroll-play.js" defer></script>
   </body>
 </html>

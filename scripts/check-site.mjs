@@ -19,7 +19,19 @@ const guide = existsSync(join(SITE, 'guide', 'index.html'))
 if (guide === null) fail('guide/index.html manquant.');
 
 // 1. Aucun script sur la page d'accueil, aucune ressource tierce chargée automatiquement.
-if (/<script\b/i.test(html)) fail('index.html contient un <script>.');
+// Un seul script est permis sur l'accueil : scroll-play.js, local, sans code dans la page.
+const scripts = [...html.matchAll(/<script\b[^>]*>/gi)].map((m) => m[0]);
+if (scripts.length !== 1 || !/^<script src="scroll-play\.js" defer>$/.test(scripts[0] ?? ''))
+  fail('index.html : un seul <script src="scroll-play.js" defer> est permis.');
+if (/<script\b[^>]*>(?!\s*<\/script>)\s*\S/i.test(html))
+  fail('index.html contient du code dans la page.');
+if (!existsSync(join(SITE, 'scroll-play.js'))) fail('scroll-play.js manquant.');
+else if (
+  /\b(?:fetch|XMLHttpRequest|WebSocket|eval|sendBeacon|document\.cookie|localStorage|import\()/.test(
+    readFileSync(join(SITE, 'scroll-play.js'), 'utf8'),
+  )
+)
+  fail('scroll-play.js : appel réseau ou stockage interdit.');
 if (guide && /<script\b|\son[a-z]+\s*=/i.test(guide)) fail('guide/index.html contient un script.');
 if (/\son[a-z]+\s*=/i.test(html)) fail('index.html contient un gestionnaire d’événement en ligne.');
 for (const match of html.matchAll(
@@ -41,6 +53,13 @@ for (const match of html.matchAll(/\b(?:href|src|poster)="([^"#:]+)(?:#[^"]*)?"/
 for (const match of css.matchAll(/url\('?([^')]+)'?\)/g)) {
   if (!existsSync(join(SITE, match[1]))) fail(`Police ou ressource CSS introuvable : ${match[1]}`);
 }
+
+// Les attributs style sont bloqués par la politique de sécurité (style-src 'self') : classes CSS à la place.
+for (const [name, page] of [
+  ['index.html', html],
+  ['guide/index.html', guide ?? ''],
+])
+  if (/\sstyle\s*=/i.test(page)) fail(`${name} contient un attribut style (bloqué par la CSP).`);
 
 // Le guide : liens locaux (relatifs à guide/) et ancres internes valides.
 if (guide) {
@@ -93,12 +112,34 @@ const headers = existsSync(join(SITE, '_headers'))
   : '';
 if (!/\/guide\/\*\s+Content-Security-Policy: default-src 'none'/.test(headers))
   fail('_headers : politique du guide absente.');
-if (!headers.includes("default-src 'none'; style-src 'self'"))
+if (!/default-src 'none';(?: script-src 'self';)? style-src 'self'/.test(headers))
   fail('_headers : politique de la page d’accueil absente.');
 if (!/\/demo\/\*[\s\S]*connect-src 'none'/.test(headers))
   fail("_headers : la démo doit avoir connect-src 'none'.");
-if (/script-src/.test(headers.split('/demo/*')[0] ?? ''))
-  fail('_headers : la page d’accueil ne doit autoriser aucun script.');
+const landingPart = headers.split('/demo/*')[0] ?? '';
+if ((landingPart.match(/script-src[^;]*/g) ?? []).some((v) => v !== "script-src 'self'"))
+  fail("_headers : seul script-src 'self' est permis sur la page d’accueil.");
+if (/\/guide\/\*\s+Content-Security-Policy:[^\n]*script-src/.test(headers))
+  fail('_headers : le guide ne doit autoriser aucun script.');
+
+// 5 bis. Vercel : vercel.json reprend les mêmes protections que _headers.
+if (!existsSync(join(SITE, 'vercel.json'))) fail('vercel.json manquant (hébergement Vercel).');
+else {
+  const vercel = JSON.parse(readFileSync(join(SITE, 'vercel.json'), 'utf8'));
+  const valueOf = (source, key) =>
+    vercel.headers?.find((r) => r.source === source)?.headers.find((h) => h.key === key)?.value ??
+    '';
+  if (!valueOf('/demo/(.*)', 'Content-Security-Policy').includes("connect-src 'none'"))
+    fail("vercel.json : la démo doit avoir connect-src 'none'.");
+  for (const source of ['/', '/guide/(.*)', '/guide'])
+    if (!valueOf(source, 'Content-Security-Policy').startsWith("default-src 'none'"))
+      fail(`vercel.json : politique absente pour ${source}.`);
+  const home = valueOf('/', 'Content-Security-Policy');
+  if (/script-src/.test(home) && !/script-src 'self';/.test(home))
+    fail("vercel.json : seul script-src 'self' est permis sur la page d’accueil.");
+  if (/script-src/.test(valueOf('/guide', 'Content-Security-Policy')))
+    fail('vercel.json : le guide ne doit autoriser aucun script.');
+}
 
 // 6. La démo est bien dedans et marche sous /demo/.
 for (const file of ['demo/index.html'])
@@ -113,4 +154,4 @@ if (failures.length > 0) {
   console.error(failures.map((f) => `✖ ${f}`).join('\n'));
   process.exit(1);
 }
-console.log('✔ Site contrôlé : page sans script, aucun lien cassé, aucun secret, démo isolée.');
+console.log('✔ Site contrôlé : un seul script local, aucun lien cassé, aucun secret, démo isolée.');

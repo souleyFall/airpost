@@ -56,7 +56,7 @@ pnpm build:site -- --video chemin/airpost.mp4 --poster chemin/poster.jpg
 pnpm check:site
 ```
 
-Le dossier `site/` contient la page, la démo (`/demo/`), la vidéo et les en-têtes de sécurité (`_headers`). Voir `docs/decisions.md`, D43.
+Le dossier `site/` contient la page, la démo (`/demo/`), la vidéo et les en-têtes de sécurité (`_headers` pour Netlify et Cloudflare Pages, `vercel.json` pour Vercel). La vidéo démarre au défilement (`scroll-play.js`, seul script de la page). Voir `docs/decisions.md`, D43.
 
 ## Licence
 
