@@ -57,3 +57,7 @@ pnpm check:site
 ```
 
 Le dossier `site/` contient la page, la démo (`/demo/`), la vidéo et les en-têtes de sécurité (`_headers`). Voir `docs/decisions.md`, D43.
+
+## Licence
+
+MIT : voir [LICENSE](LICENSE). Tu peux utiliser, modifier et partager le code ; les clés d'API, les données et les conditions d'utilisation des services tiers restent les tiens.
