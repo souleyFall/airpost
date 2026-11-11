@@ -598,3 +598,7 @@ footer .wrap {
   margin: 4px 0 0;
   color: var(--muted);
 }
+.toc-ia {
+  margin: 0 0 14px;
+  font-weight: 600;
+}
