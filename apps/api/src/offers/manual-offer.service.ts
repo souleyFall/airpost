@@ -67,7 +67,9 @@ export class ManualOfferService {
         user: buildExtractionPrompt(text),
         schema: extractionSchema,
         temperature: 0,
-        maxOutputTokens: 300,
+        // Large : les modèles de secours « réfléchissent » avant de répondre et cette réflexion compte dans la limite
+        // (à 300, gemini-3.6-flash était coupé en plein JSON).
+        maxOutputTokens: 2_000,
       });
     } catch (error) {
       throw translateLlmError(error);

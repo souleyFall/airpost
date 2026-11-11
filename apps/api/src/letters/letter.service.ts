@@ -214,7 +214,8 @@ export class LetterService {
         user: buildFollowUpPrompt(profile, context, feedback),
         schema: followUpSchema,
         temperature: 0.4,
-        maxOutputTokens: 800,
+        // Large : la réflexion des modèles de secours compte dans la limite.
+        maxOutputTokens: 2_000,
         // Comme pour la lettre : « Régénérer » doit produire un autre texte.
         useCache: false,
       });
@@ -268,7 +269,8 @@ export class LetterService {
         user: buildLetterPrompt(profile, offer, feedback),
         schema: letterSchema,
         temperature: 0.4,
-        maxOutputTokens: 1_500,
+        // Large : la réflexion des modèles de secours compte dans la limite.
+        maxOutputTokens: 3_000,
         // « Régénérer » doit produire un autre texte : pas de mémoire des réponses pour les lettres.
         useCache: false,
       });

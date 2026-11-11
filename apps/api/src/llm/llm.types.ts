@@ -43,6 +43,8 @@ export class LlmError extends Error {
   constructor(
     readonly reason: LlmErrorReason,
     message: string,
+    /** Code HTTP de la réponse du service, quand il y en a eu une (5xx : surcharge passagère, souvent). */
+    readonly httpStatus?: number,
   ) {
     super(message);
     this.name = 'LlmError';
