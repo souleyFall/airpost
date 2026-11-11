@@ -12,6 +12,8 @@ const option = (name, fallback) => {
 const VIDEO = resolve(option('--video', '../airpost-video/out/airpost.mp4'));
 const POSTER = resolve(option('--poster', '../airpost-video/out/poster.jpg'));
 const OUT = resolve('site');
+// Adresse publique du site : les aperçus de partage (LinkedIn, etc.) exigent des adresses absolues.
+const SITE_URL = option('--url', 'https://airpost-steel.vercel.app').replace(/\/+$/, '');
 const LANDING = resolve('apps/landing');
 const DEMO = resolve('apps/web/dist-demo');
 
@@ -30,6 +32,10 @@ rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
 cpSync(LANDING, OUT, { recursive: true });
 cpSync(DEMO, join(OUT, 'demo'), { recursive: true });
+for (const page of ['index.html', 'guide/index.html']) {
+  const file = join(OUT, page);
+  writeFileSync(file, readFileSync(file, 'utf8').replaceAll('%SITE_URL%', SITE_URL));
+}
 cpSync(VIDEO, join(OUT, 'airpost.mp4'));
 cpSync(POSTER, join(OUT, 'poster.jpg'));
 
@@ -54,6 +60,7 @@ const landingHeaders = [
   '/fonts/*',
   '/airpost.mp4',
   '/poster.jpg',
+  '/og-image.jpg',
   '/favicon.svg',
 ]
   .map(
