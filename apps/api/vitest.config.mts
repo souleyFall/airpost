@@ -6,6 +6,9 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'node',
+    // Marge pour une machine chargée : les tests lancés en parallèle (API et interface) dépassaient les 5 s par défaut sans qu'aucun ne soit lent seul.
+    testTimeout: 20_000,
+    hookTimeout: 20_000,
     include: ['src/**/*.spec.ts', 'src/**/*.e2e-spec.ts'],
     // Ces tests ne touchent pas à la base. Prisma ouvre sa connexion à la première requête :
     // une URL factice suffit pour construire l'application, et rend les tests indépendants de .env.

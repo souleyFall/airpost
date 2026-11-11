@@ -39,6 +39,9 @@ export default defineConfig(({ mode }) => ({
   },
   test: {
     environment: 'jsdom',
+    // Marge pour une machine chargée : les tests lancés en parallèle (API et interface) dépassaient les 5 s par défaut sans qu'aucun ne soit lent seul.
+    testTimeout: 20_000,
+    hookTimeout: 20_000,
     globals: true,
     setupFiles: ['./src/test-setup.ts'],
   },
