@@ -23,3 +23,4 @@ docs/revues/
 
 # Sauvegardes de la base (donnees personnelles)
 backups/
+dist-demo/

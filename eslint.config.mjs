@@ -1,4 +1,4 @@
-import js from '@eslint/js';
+﻿import js from '@eslint/js';
 import { defineConfig } from 'eslint/config';
 import prettier from 'eslint-config-prettier';
 import globals from 'globals';
@@ -8,6 +8,7 @@ export default defineConfig(
   {
     ignores: [
       '**/dist/**',
+      '**/dist-demo/**',
       '**/node_modules/**',
       '**/src/generated/**', // client Prisma généré : jamais relu ni modifié à la main
       'docs/**',

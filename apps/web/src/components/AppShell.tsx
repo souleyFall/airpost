@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
+import { Suspense, lazy } from 'react';
 import { ApiError, api } from '../api/client';
 import type { ApiHealthItem, RunReport as BaseRunReport, SourceReport } from '../api/types';
 import { newOffersLabel } from '../lib/format';
@@ -26,6 +27,12 @@ function Icon({ children }: { children: ReactNode }) {
     </svg>
   );
 }
+
+// Bandeau de la démo : chargé seulement dans la version démo (jamais dans la version réelle).
+// La condition est écrite ici en toutes lettres (et non via IS_DEMO) : le compilateur la remplace par « faux » dans la
+// version réelle et supprime l'import, au lieu d'embarquer le fichier de la démo.
+const DemoBanner =
+  import.meta.env.MODE === 'demo' ? lazy(() => import('../demo/DemoBanner')) : null;
 
 type CountKey = 'review' | 'tracking';
 
@@ -159,6 +166,11 @@ export function AppShell() {
           })}
         </nav>
         <div className="mt-auto flex flex-col gap-3 px-2.5">
+          {DemoBanner ? (
+            <Suspense fallback={null}>
+              <DemoBanner />
+            </Suspense>
+          ) : null}
           <p className="m-0 text-[13px] text-muted">{lastRunLabel(lastRun)}</p>
           {newOffers ? (
             <p role="status" className="m-0 text-[13px] font-semibold">
