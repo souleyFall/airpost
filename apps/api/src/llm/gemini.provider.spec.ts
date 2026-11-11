@@ -24,7 +24,12 @@ const ok = (text: string, finishReason = 'STOP') =>
 
 function setup(response: () => Response | Promise<Response>, env: Partial<Env> = {}) {
   const http = vi.fn<HttpFetch>(async () => response());
-  const full = { GEMINI_API_KEY: KEY, GEMINI_MODEL: 'gemini-3.5-flash-lite', ...env } as Env;
+  const full = {
+    GEMINI_API_KEY: KEY,
+    GEMINI_MODEL: 'gemini-3.5-flash-lite',
+    GEMINI_RETRY_DELAY_MS: 0,
+    ...env,
+  } as Env;
   return { provider: new GeminiProvider(full, http), http };
 }
 
@@ -203,7 +208,12 @@ describe('GeminiProvider : voyant de santé', () => {
       },
     } as unknown as ApiHealthService;
     const http = vi.fn<HttpFetch>(async () => response());
-    const full = { GEMINI_API_KEY: KEY, GEMINI_MODEL: 'gemini-3.5-flash-lite', ...env } as Env;
+    const full = {
+      GEMINI_API_KEY: KEY,
+      GEMINI_MODEL: 'gemini-3.5-flash-lite',
+      GEMINI_RETRY_DELAY_MS: 0,
+      ...env,
+    } as Env;
     return { provider: new GeminiProvider(full, http, health), recorded };
   }
 
@@ -263,7 +273,12 @@ describe('GeminiProvider : modèles de secours', () => {
         ? ok(`{"par":"${model}"}`)
         : json({ error: { status: 'X' } }, outcome);
     });
-    const full = { GEMINI_API_KEY: KEY, GEMINI_MODEL: 'gemini-3.5-flash-lite', ...env } as Env;
+    const full = {
+      GEMINI_API_KEY: KEY,
+      GEMINI_MODEL: 'gemini-3.5-flash-lite',
+      GEMINI_RETRY_DELAY_MS: 0,
+      ...env,
+    } as Env;
     return { provider: new GeminiProvider(full, http), calls, plan };
   }
 
@@ -275,24 +290,31 @@ describe('GeminiProvider : modèles de secours', () => {
   });
 
   it.each([
-    [429, 'quota atteint'],
-    [503, 'surcharge'],
-    [404, 'modèle introuvable'],
-  ])('bascule sur le modèle suivant après un %i (%s)', async (status) => {
+    [429, 'quota atteint', ['gemini-3.5-flash-lite', 'gemini-3.6-flash']],
+    // Une surcharge est réessayée une fois sur le même modèle avant de basculer.
+    [503, 'surcharge', ['gemini-3.5-flash-lite', 'gemini-3.5-flash-lite', 'gemini-3.6-flash']],
+    [404, 'modèle introuvable', ['gemini-3.5-flash-lite', 'gemini-3.6-flash']],
+  ])('bascule sur le modèle suivant après un %i (%s)', async (status, _label, expectedCalls) => {
     const { provider, calls } = byModel({ 'gemini-3.5-flash-lite': status });
 
     const result = await provider.generate(REQUEST);
 
     expect(result.model).toBe('gemini-3.6-flash');
     expect(result.text).toBe('{"par":"gemini-3.6-flash"}');
-    expect(calls).toEqual(['gemini-3.5-flash-lite', 'gemini-3.6-flash']);
+    expect(calls).toEqual(expectedCalls);
   });
 
   it('enchaîne plusieurs modèles défaillants jusqu’au premier qui répond', async () => {
     const { provider, calls } = byModel({ 'gemini-3.5-flash-lite': 429, 'gemini-3.6-flash': 503 });
 
     expect((await provider.generate(REQUEST)).model).toBe('gemini-3.8-flash');
-    expect(calls).toEqual(['gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-3.8-flash']);
+    // 3.6 (503) est réessayé une fois avant que 3.8 prenne le relais.
+    expect(calls).toEqual([
+      'gemini-3.5-flash-lite',
+      'gemini-3.6-flash',
+      'gemini-3.6-flash',
+      'gemini-3.8-flash',
+    ]);
   });
 
   it('ne rappelle pas un modèle en échec pendant sa pause, puis le réessaie ensuite', async () => {
@@ -380,5 +402,108 @@ describe('GeminiProvider : modèles de secours', () => {
 
     expect(message).not.toContain(KEY);
     expect(message).not.toContain('confidentiel');
+  });
+});
+
+describe('GeminiProvider : surcharge passagère', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-10T08:00:00Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Réponses successives : un nombre = statut d'erreur, 'ok' = succès. La dernière se répète. */
+  function sequence(steps: (number | 'ok' | 'timeout')[], env: Partial<Env> = {}) {
+    let i = 0;
+    const calls: string[] = [];
+    const http = vi.fn<HttpFetch>(async (url) => {
+      calls.push(/models\/([^:]+):/.exec(String(url))?.[1] ?? '');
+      const step = steps[Math.min(i++, steps.length - 1)];
+      if (step === 'timeout') throw new Error('délai dépassé');
+      return step === 'ok' ? ok('{"a":1}') : json({ error: { status: 'X' } }, step);
+    });
+    const full = {
+      GEMINI_API_KEY: KEY,
+      GEMINI_MODEL: 'gemini-3.5-flash-lite',
+      GEMINI_FALLBACK_MODELS: ['gemini-3.6-flash'],
+      GEMINI_RETRY_DELAY_MS: 1_000,
+      ...env,
+    } as Env;
+    return { provider: new GeminiProvider(full, http), calls };
+  }
+
+  it('une surcharge qui passe en une seconde : même modèle, aucune bascule, aucune pause du modèle principal', async () => {
+    const { provider, calls } = sequence([503, 'ok']);
+
+    const pending = provider.generate(REQUEST);
+    await vi.advanceTimersByTimeAsync(1_000);
+    const result = await pending;
+
+    expect(result.model).toBe('gemini-3.5-flash-lite');
+    expect(calls).toEqual(['gemini-3.5-flash-lite', 'gemini-3.5-flash-lite']);
+
+    // Le modèle principal n'a pas été mis en pause : la demande suivante le rappelle tout de suite.
+    calls.length = 0;
+    await provider.generate(REQUEST);
+    expect(calls).toEqual(['gemini-3.5-flash-lite']);
+  });
+
+  it("attend la pause configurée avant le nouvel essai, pas plus d'un nouvel essai par modèle", async () => {
+    const { provider, calls } = sequence([503]);
+
+    const pending = provider.generate(REQUEST).catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(calls).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(10_000);
+    const error = await pending;
+
+    expect((error as LlmError).reason).toBe('unavailable');
+    // Deux modèles × (un essai + un nouvel essai) : jamais une boucle.
+    expect(calls).toHaveLength(4);
+  });
+
+  it("un délai dépassé n'est pas réessayé (il durerait aussi long) : on passe au modèle suivant", async () => {
+    const { provider, calls } = sequence(['timeout', 'ok']);
+
+    const result = await provider.generate(REQUEST);
+
+    expect(result.model).toBe('gemini-3.6-flash');
+    expect(calls).toEqual(['gemini-3.5-flash-lite', 'gemini-3.6-flash']);
+  });
+
+  it("une erreur 4xx autre que quota n'est jamais réessayée", async () => {
+    const { provider, calls } = sequence([400]);
+
+    await provider.generate(REQUEST).catch(() => undefined);
+
+    expect(calls).toEqual(['gemini-3.5-flash-lite']);
+  });
+
+  it('tous les modèles en pause pour simple indisponibilité : la demande suivante essaie quand même le principal', async () => {
+    const { provider, calls } = sequence([503, 503, 503, 503, 'ok']);
+    const first = provider.generate(REQUEST).catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(10_000);
+    await first;
+    expect(calls).toHaveLength(4);
+    calls.length = 0;
+
+    // Pendant les 30 s de pause des deux modèles : avant la correction, l'erreur arrivait sans aucune requête.
+    vi.setSystemTime(new Date('2026-11-10T08:00:05Z'));
+    const result = await provider.generate(REQUEST);
+
+    expect(result.model).toBe('gemini-3.5-flash-lite');
+    expect(calls).toEqual(['gemini-3.5-flash-lite']);
+  });
+
+  it('tous les modèles en pause pour QUOTA : toujours aucune requête (on ne gaspille pas le quota)', async () => {
+    const { provider, calls } = sequence([429]);
+    await provider.generate(REQUEST).catch(() => undefined);
+    calls.length = 0;
+
+    await provider.generate(REQUEST).catch(() => undefined);
+
+    expect(calls).toEqual([]);
   });
 });

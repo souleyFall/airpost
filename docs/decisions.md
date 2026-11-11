@@ -339,3 +339,12 @@ En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans N
 - **Semaines** : huit semaines glissantes, lundi de chaque semaine en UTC (un envoi tardi le dimanche soir en heure de Paris peut compter dans la semaine suivante : écart assumé, affichage seulement).
 - **Données** : seulement des compteurs. Aucun texte de lettre, de mail ni nom de recruteur ne quitte la base pour cet écran (testé). Pas de nouvelle donnée stockée, pas de migration.
 - **Limites** : corrélation, pas causalité (une source qui répond plus n'est pas forcément meilleure : le nombre d'envois est petit) ; les candidatures déclarées « envoyées » à la main avant l'existence de la date d'envoi ne comptent pas.
+
+### D41 : fiabilité de Gemini, trois défauts trouvés à l'usage (ajout manuel d'une offre)
+
+- **Incident** : une annonce collée a donné « lecture impossible » ; les journaux montraient les trois modèles en échec en une minute (deux erreurs rapides, un délai de 60 s), alors que, une minute plus tard, `gemini-3.5-flash-lite` répondait en 0,8 s à la même annonce. Cause : une indisponibilité passagère de Gemini.
+- **Défaut 1, pas de nouvel essai** : une erreur 5xx met le modèle en pause 30 s et bascule d'emblée. Désormais UN nouvel essai du même modèle après une pause (`GEMINI_RETRY_DELAY_MS`, 1 s par défaut, 0 pour supprimer) avant de basculer. Un délai dépassé n'est pas réessayé (il durerait aussi long), ni une erreur 4xx.
+- **Défaut 2, échec instantané pendant la pause** : quand tous les modèles étaient en pause pour simple indisponibilité, la demande suivante échouait sans aucune requête, donc « Réessayer » ne pouvait pas marcher avant 30 s. Désormais le modèle principal est tenté une fois. Un quota atteint, lui, ne déclenche toujours aucune requête (on ne gaspille pas le quota).
+- **Défaut 3, limite de sortie trop basse** : les modèles de secours « réfléchissent » avant de répondre et cette réflexion compte dans `maxOutputTokens` ; mesuré : à 300 jetons, `gemini-3.6-flash` coupait la réponse en plein JSON (`MAX_TOKENS`), donc le secours n'aurait pas pu servir. Extraction 300 → 2000, relance 800 → 2000, lettre 1500 → 3000 (c'est un plafond, pas une consommation).
+- **Écran** : « Gemini est momentanément indisponible » au lieu d'un message vague, et un bouton « Réessayer la lecture automatique » qui évite de tout recoller.
+- **Constat à surveiller** : `gemini-3.8-flash` a dépassé 30 s sans répondre au test ; sa place de dernier secours le rend peu gênant, mais il vaut mieux vérifier son nom exact dans AI Studio.

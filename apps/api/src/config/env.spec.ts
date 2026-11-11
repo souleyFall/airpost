@@ -122,6 +122,9 @@ describe('parseEnv', () => {
     expect(parse().GEMINI_MODEL).toBe('gemini-3.5-flash-lite');
     expect(parse({ GEMINI_MODEL: '' }).GEMINI_MODEL).toBe('gemini-3.5-flash-lite');
     expect(parse({ GEMINI_MODEL: 'gemini-3.5-flash' }).GEMINI_MODEL).toBe('gemini-3.5-flash');
+    expect(parse().GEMINI_RETRY_DELAY_MS).toBe(1000);
+    expect(parse({ GEMINI_RETRY_DELAY_MS: '0' }).GEMINI_RETRY_DELAY_MS).toBe(0);
+    expect(() => parse({ GEMINI_RETRY_DELAY_MS: '-1' })).toThrow(/GEMINI_RETRY_DELAY_MS/);
     expect(parse().GEMINI_FALLBACK_MODELS).toEqual([]);
     expect(parse({ GEMINI_FALLBACK_MODELS: '' }).GEMINI_FALLBACK_MODELS).toEqual([]);
     expect(

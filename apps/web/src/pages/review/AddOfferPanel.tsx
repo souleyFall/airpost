@@ -29,8 +29,10 @@ function extractError(error: unknown): string {
     if (error.status === 503)
       return 'Lecture automatique indisponible (clé Gemini à vérifier) : remplis les champs toi-même.';
     if (error.status === 400) return error.message;
+    if (error.status === 502)
+      return 'Gemini est momentanément indisponible : réessaie la lecture dans quelques secondes, ou remplis les champs toi-même.';
   }
-  return 'La lecture automatique a échoué : remplis les champs toi-même.';
+  return 'La lecture automatique a échoué : réessaie, ou remplis les champs toi-même.';
 }
 
 /**
@@ -47,12 +49,15 @@ export function AddOfferPanel({ onAdded, onCancel }: Props) {
   const [contactEmail, setContactEmail] = useState('');
   const [busy, setBusy] = useState<null | 'extract' | 'create'>(null);
   const [error, setError] = useState<string | null>(null);
+  // La lecture automatique a échoué : on propose de la relancer sans tout recoller.
+  const [readFailed, setReadFailed] = useState(false);
 
   const textOk = text.trim().length >= MIN_TEXT;
 
   async function read() {
     setBusy('extract');
     setError(null);
+    setReadFailed(false);
     try {
       const fields = await api<Extracted>('POST', '/offers/manual/extract', { text });
       setTitle(fields.title);
@@ -61,6 +66,7 @@ export function AddOfferPanel({ onAdded, onCancel }: Props) {
       setContactEmail(fields.contactEmail ?? '');
     } catch (caught) {
       setError(extractError(caught));
+      setReadFailed(true);
     } finally {
       setBusy(null);
       setStep('check');
@@ -196,6 +202,18 @@ export function AddOfferPanel({ onAdded, onCancel }: Props) {
               />
             </div>
           ))}
+          {readFailed ? (
+            <div>
+              <button
+                type="button"
+                className="btn"
+                disabled={busy !== null}
+                onClick={() => void read()}
+              >
+                {busy === 'extract' ? 'Lecture…' : 'Réessayer la lecture automatique'}
+              </button>
+            </div>
+          ) : null}
           <div className="flex flex-wrap gap-2">
             <button
               type="button"

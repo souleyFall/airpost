@@ -116,6 +116,64 @@ describe('AddOfferPanel', () => {
     expect(screen.getByRole('button', { name: 'Ajouter l’offre' })).toBeDisabled();
   });
 
+  it('Gemini momentanément indisponible (502) : le dit et propose de réessayer la lecture sans tout recoller', async () => {
+    const calls = fakeApi({ extractStatus: 502 });
+    const { user } = setup();
+
+    await user.click(screen.getByLabelText('Texte de l’annonce'));
+    await user.paste(TEXT);
+    await user.click(screen.getByRole('button', { name: 'Lire l’annonce' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/momentanément indisponible/);
+    expect(screen.getByLabelText('Intitulé du poste')).toHaveValue('');
+
+    await user.click(screen.getByRole('button', { name: 'Réessayer la lecture automatique' }));
+
+    await waitFor(() =>
+      expect(calls.filter((c) => c.path === '/offers/manual/extract')).toHaveLength(2),
+    );
+  });
+
+  it('une lecture réussie au deuxième essai remplit les champs et fait disparaître le bouton de nouvel essai', async () => {
+    let attempt = 0;
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const path = url.replace(/^\/api/, '');
+        calls.push(path);
+        if (path === '/offers/manual/extract') {
+          attempt++;
+          return attempt === 1
+            ? new Response(JSON.stringify({ message: 'x' }), { status: 502 })
+            : new Response(
+                JSON.stringify({
+                  title: 'Dev',
+                  company: 'INCOM',
+                  city: 'Paris',
+                  contactEmail: null,
+                }),
+              );
+        }
+        return new Response('{}', { status: 404 });
+      }),
+    );
+    setCsrfToken('csrf');
+    const { user } = setup();
+
+    await user.click(screen.getByLabelText('Texte de l’annonce'));
+    await user.paste(TEXT);
+    await user.click(screen.getByRole('button', { name: 'Lire l’annonce' }));
+    await user.click(
+      await screen.findByRole('button', { name: 'Réessayer la lecture automatique' }),
+    );
+
+    await waitFor(() => expect(screen.getByLabelText('Entreprise')).toHaveValue('INCOM'));
+    expect(screen.queryByRole('button', { name: 'Réessayer la lecture automatique' })).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(calls).toEqual(['/offers/manual/extract', '/offers/manual/extract']);
+  });
+
   it('« Remplir moi-même » saute la lecture automatique (aucune requête au modèle)', async () => {
     const calls = fakeApi();
     const { onAdded, user } = setup();

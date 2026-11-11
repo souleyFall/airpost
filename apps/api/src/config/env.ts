@@ -88,6 +88,11 @@ export const envSchema = z
         z.array(z.string().regex(/^[a-z0-9][a-z0-9.-]{1,60}$/)).max(3),
       )
       .default([]),
+    /**
+     * Pause (ms) avant de réessayer UNE fois un modèle qui répond une erreur 5xx : une surcharge de Gemini dure souvent
+     * moins d'une seconde. 0 : pas de pause (tests).
+     */
+    GEMINI_RETRY_DELAY_MS: z.coerce.number().int().min(0).max(5_000).default(1_000),
     /** France Travail (La Bonne Boîte) : identifiant et secret OAuth2. Secrets, jamais journalisés. */
     FT_CLIENT_ID: secret(),
     FT_CLIENT_SECRET: secret(),

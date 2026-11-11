@@ -125,6 +125,27 @@ export class GeminiProvider extends LlmProvider {
     void this.health?.recordIfChanged('GEMINI', status).catch(() => undefined);
   }
 
+  /**
+   * Un appel à un modèle, avec UN nouvel essai (après une courte pause) quand le service répond une erreur 5xx : une
+   * surcharge de Gemini est souvent passagère, et basculer d'emblée sur un autre modèle gaspille son quota et met le
+   * modèle principal en pause pour rien. Un délai dépassé (réseau, modèle lent) n'est pas réessayé : il durerait aussi long.
+   */
+  private async callModel(model: string, key: string, request: LlmRequest): Promise<LlmResponse> {
+    try {
+      return await this.generateWith(model, key, request);
+    } catch (error) {
+      const serverError =
+        error instanceof LlmError &&
+        error.reason === 'unavailable' &&
+        error.httpStatus !== undefined &&
+        error.httpStatus >= 500;
+      if (!serverError) throw error;
+      const pause = this.env.GEMINI_RETRY_DELAY_MS ?? 1_000;
+      if (pause > 0) await new Promise((resolve) => setTimeout(resolve, pause));
+      return await this.generateWith(model, key, request);
+    }
+  }
+
   private async generateAcrossModels(request: LlmRequest): Promise<LlmResponse> {
     const key = this.env.GEMINI_API_KEY;
     if (!key) {
@@ -136,6 +157,7 @@ export class GeminiProvider extends LlmProvider {
       if (worst === undefined || SEVERITY[reason] > SEVERITY[worst]) worst = reason;
     };
     const models = this.models();
+    let tried = false;
     for (const [index, model] of models.entries()) {
       const block = this.blocked.get(model);
       if (block && block.until > Date.now()) {
@@ -143,8 +165,9 @@ export class GeminiProvider extends LlmProvider {
         note(block.reason);
         continue;
       }
+      tried = true;
       try {
-        const response = await this.generateWith(model, key, request);
+        const response = await this.callModel(model, key, request);
         this.blocked.delete(model);
         return { ...response, model };
       } catch (error) {
@@ -155,6 +178,21 @@ export class GeminiProvider extends LlmProvider {
         this.logger.warn(
           `Modèle ${model} : ${error.reason}${next ? `, bascule sur ${next}` : ', plus aucun modèle de secours'}.`,
         );
+      }
+    }
+    // Tous les modèles étaient en pause pour une simple indisponibilité (pas un quota) : une nouvelle demande de
+    // l'utilisateur ne doit pas échouer sans rien tenter. On essaie le modèle principal, une seule fois.
+    if (!tried && worst === 'unavailable') {
+      const primary = models[0];
+      if (primary) {
+        try {
+          const response = await this.callModel(primary, key, request);
+          this.blocked.delete(primary);
+          return { ...response, model: primary };
+        } catch (error) {
+          if (!(error instanceof LlmError) || !isSwitchable(error.reason)) throw error;
+          this.block(primary, error.reason, 0);
+        }
       }
     }
     const reason = worst ?? 'unavailable';
@@ -264,6 +302,6 @@ export class GeminiProvider extends LlmProvider {
         ? new LlmError('unauthorized', 'Gemini : clé API invalide.')
         : new LlmError('invalid_output', 'Gemini : requête refusée (400).');
     }
-    return new LlmError('unavailable', `Gemini : réponse ${status}.`);
+    return new LlmError('unavailable', `Gemini : réponse ${status}.`, status);
   }
 }
