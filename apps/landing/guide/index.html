@@ -48,6 +48,7 @@
       <section class="guide">
         <div class="wrap guide-grid">
           <nav class="toc" aria-label="Sommaire">
+            <p class="toc-ia"><a href="#assistant">Raccourci : ton assistant IA</a></p>
             <p class="toc-title">Les étapes</p>
             <ol start="0">
               <li><a href="#avant">Avant de commencer</a></li>
@@ -68,6 +69,50 @@
           </nav>
 
           <div class="steps">
+            <article id="assistant">
+              <h2>
+                <span class="num">IA</span> Raccourci : laisse ton assistant IA faire l’installation
+              </h2>
+              <p>
+                Si tu utilises un assistant IA
+                <strong>capable d’exécuter des commandes sur ton ordinateur</strong> (Claude Code,
+                Cursor, Copilot en mode agent, Codex…), tu peux lui confier toute la partie
+                technique. Un simple chat qui ne touche pas à ta machine ne suffit pas : il pourra
+                seulement t’expliquer les étapes.
+              </p>
+              <p>
+                Copie ce message et colle-le dans ton assistant, depuis le dossier où tu veux
+                installer airpost :
+              </p>
+              <pre><code>Tu es mon assistant d’installation. Installe airpost sur mon ordinateur pour ma propre recherche d’alternance.
+
+1. Clone https://github.com/souleyFall/airpost.git, puis lis apps/landing/guide/index.html (le guide de démarrage) et suis-le étape par étape.
+2. Commence par vérifier que git, Docker Desktop, Node 24 et pnpm sont installés. Dis-moi ce qui manque et n’installe rien sans mon accord.
+3. Fais toi-même : pnpm install, cp .env.example .env, un mot de passe de base de données généré (écris-le dans .env sans me l’afficher), les deux fichiers vides credentials.json et token.json, puis docker compose up -d --build et les migrations.
+4. Après chaque étape, vérifie (docker compose ps, http://localhost:8080) et dis-moi en une ligne si c’est bon.
+
+Règles à respecter absolument :
+- Ne lis, n’affiche et ne répète jamais le contenu de .env, credentials.json ou token.json.
+- Ne me demande jamais de te coller une clé d’API ou un mot de passe dans cette conversation. Je saisis mes clés moi-même dans .env avec mon éditeur de texte : dis-moi seulement quelle ligne remplir et où obtenir la clé.
+- La création du compte (pnpm --filter @airpost/api user:create) demande un mot de passe masqué : arrête-toi, donne-moi la commande et je la lance moi-même dans mon terminal.
+- Pour Gmail, guide-moi pas à pas dans la console Google ; je fais les clics et je lance moi-même node scripts/gmail-authorize.mjs.
+- Ne publie rien : pas de git push, pas de mise en ligne de l’application, aucune désactivation d’une protection de sécurité.
+- Si une commande échoue, explique pourquoi avant de réessayer, sans contourner l’erreur.
+
+À la fin, donne-moi la liste de ce qu’il me reste à faire moi-même : clés, compte, profil, Gmail.</code></pre>
+              <p class="callout">
+                <strong>Ce que l’assistant ne doit jamais voir :</strong> tes clés, ton mot de passe
+                et le contenu de tes fichiers Gmail. Le message ci-dessus le lui interdit, mais
+                garde un œil sur les commandes qu’il propose avant de les valider. Tout ce qu’il
+                écrit dans la conversation peut être conservé par son éditeur.
+              </p>
+              <p class="tip">
+                Il te restera toujours à faire toi-même : obtenir et coller tes clés (étape 4),
+                choisir ton mot de passe (étape 6), remplir ton profil (étape 7) et accepter les
+                autorisations Google (étape 9).
+              </p>
+            </article>
+
             <article id="avant">
               <h2><span class="num">0</span> Avant de commencer</h2>
               <p>
