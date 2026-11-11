@@ -76,6 +76,49 @@ if (guide) {
 }
 if (!/href="guide\/"/.test(html)) fail('La page d’accueil ne renvoie pas vers guide/.');
 
+// 2 bis. Aperçu de partage : adresses absolues, image présente, 1200 x 630 et légère.
+for (const [name, page] of [
+  ['index.html', html],
+  ['guide/index.html', guide ?? ''],
+]) {
+  if (page.includes('%SITE_URL%')) fail(`${name} : adresse publique non substituée (%SITE_URL%).`);
+  const meta = (key) =>
+    page.match(new RegExp(`<meta\\s+(?:property|name)="${key}"\\s+content="([^"]*)"`))?.[1];
+  for (const key of [
+    'og:title',
+    'og:description',
+    'og:url',
+    'og:image',
+    'twitter:card',
+    'twitter:image',
+  ])
+    if (!meta(key)) fail(`${name} : balise ${key} absente.`);
+  for (const key of ['og:image', 'twitter:image', 'og:url'])
+    if (meta(key) && !/^https:\/\//.test(meta(key)))
+      fail(`${name} : ${key} doit être une adresse https absolue.`);
+  if (meta('twitter:card') !== 'summary_large_image') fail(`${name} : twitter:card inattendu.`);
+}
+const ogFile = join(SITE, 'og-image.jpg');
+if (!existsSync(ogFile)) fail('og-image.jpg manquant.');
+else {
+  const jpg = readFileSync(ogFile);
+  if (jpg.length > 300 * 1024)
+    fail('og-image.jpg dépasse 300 Ko (LinkedIn et d’autres refusent les images trop lourdes).');
+  let w = 0,
+    h = 0;
+  for (let i = 2; i + 9 < jpg.length;) {
+    if (jpg[i] !== 0xff) break;
+    const marker = jpg[i + 1];
+    if (marker >= 0xc0 && marker <= 0xc3) {
+      h = jpg.readUInt16BE(i + 5);
+      w = jpg.readUInt16BE(i + 7);
+      break;
+    }
+    i += 2 + jpg.readUInt16BE(i + 2);
+  }
+  if (w !== 1200 || h !== 630) fail(`og-image.jpg doit faire 1200 x 630 (trouvé ${w} x ${h}).`);
+}
+
 // 3. Accessibilité de base : langue, titre, vidéo avec commandes, un seul h1, texte alternatif des images.
 if (!/<html[^>]*\blang="fr"/.test(html)) fail('Attribut lang="fr" absent.');
 if (!/<title>[^<]{10,}<\/title>/.test(html)) fail('Titre de page absent ou trop court.');
