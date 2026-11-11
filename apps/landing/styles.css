@@ -602,3 +602,12 @@ footer .wrap {
   margin: 0 0 14px;
   font-weight: 600;
 }
+.flush-bottom {
+  margin-bottom: 0;
+}
+.actions-start {
+  justify-content: flex-start;
+}
+.actions-flush {
+  margin: 0;
+}

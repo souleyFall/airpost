@@ -40,9 +40,15 @@ const demoHeaders = readFileSync(join(DEMO, '_headers'), 'utf8')
   .trimEnd();
 const LANDING_CSP =
   "default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; media-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+// Seule la page d'accueil charge un script (scroll-play.js, même origine) : lecture de la vidéo au défilement.
+const PAGE_CSP = LANDING_CSP.replace(
+  "default-src 'none';",
+  "default-src 'none'; script-src 'self';",
+);
 const landingHeaders = [
   '/',
   '/index.html',
+  '/scroll-play.js',
   '/guide/*',
   '/styles.css',
   '/fonts/*',
@@ -52,11 +58,33 @@ const landingHeaders = [
 ]
   .map(
     (path) =>
-      `${path}\n  Content-Security-Policy: ${LANDING_CSP}\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: no-referrer`,
+      `${path}\n  Content-Security-Policy: ${path === '/' || path === '/index.html' ? PAGE_CSP : LANDING_CSP}\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: no-referrer`,
   )
   .join('\n');
 // La démo a son propre _headers à la racine de /demo : on le retire pour ne pas dupliquer les règles.
 rmSync(join(OUT, 'demo', '_headers'), { force: true });
 writeFileSync(join(OUT, '_headers'), `${landingHeaders}\n${demoHeaders}\n`);
+
+// Vercel n'applique pas `_headers` (format Netlify / Cloudflare Pages) : mêmes règles dans `vercel.json`, générées depuis le même texte pour qu'elles ne divergent pas.
+function toVercel(headersText) {
+  const rules = [];
+  for (const block of headersText.split(/\n(?=\S)/)) {
+    const [path, ...lines] = block.trim().split('\n');
+    const headers = lines.map((line) => {
+      const i = line.indexOf(':');
+      return { key: line.slice(0, i).trim(), value: line.slice(i + 1).trim() };
+    });
+    // « /demo/* » devient « /demo/(.*) » ; « /guide/* » vaut aussi pour « /guide ».
+    const source = path.endsWith('/*') ? `${path.slice(0, -2)}/(.*)` : path;
+    rules.push({ source, headers });
+    if (path === '/guide/*') rules.push({ source: '/guide', headers });
+  }
+  return rules;
+}
+const merged = readFileSync(join(OUT, '_headers'), 'utf8');
+writeFileSync(
+  join(OUT, 'vercel.json'),
+  `${JSON.stringify({ trailingSlash: true, headers: toVercel(merged) }, null, 2)}\n`,
+);
 
 console.log(`✔ Site assemblé dans ${OUT}`);
