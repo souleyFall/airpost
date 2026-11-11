@@ -73,10 +73,10 @@ describe('application en mode démo', () => {
     await user.click(await screen.findByRole('link', { name: /^Suivi/ }));
     const buttons = await screen.findAllByRole('button', { name: 'Préparer la relance' });
 
-    await user.click(buttons[0] as HTMLElement);
+    await user.click(buttons[0]);
 
     const panel = await screen.findByRole('region', { name: /^Relance de / });
-    const message = (await within(panel).findByLabelText('Message')) as HTMLTextAreaElement;
+    const message = await within(panel).findByLabelText<HTMLTextAreaElement>('Message');
     expect(message.value).toContain('Il y a quelques jours');
     await user.click(within(panel).getByRole('button', { name: 'Copier' }));
     await waitFor(() =>

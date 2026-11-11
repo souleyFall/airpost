@@ -285,10 +285,10 @@ function computeStats(): Stats {
       total: state.offers.length + 330,
       newThisWeek: fresh.length + 38,
       newThisWeekBySource: [
-        { source: 'GLASSDOOR' as OfferSource, count: 18 },
-        { source: 'INDEED' as OfferSource, count: 9 + (state.collected ? 1 : 0) },
-        { source: 'LINKEDIN' as OfferSource, count: 8 + (state.collected ? 1 : 0) },
-        { source: 'GOOGLE_JOBS' as OfferSource, count: 6 },
+        { source: 'GLASSDOOR', count: 18 },
+        { source: 'INDEED', count: 9 + (state.collected ? 1 : 0) },
+        { source: 'LINKEDIN', count: 8 + (state.collected ? 1 : 0) },
+        { source: 'GOOGLE_JOBS', count: 6 },
       ],
     },
     smallSample: sentApps.length < 5,
@@ -405,6 +405,9 @@ function extractFromText(text: string) {
 
 type Body = Record<string, unknown>;
 
+/** Texte d'un champ du corps de la requête (le corps arrive en `unknown` : jamais de « [object Object] »). */
+const str = (value: unknown): string => (typeof value === 'string' ? value : '');
+
 /** Point d'entrée : même signature que le vrai client d'API. */
 export async function demoApi<T>(method: string, path: string, body?: unknown): Promise<T> {
   const url = new URL(path, 'http://demo.local');
@@ -452,12 +455,12 @@ export async function demoApi<T>(method: string, path: string, body?: unknown): 
   }
   if (route === '/offers/manual/extract' && method === 'POST') {
     await pause(900);
-    return extractFromText(String(b.text ?? '')) as T;
+    return extractFromText(str(b.text)) as T;
   }
   if (route === '/offers/manual' && method === 'POST') {
-    const title = String(b.title ?? '').trim();
-    const company = String(b.company ?? '').trim();
-    const city = b.city ? String(b.city) : null;
+    const title = str(b.title).trim();
+    const company = str(b.company).trim();
+    const city = str(b.city) || null;
     const key = `${title}|${company}|${city ?? ''}`.toLowerCase();
     const existing = state.offers.find(
       (o) => `${o.title}|${o.company}|${o.city ?? ''}`.toLowerCase() === key,
@@ -472,18 +475,18 @@ export async function demoApi<T>(method: string, path: string, body?: unknown): 
       company,
       city,
       postcode: null,
-      channel: b.contactEmail ? 'EMAIL' : 'SITE',
+      channel: str(b.contactEmail) ? 'EMAIL' : 'SITE',
       contractType: /stage/i.test(title)
         ? 'STAGE'
         : /alternan|apprenti/i.test(title)
           ? 'ALTERNANCE'
           : 'AUTRE',
       distanceKm: city === 'Versailles' ? 3 : city ? 20 : null,
-      applyUrl: b.applyUrl ? String(b.applyUrl) : null,
-      contactEmail: b.contactEmail ? String(b.contactEmail) : null,
+      applyUrl: str(b.applyUrl) || null,
+      contactEmail: str(b.contactEmail) || null,
       publishedAt: null,
       firstSeenAt: new Date().toISOString(),
-      description: String(b.text ?? ''),
+      description: str(b.text),
       score: null,
       analysis: null,
       analyzedAt: null,
@@ -494,13 +497,13 @@ export async function demoApi<T>(method: string, path: string, body?: unknown): 
     return { id: offer.id, created: true, analyzed: true } as T;
   }
   if ((hit = m(/^\/offers\/([^/]+)\/analyze$/)) && method === 'POST') {
-    const offer = find(state.offers, hit[1] as string, 'Offre');
+    const offer = find(state.offers, hit[1], 'Offre');
     await pause(900);
     analyze(offer);
     return offerDetail(offer) as T;
   }
   if ((hit = m(/^\/offers\/([^/]+)\/letter$/)) && method === 'POST') {
-    const offer = find(state.offers, hit[1] as string, 'Offre');
+    const offer = find(state.offers, hit[1], 'Offre');
     await pause(1_400);
     const existing = applicationOf(offer.id);
     const subject = `Candidature en alternance : ${offer.title}`;
@@ -533,7 +536,7 @@ export async function demoApi<T>(method: string, path: string, body?: unknown): 
     } as T;
   }
   if ((hit = m(/^\/offers\/([^/]+)$/)) && method === 'GET') {
-    return offerDetail(find(state.offers, hit[1] as string, 'Offre')) as T;
+    return offerDetail(find(state.offers, hit[1], 'Offre')) as T;
   }
 
   // -- candidatures
@@ -543,7 +546,7 @@ export async function demoApi<T>(method: string, path: string, body?: unknown): 
       .map(applicationRow) as T;
   }
   if ((hit = m(/^\/applications\/([^/]+)\/status$/)) && method === 'POST') {
-    const app = find(state.applications, hit[1] as string, 'Candidature');
+    const app = find(state.applications, hit[1], 'Candidature');
     const to = b.status as ApplicationStatus;
     if (!MANUAL_NEXT[app.status].includes(to)) throw new ApiError(409, 'Passage impossible');
     if (to === 'VALIDATED' && (!app.subject?.trim() || !app.body?.trim())) {
@@ -556,14 +559,14 @@ export async function demoApi<T>(method: string, path: string, body?: unknown): 
     return { id: app.id, status: app.status, subject: app.subject, body: app.body } as T;
   }
   if ((hit = m(/^\/applications\/([^/]+)\/draft$/)) && method === 'POST') {
-    const app = find(state.applications, hit[1] as string, 'Candidature');
+    const app = find(state.applications, hit[1], 'Candidature');
     await pause(500);
     app.status = 'DRAFT_CREATED';
     app.updatedAt = new Date().toISOString();
     return { applicationId: app.id, draftId: 'brouillon-demo', to: app.offer.contactEmail } as T;
   }
   if ((hit = m(/^\/applications\/([^/]+)\/follow-up$/)) && method === 'POST') {
-    const app = find(state.applications, hit[1] as string, 'Candidature');
+    const app = find(state.applications, hit[1], 'Candidature');
     if (!FOLLOW_UP_STATUSES.includes(app.status) || app.followedUpAt) {
       throw new ApiError(409, 'Cette candidature ne peut plus être relancée');
     }
@@ -579,7 +582,7 @@ export async function demoApi<T>(method: string, path: string, body?: unknown): 
     } satisfies FollowUpResult as T;
   }
   if ((hit = m(/^\/applications\/([^/]+)\/follow-up\/(draft|done)$/)) && method === 'POST') {
-    const app = find(state.applications, hit[1] as string, 'Candidature');
+    const app = find(state.applications, hit[1], 'Candidature');
     if (!FOLLOW_UP_STATUSES.includes(app.status) || app.followedUpAt) {
       throw new ApiError(409, 'Cette candidature ne peut plus être relancée');
     }
@@ -589,7 +592,7 @@ export async function demoApi<T>(method: string, path: string, body?: unknown): 
     return { applicationId: app.id, draftId: 'relance-demo', to: app.offer.contactEmail } as T;
   }
   if ((hit = m(/^\/applications\/([^/]+)$/))) {
-    const app = find(state.applications, hit[1] as string, 'Candidature');
+    const app = find(state.applications, hit[1], 'Candidature');
     if (method === 'PATCH') {
       if (app.status !== 'TO_REVIEW')
         throw new ApiError(409, 'Seule une candidature « à valider » peut être modifiée');
