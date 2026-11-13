@@ -32,13 +32,19 @@ export interface SyncReport {
   finishedAt: string;
 }
 
+/**
+ * La date d'envoi est celle du clic « Envoyée », souvent après l'envoi réel : l'accusé de réception arrive avant.
+ * La recherche remonte donc de quelques jours avant cette date.
+ */
+export const LOOKBACK_DAYS = 7;
+
 /** Requête Gmail pour retrouver les réponses à une candidature : expéditeur connu, sinon nom de l'entreprise. */
 export function buildQuery(app: {
   appliedAt: Date;
   contactEmail: string | null;
   company: string;
 }): string | null {
-  const after = Math.floor(app.appliedAt.getTime() / 1000);
+  const after = Math.floor((app.appliedAt.getTime() - LOOKBACK_DAYS * 86_400_000) / 1000);
   if (app.contactEmail && isValidRecipient(app.contactEmail)) {
     const domain = app.contactEmail.split('@')[1] ?? '';
     return `after:${after} -from:me from:@${domain}`;
