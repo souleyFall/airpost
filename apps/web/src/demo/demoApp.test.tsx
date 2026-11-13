@@ -39,7 +39,10 @@ describe('application en mode démo', () => {
     expect(
       await screen.findByText('Alternance Développeur Full Stack TypeScript'),
     ).toBeInTheDocument();
-    expect(screen.getByRole('note')).toHaveTextContent(/Démo : données fictives, aucun serveur/);
+    // L'encart est chargé en différé (lazy) : on l'attend au lieu de le chercher d'un coup.
+    expect(await screen.findByRole('note')).toHaveTextContent(
+      /Démo : données fictives, aucun serveur/,
+    );
     expect(screen.getByText('Connecté : démo')).toBeInTheDocument();
     expect(fetchSpy).not.toHaveBeenCalled();
   });

@@ -25,3 +25,6 @@ docs/revues/
 backups/
 dist-demo/
 site/
+
+# Visites guidées du code (skill /visite) : fichiers personnels générés
+.claude/visites/
