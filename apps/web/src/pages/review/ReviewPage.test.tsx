@@ -84,6 +84,8 @@ function fakeApi(options: Options = {}) {
   // Notes de la liste : absentes tant que l'analyse des offres affichées n'a pas eu lieu (option unscored).
   let scored = !options.unscored;
   const hidden = new Set<string>();
+  // Offres rejetées, ou passées au suivi sans lettre : elles quittent la liste « À valider ».
+  const gone = new Set<string>();
   const json = (data: unknown, code = 200) => new Response(JSON.stringify(data), { status: code });
   const appRef = () => (hasLetter ? { id: 'a1', status } : null);
   const catalogue = () =>
@@ -116,7 +118,7 @@ function fakeApi(options: Options = {}) {
       if (path.startsWith('/offers?')) {
         const params = new URL(path, 'http://x').searchParams;
         const visible = catalogue()
-          .filter((o) => !hidden.has(o.id))
+          .filter((o) => !hidden.has(o.id) && !gone.has(o.id))
           .filter(
             (o) => o.application?.status !== 'WITHDRAWN' && o.application?.status !== 'VALIDATED',
           )
@@ -155,6 +157,15 @@ function fakeApi(options: Options = {}) {
         if (options.analyzeStatus) return json({ message: 'Quota' }, options.analyzeStatus);
         analyzed = true;
         return json(detail(path.split('/')[2] ?? 'o1'));
+      }
+      if (path === '/offers/rejected') return json({ total: 0, items: [] });
+      if (/^\/offers\/[\w-]+\/reject$/.test(path) && method === 'POST') {
+        gone.add(path.split('/')[2] ?? '');
+        return json({ rejected: true });
+      }
+      if (path === '/applications/without-letter' && method === 'POST') {
+        gone.add((body as { offerId: string }).offerId);
+        return json({ id: 'a9', status: 'APPLIED', subject: null, body: null });
       }
       if (/^\/offers\/[\w-]+$/.test(path)) return json(detail(path.split('/')[2] ?? 'o1'));
       if (path === '/offers/o1/letter' && method === 'POST') {
@@ -679,17 +690,77 @@ describe('écran À valider', () => {
     expect(screen.getByRole('button', { name: 'Valider la candidature' })).toBeDisabled();
   });
 
-  it('rejette une candidature', async () => {
+  it('rejette une offre dont la lettre est générée : elle va dans « Rejetées », pas en « Retirée »', async () => {
     const calls = fakeApi({ generated: true });
     const user = userEvent.setup();
     renderApp();
     await user.click(await screen.findByRole('button', { name: 'Rejeter' }));
     await waitFor(() =>
-      expect(calls).toContainEqual({
-        method: 'POST',
-        path: '/applications/a1/status',
-        body: { status: 'WITHDRAWN' },
-      }),
+      expect(calls).toContainEqual({ method: 'POST', path: '/offers/o1/reject', body: undefined }),
     );
+    expect(calls.some((c) => c.path === '/applications/a1/status')).toBe(false);
+  });
+
+  describe('sans lettre', () => {
+    it('rejette une offre sans générer de lettre : elle quitte la liste', async () => {
+      const calls = fakeApi();
+      const user = userEvent.setup();
+      renderApp();
+      const list = await findList();
+      expect(within(list).getByText('Alternance full stack')).toBeInTheDocument();
+
+      await user.click(await screen.findByRole('button', { name: 'Rejeter' }));
+
+      await waitFor(() =>
+        expect(calls).toContainEqual({
+          method: 'POST',
+          path: '/offers/o1/reject',
+          body: undefined,
+        }),
+      );
+      await waitFor(() =>
+        expect(within(getList()).queryByText('Alternance full stack')).not.toBeInTheDocument(),
+      );
+      expect(calls.some((c) => c.path === '/offers/o1/letter')).toBe(false);
+    });
+
+    it('postule sans lettre : la candidature passe au suivi, aucune lettre générée', async () => {
+      const calls = fakeApi();
+      const user = userEvent.setup();
+      renderApp();
+      await findList();
+
+      await user.click(await screen.findByRole('button', { name: 'Postuler sans lettre' }));
+
+      await waitFor(() =>
+        expect(calls).toContainEqual({
+          method: 'POST',
+          path: '/applications/without-letter',
+          body: { offerId: 'o1' },
+        }),
+      );
+      await waitFor(() =>
+        expect(within(getList()).queryByText('Alternance full stack')).not.toBeInTheDocument(),
+      );
+      expect(calls.some((c) => c.path === '/offers/o1/letter')).toBe(false);
+    });
+
+    it('explique que « Postuler sans lettre » n’envoie rien et que « Rejeter » est restaurable 7 jours', async () => {
+      fakeApi();
+      renderApp();
+
+      expect(await screen.findByText(/n’envoie rien/)).toBeInTheDocument();
+      expect(screen.getByText(/restaurable 7 jours/)).toBeInTheDocument();
+    });
+
+    it('n’offre « Postuler sans lettre » que tant qu’il n’y a pas de lettre', async () => {
+      fakeApi({ generated: true });
+      renderApp();
+      await screen.findByRole('button', { name: 'Rejeter' });
+
+      expect(
+        screen.queryByRole('button', { name: 'Postuler sans lettre' }),
+      ).not.toBeInTheDocument();
+    });
   });
 });

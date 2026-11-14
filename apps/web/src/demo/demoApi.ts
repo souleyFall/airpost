@@ -310,6 +310,7 @@ function listOffers(params: URLSearchParams) {
   const sort = params.get('sort') ?? 'score';
 
   let items = state.offers.filter((o) => {
+    if (o.rejectedAt) return false;
     const application = applicationOf(o.id);
     if (pending) {
       if (application && application.status !== 'TO_REVIEW') return false;
@@ -433,6 +434,75 @@ export async function demoApi<T>(method: string, path: string, body?: unknown): 
 
   // -- offres
   if (route === '/offers' && method === 'GET') return listOffers(url.searchParams) as T;
+  // Avant « /offers/:id » : « rejected » ne doit pas être pris pour un identifiant.
+  if (route === '/offers/rejected' && method === 'GET') {
+    const items = state.offers
+      .filter((o) => o.rejectedAt)
+      .sort((a, b) => (b.rejectedAt as string).localeCompare(a.rejectedAt as string))
+      .map((o) => ({
+        id: o.id,
+        title: o.title,
+        company: o.company,
+        city: o.city,
+        postcode: o.postcode,
+        contractType: o.contractType,
+        score: o.score,
+        rejectedAt: o.rejectedAt as string,
+        expiresAt: new Date(new Date(o.rejectedAt as string).getTime() + 7 * DAY).toISOString(),
+        hasLetter: applicationOf(o.id) !== undefined,
+      }));
+    return { total: items.length, items } as T;
+  }
+  if ((hit = m(/^\/offers\/([^/]+)\/reject$/)) && method === 'POST') {
+    const offer = find(state.offers, hit[1], 'Offre');
+    const application = applicationOf(offer.id);
+    if (application && application.status !== 'TO_REVIEW') {
+      throw new ApiError(
+        409,
+        'Cette offre est déjà en suivi : change son statut depuis la page Suivi',
+      );
+    }
+    offer.rejectedAt ??= new Date().toISOString();
+    return { id: offer.id, rejected: true } as T;
+  }
+  if ((hit = m(/^\/offers\/([^/]+)\/restore$/)) && method === 'POST') {
+    const offer = find(state.offers, hit[1], 'Offre');
+    offer.rejectedAt = null;
+    return { id: offer.id, rejected: false } as T;
+  }
+  if (route === '/applications/without-letter' && method === 'POST') {
+    const offer = find(state.offers, str(b.offerId), 'Offre');
+    if (offer.rejectedAt)
+      throw new ApiError(409, 'Cette offre est rejetée : restaure-la avant de postuler');
+    const now = new Date().toISOString();
+    const existing = applicationOf(offer.id);
+    if (existing && existing.status !== 'TO_REVIEW') {
+      throw new ApiError(409, 'Cette offre a déjà une candidature en suivi');
+    }
+    const application: DemoApplication = existing ?? {
+      id: nextId('app'),
+      status: 'APPLIED',
+      subject: null,
+      body: null,
+      validatedAt: now,
+      appliedAt: now,
+      followedUpAt: null,
+      createdAt: now,
+      updatedAt: now,
+      replies: [],
+      offer,
+    };
+    Object.assign(application, {
+      status: 'APPLIED',
+      subject: null,
+      body: null,
+      validatedAt: now,
+      appliedAt: now,
+      updatedAt: now,
+    });
+    if (!existing) state.applications.push(application);
+    return { id: application.id, status: 'APPLIED', subject: null, body: null } as T;
+  }
   if (route === '/offers/analyze' && method === 'POST') {
     const ids = (b.ids as string[]) ?? [];
     await pause(900);

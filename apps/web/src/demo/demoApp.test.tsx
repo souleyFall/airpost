@@ -88,6 +88,46 @@ describe('application en mode démo', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('rejette une offre sans lettre, la retrouve dans « Rejetées » et la restaure, sans réseau', async () => {
+    const { fetchSpy, user } = await startDemo();
+    await user.click(await screen.findByText('Alternance Développeur Full Stack TypeScript'));
+
+    await user.click(await screen.findByRole('button', { name: 'Rejeter' }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('heading', { name: 'Alternance Développeur Full Stack TypeScript' }),
+      ).not.toBeInTheDocument(),
+    );
+
+    await user.click(screen.getByRole('link', { name: /^Rejetées/ }));
+    const region = await screen.findByRole('region', { name: 'Offres rejetées' });
+    expect(
+      await within(region).findByText('Alternance Développeur Full Stack TypeScript'),
+    ).toBeInTheDocument();
+    expect(within(region).getByText('Supprimée dans 7 jours')).toBeInTheDocument();
+
+    await user.click(
+      within(region).getByRole('button', {
+        name: 'Restaurer Alternance Développeur Full Stack TypeScript',
+      }),
+    );
+    expect(await within(region).findByText('Aucune offre rejetée.')).toBeInTheDocument();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('postule sans lettre : l’offre passe au suivi comme « Envoyée », sans réseau', async () => {
+    const { fetchSpy, user } = await startDemo();
+    await user.click(await screen.findByText('Alternance Développeur Full Stack TypeScript'));
+
+    await user.click(await screen.findByRole('button', { name: 'Postuler sans lettre' }));
+    await user.click(await screen.findByRole('link', { name: /^Suivi/ }));
+
+    expect(
+      await screen.findByText('Alternance Développeur Full Stack TypeScript'),
+    ).toBeInTheDocument();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('la collecte fait arriver de nouvelles offres et affiche leur nombre', async () => {
     const { fetchSpy, user } = await startDemo();
     await screen.findByText('Alternance Développeur Full Stack TypeScript');

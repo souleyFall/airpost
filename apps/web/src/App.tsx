@@ -8,6 +8,7 @@ import { SourcesPage } from './pages/sources/SourcesPage';
 import { StatsPage } from './pages/stats/StatsPage';
 import { TrackingPage } from './pages/tracking/TrackingPage';
 import { ReviewPage } from './pages/review/ReviewPage';
+import { RejectedPage } from './pages/rejected/RejectedPage';
 
 /** Écrans réservés : sans session, retour à la connexion (l'API refuse de toute façon les données). */
 function RequireAuth() {
@@ -32,6 +33,7 @@ export function AppRoutes() {
       <Route element={<RequireAuth />}>
         <Route index element={<ReviewPage />} />
         <Route path="suivi" element={<TrackingPage />} />
+        <Route path="rejetees" element={<RejectedPage />} />
         <Route path="resultats" element={<StatsPage />} />
         <Route path="sources" element={<SourcesPage />} />
         <Route path="profil" element={<ProfilePage />} />

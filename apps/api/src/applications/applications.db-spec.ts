@@ -293,4 +293,85 @@ describe('Candidatures (e2e, base réelle)', () => {
       await write('delete', `/applications/${id}`).expect(404);
     });
   });
+
+  describe('postuler sans lettre', () => {
+    const bare = (externalId: string, extra: Record<string, unknown> = {}) =>
+      prisma.offer.create({
+        data: {
+          source: 'LBA',
+          externalId,
+          dedupKey: externalId,
+          title: `Offre ${externalId}`,
+          company: 'Autre SA',
+          channel: 'SITE',
+          ...extra,
+        },
+      });
+    const apply = (offer: string) =>
+      write('post', '/applications/without-letter').send({ offerId: offer });
+
+    it('crée la candidature directement « envoyée », sans objet ni texte', async () => {
+      const offer = await bare('sans-lettre');
+
+      const res = await apply(offer.id).expect(200);
+
+      expect(res.body).toMatchObject({ status: 'APPLIED', subject: null, body: null });
+      const row = await prisma.application.findUniqueOrThrow({ where: { offerId: offer.id } });
+      expect(row.appliedAt).not.toBeNull();
+      expect(row.validatedAt).not.toBeNull();
+      // Elle apparaît dans le suivi, au statut « envoyée ».
+      const list = (await get('/applications?status=APPLIED').expect(200)).body as { id: string }[];
+      expect(list.map((a) => a.id)).toContain(row.id);
+    });
+
+    it('abandonne une lettre générée mais non validée : la candidature passe à « envoyée » sans texte', async () => {
+      await apply(offerId).expect(200);
+
+      const row = await prisma.application.findUniqueOrThrow({ where: { id } });
+      expect(row).toMatchObject({ status: 'APPLIED', subject: null, body: null });
+    });
+
+    it('refuse si la candidature est déjà avancée (validée, envoyée...)', async () => {
+      await setStatus('VALIDATED').expect(200);
+
+      await apply(offerId).expect(409);
+
+      expect((await prisma.application.findUniqueOrThrow({ where: { id } })).status).toBe(
+        'VALIDATED',
+      );
+    });
+
+    it('refuse une offre rejetée : il faut d’abord la restaurer', async () => {
+      const offer = await bare('rejetee', { rejectedAt: new Date() });
+
+      await apply(offer.id).expect(409);
+
+      expect(await prisma.application.count({ where: { offerId: offer.id } })).toBe(0);
+    });
+
+    it('deux demandes simultanées ne créent qu’une candidature', async () => {
+      const offer = await bare('course');
+
+      const codes = (await Promise.all([apply(offer.id), apply(offer.id)]))
+        .map((r) => r.status)
+        .sort();
+
+      expect(codes).toEqual([200, 409]);
+      expect(await prisma.application.count({ where: { offerId: offer.id } })).toBe(1);
+    });
+
+    it('répond 404 pour une offre inconnue, 400 pour un corps invalide, 403 sans jeton CSRF', async () => {
+      await apply('00000000-0000-4000-8000-000000000000').expect(404);
+      await write('post', '/applications/without-letter')
+        .send({ offerId: 'pas-un-uuid' })
+        .expect(400);
+      await write('post', '/applications/without-letter').send({ offerId, extra: 1 }).expect(400);
+      await http
+        .post('/applications/without-letter')
+        .set('Cookie', session.cookie)
+        .send({ offerId })
+        .expect(403);
+      await http.post('/applications/without-letter').send({ offerId }).expect(401);
+    });
+  });
 });

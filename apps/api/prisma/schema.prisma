@@ -159,6 +159,9 @@ model Offer {
   analyzedAt   DateTime?
   /// Écartée par l'IA (hors métier, contrat incompatible) : masquée du fil « À valider », mais conservée pour ne pas être réimportée puis réanalysée à chaque collecte.
   excluded     Boolean      @default(false)
+  /// Rejetée par l'utilisateur : masquée de « À valider », restaurable pendant 7 jours. Passé ce délai, son contenu est vidé
+  /// (description, analyse, contact, lettre) ; seule l'identité reste, pour que la collecte ne la réimporte pas.
+  rejectedAt   DateTime?
   /// Empreinte du profil et du prompt au moment de l'analyse : si elle change, l'analyse est refaite.
   profileHash  String?
 
@@ -170,6 +173,7 @@ model Offer {
   @@index([source])
   @@index([contractType])
   @@index([excluded])
+  @@index([rejectedAt])
   /// Sert à la purge des offres qui ne sont plus publiées (durée de conservation).
   @@index([lastSeenAt])
 }
