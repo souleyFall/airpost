@@ -67,6 +67,7 @@ function setup(
     updated: 0,
   }));
   const purgeStale = vi.fn(async () => 2);
+  const purgeRejected = vi.fn(async () => 0);
   const refreshDistances = vi.fn(async () => 3);
   const cleanup = vi.fn(async () => ({ removed: 0, updated: 0 }));
   const analyzePending = vi.fn(async () => ({ analyzed: 7, remaining: 2 }));
@@ -83,6 +84,7 @@ function setup(
     {
       saveMany,
       purgeStale,
+      purgeRejected,
       sourcesByDedupKey,
       refreshDistances,
       cleanup,
@@ -107,6 +109,7 @@ function setup(
     indeed,
     saveMany,
     purgeStale,
+    purgeRejected,
     analyzePending,
     record,
     refreshDistances,
@@ -551,6 +554,26 @@ describe('CollectionService', () => {
     await service.run('u1');
 
     expect(purgeStale).toHaveBeenCalledWith(90);
+  });
+
+  it('vide aussi les offres rejetées depuis plus de 7 jours et les compte dans le bilan', async () => {
+    const { service, purgeRejected } = setup();
+    purgeRejected.mockResolvedValueOnce(3);
+
+    const report = await service.run('u1');
+
+    expect(purgeRejected).toHaveBeenCalled();
+    // 2 offres périmées (purgeStale) + 3 rejetées vidées.
+    expect(report.purged).toBe(5);
+  });
+
+  it('une panne du vidage des rejetées ne fait pas échouer la collecte', async () => {
+    const { service, purgeRejected } = setup();
+    purgeRejected.mockRejectedValueOnce(new Error('base indisponible'));
+
+    const report = await service.run('u1');
+
+    expect(report.purged).toBe(2);
   });
 
   it('refuse une seconde collecte pendant qu’une autre tourne, puis la réautorise', async () => {

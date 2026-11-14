@@ -682,4 +682,222 @@ describe('Offres et analyse IA (e2e, base réelle)', () => {
       await http.get("/offers/1' OR '1'='1").set('Cookie', cookie).expect(400);
     });
   });
+
+  describe('offres rejetées (sans lettre, restaurables 7 jours)', () => {
+    const daysAgo = (days: number) => new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const write = (path: string) => http.post(path).set('Cookie', cookie).set('X-CSRF-Token', csrf);
+    const rejectedList = async () =>
+      (await http.get('/offers/rejected').set('Cookie', cookie).expect(200)).body as {
+        total: number;
+        items: { id: string; title: string; hasLetter: boolean; expiresAt: string }[];
+      };
+
+    it('rejeter une offre sans lettre la sort de « À valider » et la met dans les rejetées', async () => {
+      const a = await seed('a');
+      await seed('b');
+
+      await write(`/offers/${a.id}/reject`).expect(200);
+
+      expect(titles(await get('?pending=true'))).toEqual(['Offre b']);
+      const list = await rejectedList();
+      expect(list.items.map((i) => i.title)).toEqual(['Offre a']);
+      expect(list.items[0]?.hasLetter).toBe(false);
+      // L'échéance est à 7 jours exactement de la date de rejet.
+      const row = await prisma.offer.findUniqueOrThrow({ where: { id: a.id } });
+      expect(new Date(list.items[0]?.expiresAt ?? '').getTime()).toBe(
+        (row.rejectedAt as Date).getTime() + 7 * 24 * 60 * 60 * 1000,
+      );
+    });
+
+    it('rejeter deux fois ne change pas la date de rejet', async () => {
+      const a = await seed('a');
+      await write(`/offers/${a.id}/reject`).expect(200);
+      const first = (await prisma.offer.findUniqueOrThrow({ where: { id: a.id } })).rejectedAt;
+
+      await write(`/offers/${a.id}/reject`).expect(200);
+
+      expect((await prisma.offer.findUniqueOrThrow({ where: { id: a.id } })).rejectedAt).toEqual(
+        first,
+      );
+    });
+
+    it('restaurer remet l’offre dans « À valider »', async () => {
+      const a = await seed('a');
+      await write(`/offers/${a.id}/reject`).expect(200);
+
+      await write(`/offers/${a.id}/restore`).expect(200);
+
+      expect(titles(await get('?pending=true'))).toEqual(['Offre a']);
+      expect((await rejectedList()).total).toBe(0);
+    });
+
+    it('refuse de restaurer une offre dont les 7 jours sont passés', async () => {
+      const a = await seed('a', { rejectedAt: daysAgo(8) });
+
+      await write(`/offers/${a.id}/restore`).expect(409);
+
+      expect(
+        (await prisma.offer.findUniqueOrThrow({ where: { id: a.id } })).rejectedAt,
+      ).not.toBeNull();
+    });
+
+    it('refuse de rejeter une offre dont la candidature est déjà avancée', async () => {
+      const a = await seed('a');
+      await prisma.application.create({ data: { offerId: a.id, status: 'VALIDATED' } });
+
+      await write(`/offers/${a.id}/reject`).expect(409);
+
+      expect((await prisma.offer.findUniqueOrThrow({ where: { id: a.id } })).rejectedAt).toBeNull();
+    });
+
+    it('rejeter une offre dont la lettre n’est pas validée garde la lettre jusqu’à l’échéance', async () => {
+      const a = await seed('a');
+      await prisma.application.create({
+        data: { offerId: a.id, subject: 'Objet', body: 'Texte de la lettre' },
+      });
+
+      await write(`/offers/${a.id}/reject`).expect(200);
+
+      expect((await rejectedList()).items[0]?.hasLetter).toBe(true);
+      await write(`/offers/${a.id}/restore`).expect(200);
+      expect((await prisma.application.findFirstOrThrow()).body).toBe('Texte de la lettre');
+    });
+
+    it('répond 404 pour une offre inconnue, 400 pour un identifiant mal formé, 401 sans session', async () => {
+      const unknown = '00000000-0000-4000-8000-000000000000';
+      await write(`/offers/${unknown}/reject`).expect(404);
+      await write(`/offers/${unknown}/restore`).expect(404);
+      await write('/offers/pas-un-uuid/reject').expect(400);
+      await http.get('/offers/rejected').expect(401);
+      await http.post(`/offers/${unknown}/reject`).set('Cookie', cookie).expect(403);
+    });
+
+    it('après 7 jours, le contenu est vidé et la lettre supprimée ; l’identité reste', async () => {
+      const old = await seed('old', {
+        rejectedAt: daysAgo(8),
+        score: 80,
+        analyzedAt: new Date(),
+        applyUrl: 'https://exemple.test/offre',
+        contactEmail: 'rh@exemple.test',
+      });
+      await prisma.application.create({
+        data: { offerId: old.id, subject: 'Objet', body: 'Texte de la lettre' },
+      });
+      const recent = await seed('recent', { rejectedAt: daysAgo(6), score: 70 });
+      await prisma.application.create({
+        data: { offerId: recent.id, subject: 'Objet', body: 'Texte conservé' },
+      });
+
+      const cleared = await app.get(OffersService).purgeRejected();
+
+      expect(cleared).toBe(1);
+      const vidée = await prisma.offer.findUniqueOrThrow({ where: { id: old.id } });
+      expect(vidée).toMatchObject({
+        title: 'Offre old',
+        company: 'Exemple SA',
+        dedupKey: 'old',
+        description: null,
+        contactEmail: null,
+        applyUrl: null,
+        analysis: null,
+        analyzedAt: null,
+        score: null,
+      });
+      expect(await prisma.application.count({ where: { offerId: old.id } })).toBe(0);
+      // Une offre rejetée depuis moins de 7 jours n'est pas touchée.
+      const gardée = await prisma.offer.findUniqueOrThrow({ where: { id: recent.id } });
+      expect(gardée).toMatchObject({ description: 'Longue description confidentielle', score: 70 });
+      expect(await prisma.application.count({ where: { offerId: recent.id } })).toBe(1);
+      // Idempotent : un second passage n'a plus rien à vider.
+      expect(await app.get(OffersService).purgeRejected()).toBe(0);
+    });
+
+    it('la liste des rejetées vide d’abord les expirées et ne les montre plus', async () => {
+      const old = await seed('old', { rejectedAt: daysAgo(9) });
+      await seed('recent', { rejectedAt: daysAgo(1) });
+
+      const list = await rejectedList();
+
+      expect(list.items.map((i) => i.title)).toEqual(['Offre recent']);
+      expect(
+        (await prisma.offer.findUniqueOrThrow({ where: { id: old.id } })).description,
+      ).toBeNull();
+    });
+
+    it('la collecte ne réimporte pas le contenu d’une offre rejetée, mais la voit toujours', async () => {
+      const store = app.get(OffersService);
+      await store.saveMany([
+        {
+          source: 'LBA',
+          externalId: 'r1',
+          title: 'Alternance dev',
+          company: 'ACME',
+          city: 'Paris',
+          channel: 'SITE',
+          description: 'v1',
+        },
+      ]);
+      const row = await prisma.offer.findFirstOrThrow({ where: { externalId: 'r1' } });
+      await prisma.offer.update({
+        where: { id: row.id },
+        data: { rejectedAt: daysAgo(8), description: null, lastSeenAt: daysAgo(3) },
+      });
+
+      const result = await store.saveMany([
+        {
+          source: 'LBA',
+          externalId: 'r1',
+          title: 'Titre modifié',
+          company: 'ACME',
+          city: 'Paris',
+          channel: 'SITE',
+          description: 'v2 revenue',
+        },
+      ]);
+
+      expect(result).toEqual({ created: 0, updated: 1 });
+      const after = await prisma.offer.findUniqueOrThrow({ where: { id: row.id } });
+      expect(after.description).toBeNull();
+      expect(after.title).toBe('Alternance dev');
+      expect(after.rejectedAt).not.toBeNull();
+      expect(after.lastSeenAt.getTime()).toBeGreaterThan(row.lastSeenAt.getTime() - 1);
+      expect(await prisma.offer.count()).toBe(1);
+    });
+
+    it('même règle pour une source à identifiant instable (Google Jobs) : pas de réimport sous un autre identifiant', async () => {
+      const store = app.get(OffersService);
+      const google = (id: string, description: string) => ({
+        source: 'GOOGLE_JOBS' as const,
+        externalId: id,
+        title: 'Alternance dev',
+        company: 'ACME',
+        city: 'Paris',
+        channel: 'SITE' as const,
+        description,
+      });
+      await store.saveMany([google('ancien', 'v1')]);
+      await prisma.offer.updateMany({ data: { rejectedAt: daysAgo(8), description: null } });
+
+      const result = await store.saveMany([google('nouveau', 'v2')]);
+
+      expect(result).toEqual({ created: 0, updated: 1 });
+      const rows = await prisma.offer.findMany();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ externalId: 'ancien', description: null });
+    });
+
+    it('une offre rejetée n’est jamais envoyée à l’analyse IA', async () => {
+      await seed('a', { rejectedAt: new Date() });
+      await seed('b');
+      model.queue = [{ results: [result(1, 80)] }];
+
+      const profile = exampleProfile();
+      const report = await app.get(MatchService).analyzePending(profile);
+
+      expect(report.analyzed).toBe(1);
+      expect(model.requests).toHaveLength(1);
+      expect(JSON.stringify(model.requests[0])).toContain('Offre b');
+      expect(JSON.stringify(model.requests[0])).not.toContain('Offre a');
+    });
+  });
 });

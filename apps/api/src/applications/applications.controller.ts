@@ -40,6 +40,9 @@ type EditBody = z.infer<typeof editBody>;
 const statusBody = z.strictObject({ status: statusEnum });
 type StatusBody = z.infer<typeof statusBody>;
 
+const withoutLetterBody = z.strictObject({ offerId: z.uuid() });
+type WithoutLetterBody = z.infer<typeof withoutLetterBody>;
+
 // Session obligatoire (garde global) ; les écritures exigent aussi le jeton CSRF.
 @Controller('applications')
 export class ApplicationsController {
@@ -48,6 +51,13 @@ export class ApplicationsController {
   @Get()
   list(@Query(new ZodValidationPipe(listQuery)) query: ListQuery) {
     return this.applications.list(query.status, query.limit);
+  }
+
+  /** Postule sans lettre : la candidature est créée directement « envoyée » (rien n'est envoyé par airpost). */
+  @Post('without-letter')
+  @HttpCode(200)
+  applyWithoutLetter(@Body(new ZodValidationPipe(withoutLetterBody)) body: WithoutLetterBody) {
+    return this.applications.applyWithoutLetter(body.offerId);
   }
 
   @Get(':id')

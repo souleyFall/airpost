@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ageLabel,
+  expiryLabel,
   hasPlaceholder,
   newOffersLabel,
   place,
@@ -23,6 +24,24 @@ describe('newOffersLabel', () => {
 
   it('ne dit rien sans bilan par source', () => {
     expect(newOffersLabel(undefined)).toBeNull();
+  });
+});
+
+describe('expiryLabel (offre rejetée)', () => {
+  const at = (ms: number) => new Date(NOW.getTime() + ms).toISOString();
+  const DAY = 86_400_000;
+
+  it('compte les jours restants, arrondis au jour supérieur', () => {
+    expect(expiryLabel(at(7 * DAY), NOW)).toBe('Supprimée dans 7 jours');
+    expect(expiryLabel(at(6.2 * DAY), NOW)).toBe('Supprimée dans 7 jours');
+    expect(expiryLabel(at(2 * DAY), NOW)).toBe('Supprimée dans 2 jours');
+    expect(expiryLabel(at(DAY), NOW)).toBe('Supprimée dans 1 jour');
+  });
+
+  it('passe à « moins de 24 h » puis « imminente » en fin de délai', () => {
+    expect(expiryLabel(at(DAY - 1), NOW)).toBe('Supprimée dans moins de 24 h');
+    expect(expiryLabel(at(0), NOW)).toBe('Suppression imminente');
+    expect(expiryLabel(at(-DAY), NOW)).toBe('Suppression imminente');
   });
 });
 

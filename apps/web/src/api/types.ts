@@ -78,6 +78,26 @@ export interface OfferList {
   items: OfferSummary[];
 }
 
+/** Offre rejetée, restaurable jusqu'à `expiresAt` (7 jours après le rejet), puis son contenu est vidé. */
+export interface RejectedOffer {
+  id: string;
+  title: string;
+  company: string;
+  city: string | null;
+  postcode: string | null;
+  contractType: ContractType;
+  score: number | null;
+  rejectedAt: string;
+  expiresAt: string;
+  /** Une lettre avait été générée : elle est supprimée avec l'offre. */
+  hasLetter: boolean;
+}
+
+export interface RejectedList {
+  total: number;
+  items: RejectedOffer[];
+}
+
 export interface ApplicationDetail {
   id: string;
   status: ApplicationStatus;
