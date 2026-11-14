@@ -588,14 +588,15 @@ describe('écran À valider', () => {
       const pager = await screen.findByRole('navigation', { name: 'Pagination' });
       await findList();
       expect(within(getList()).getAllByRole('button')).toHaveLength(PAGE_SIZE);
-      expect(pager).toHaveTextContent(`1–${PAGE_SIZE} sur ${PAGE_SIZE + 5}`);
+      // Le bas de page se met à jour avec la liste, mais pas forcément dans le même rendu sur une machine chargée.
+      await waitFor(() => expect(pager).toHaveTextContent(`1–${PAGE_SIZE} sur ${PAGE_SIZE + 5}`));
       expect(pager).toHaveTextContent('Page 1 sur 2');
       expect(within(pager).getByRole('button', { name: 'Précédent' })).toBeDisabled();
 
       await user.click(within(pager).getByRole('button', { name: 'Suivant' }));
       await waitFor(() => expect(within(getList()).getAllByRole('button')).toHaveLength(5));
       expect(calls.some((c) => c.path.includes(`offset=${PAGE_SIZE}`))).toBe(true);
-      expect(pager).toHaveTextContent('Page 2 sur 2');
+      await waitFor(() => expect(pager).toHaveTextContent('Page 2 sur 2'));
       expect(within(pager).getByRole('button', { name: 'Suivant' })).toBeDisabled();
       // La première offre de la nouvelle page est sélectionnée.
       expect(
