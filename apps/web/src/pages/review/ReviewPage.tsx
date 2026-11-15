@@ -178,6 +178,13 @@ export function ReviewPage() {
     } catch {
       setCount('review', null);
     }
+    // Compteur des rejetées (une offre vient peut-être d'y être rangée).
+    try {
+      const rejected = await api<{ total: number }>('GET', '/offers/rejected');
+      setCount('rejected', rejected.total);
+    } catch {
+      setCount('rejected', null);
+    }
   }, [setCount]);
 
   useEffect(() => {

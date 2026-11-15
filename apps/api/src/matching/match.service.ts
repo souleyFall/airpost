@@ -62,6 +62,8 @@ export class MatchService {
       AND: [
         { OR: [{ analyzedAt: null }, { profileHash: { not: fingerprint } }] },
         { contractType: { in: profile.search.contracts } },
+        // Une offre rejetée n'est pas analysée : ce serait un appel au modèle (donc du quota) pour rien.
+        { rejectedAt: null },
       ],
     };
   }

@@ -29,6 +29,15 @@ export function shortAge(iso: string | null, now: Date = new Date()): string {
   return days === 0 ? 'auj.' : `${days} j`;
 }
 
+/** Offre rejetée : le temps qu'il reste pour la restaurer avant que son contenu soit supprimé. */
+export function expiryLabel(expiresAt: string, now: Date = new Date()): string {
+  const remaining = new Date(expiresAt).getTime() - now.getTime();
+  if (remaining <= 0) return 'Suppression imminente';
+  if (remaining < DAY) return 'Supprimée dans moins de 24 h';
+  const days = Math.ceil(remaining / DAY);
+  return days === 1 ? 'Supprimée dans 1 jour' : `Supprimée dans ${days} jours`;
+}
+
 export function wordCount(text: string): number {
   const words = text.trim().match(/\S+/g);
   return words ? words.length : 0;

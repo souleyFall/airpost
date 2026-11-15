@@ -96,6 +96,52 @@ export class ApplicationsService {
   }
 
   /**
+   * Candidature faite sans lettre (l'annonce n'en demande pas, ou l'utilisateur postule autrement) : elle passe
+   * directement au suivi, au statut « envoyée », sans objet ni texte. Rien n'est envoyé par airpost.
+   * Si une lettre avait été générée mais pas validée, elle est abandonnée.
+   */
+  async applyWithoutLetter(offerId: string) {
+    const offer = await this.prisma.offer.findUnique({
+      where: { id: offerId },
+      select: { rejectedAt: true, application: { select: { id: true, status: true } } },
+    });
+    if (!offer) {
+      throw new NotFoundException('Offre introuvable');
+    }
+    if (offer.rejectedAt) {
+      throw new ConflictException('Cette offre est rejetée : restaure-la avant de postuler');
+    }
+    const now = new Date();
+    const sent = { status: 'APPLIED' as const, validatedAt: now, appliedAt: now };
+    if (offer.application) {
+      if (offer.application.status !== 'TO_REVIEW') {
+        throw new ConflictException('Cette offre a déjà une candidature en suivi');
+      }
+      const { count } = await this.prisma.application.updateMany({
+        where: { id: offer.application.id, status: 'TO_REVIEW' },
+        data: { ...sent, subject: null, body: null },
+      });
+      if (count === 0) {
+        throw new ConflictException('La candidature a changé entre-temps ; recharge la page');
+      }
+      return this.get(offer.application.id);
+    }
+    try {
+      const created = await this.prisma.application.create({
+        data: { offerId, ...sent },
+        select: { id: true },
+      });
+      return await this.get(created.id);
+    } catch (error) {
+      // Une candidature est apparue entre la lecture et l'écriture (offerId est unique).
+      if ((error as { code?: string }).code === 'P2002') {
+        throw new ConflictException('Cette offre a déjà une candidature en suivi');
+      }
+      throw error;
+    }
+  }
+
+  /**
    * L'utilisateur déclare avoir relancé par un autre moyen (téléphone, message LinkedIn, formulaire) : la candidature
    * sort de « à relancer ». Une seule relance par candidature, comme pour le brouillon.
    */

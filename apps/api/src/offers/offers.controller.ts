@@ -20,6 +20,7 @@ import { ContractType, OfferSource } from '../generated/prisma/enums';
 import { MatchService } from '../matching/match.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProfileService } from '../profile/profile.service';
+import { OffersService } from '../sources/offers.service';
 
 // Dérivés de l'énumération de la base : une nouvelle source ou un nouveau contrat ne peut pas être oublié ici
 // (une liste recopiée à la main avait fait refuser « GOOGLE_JOBS » par le filtre).
@@ -80,12 +81,13 @@ export class OffersController {
     private readonly prisma: PrismaService,
     private readonly profiles: ProfileService,
     private readonly matching: MatchService,
+    private readonly offers: OffersService,
   ) {}
 
-  /** Offres filtrées, triées et paginées, sans la description (volumineuse). */
+  /** Offres filtrées, triées et paginées, sans la description (volumineuse). Les offres rejetées n'y sont jamais. */
   @Get()
   async list(@Query(new ZodValidationPipe(listQuery)) query: ListQuery) {
-    const and: Prisma.OfferWhereInput[] = [];
+    const and: Prisma.OfferWhereInput[] = [{ rejectedAt: null }];
     if (query.minScore > 0) and.push({ score: { gte: query.minScore } });
     if (query.maxDistanceKm !== undefined) {
       // Une offre non localisée n'est pas écartée : on ne sait pas qu'elle est trop loin.
@@ -166,6 +168,29 @@ export class OffersController {
       select: { id: true, score: true, excluded: true },
     });
     return { ...report, items };
+  }
+
+  /** Offres rejetées, restaurables 7 jours. Déclarée avant « :id » : « rejected » ne doit pas être pris pour un identifiant. */
+  @Get('rejected')
+  async rejected() {
+    const items = await this.offers.listRejected();
+    return { total: items.length, items };
+  }
+
+  /** Rejette l'offre sans lettre : elle quitte « À valider » et reste restaurable 7 jours. */
+  @Post(':id/reject')
+  @HttpCode(200)
+  async reject(@Param('id', new ParseUUIDPipe()) id: string) {
+    await this.offers.reject(id);
+    return { id, rejected: true };
+  }
+
+  /** Remet une offre rejetée dans « À valider » (409 si les 7 jours sont passés). */
+  @Post(':id/restore')
+  @HttpCode(200)
+  async restore(@Param('id', new ParseUUIDPipe()) id: string) {
+    await this.offers.restore(id);
+    return { id, rejected: false };
   }
 
   @Get(':id')
