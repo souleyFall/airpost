@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '../generated/prisma/client';
 import type { OfferSource } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { dedupKey } from './dedup';
@@ -17,9 +18,28 @@ const BATCH_SIZE = 200;
  */
 const UNSTABLE_ID_SOURCES: readonly OfferSource[] = ['GOOGLE_JOBS'];
 
+/** Durée pendant laquelle une offre rejetée reste restaurable ; ensuite son contenu est vidé. */
+export const REJECTED_RETENTION_DAYS = 7;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 export interface SaveResult {
   created: number;
   updated: number;
+}
+
+export interface RejectedOffer {
+  id: string;
+  title: string;
+  company: string;
+  city: string | null;
+  postcode: string | null;
+  contractType: string;
+  score: number | null;
+  rejectedAt: Date;
+  /** Date à laquelle le contenu sera vidé si l'offre n'est pas restaurée. */
+  expiresAt: Date;
+  /** Une lettre avait été générée : elle est supprimée avec l'offre. */
+  hasLetter: boolean;
 }
 
 @Injectable()
@@ -57,6 +77,116 @@ export class OffersService {
       where: { lastSeenAt: { lt: limit }, application: null },
     });
     return count;
+  }
+
+  /**
+   * Rejette une offre sans générer de lettre : elle quitte « À valider » mais reste restaurable 7 jours.
+   * Refusé si une candidature est déjà avancée (validée, envoyée...) : elle se gère alors depuis le suivi.
+   * Sans effet si l'offre est déjà rejetée.
+   */
+  async reject(id: string, now = new Date()): Promise<void> {
+    const offer = await this.prisma.offer.findUnique({
+      where: { id },
+      select: { rejectedAt: true, application: { select: { status: true } } },
+    });
+    if (!offer) {
+      throw new NotFoundException('Offre introuvable');
+    }
+    if (offer.application && offer.application.status !== 'TO_REVIEW') {
+      throw new ConflictException(
+        'Cette offre est déjà en suivi : change son statut depuis la page Suivi',
+      );
+    }
+    if (offer.rejectedAt) return;
+    await this.prisma.offer.updateMany({
+      where: { id, rejectedAt: null },
+      data: { rejectedAt: now },
+    });
+  }
+
+  /** Remet une offre rejetée dans « À valider », tant que son contenu n'a pas été vidé. */
+  async restore(id: string, now = new Date()): Promise<void> {
+    const offer = await this.prisma.offer.findUnique({
+      where: { id },
+      select: { rejectedAt: true },
+    });
+    if (!offer) {
+      throw new NotFoundException('Offre introuvable');
+    }
+    if (!offer.rejectedAt) return;
+    const { count } = await this.prisma.offer.updateMany({
+      where: { id, rejectedAt: { gte: this.rejectionLimit(now) } },
+      data: { rejectedAt: null },
+    });
+    if (count === 0) {
+      throw new ConflictException(
+        `Trop tard : une offre rejetée est supprimée au bout de ${REJECTED_RETENTION_DAYS} jours`,
+      );
+    }
+  }
+
+  /** Offres rejetées encore restaurables, les plus récemment rejetées d'abord. Vide d'abord celles qui ont expiré. */
+  async listRejected(now = new Date()): Promise<RejectedOffer[]> {
+    await this.purgeRejected(now);
+    const rows = await this.prisma.offer.findMany({
+      where: { rejectedAt: { gte: this.rejectionLimit(now) } },
+      orderBy: [{ rejectedAt: 'desc' }, { id: 'asc' }],
+      select: {
+        id: true,
+        title: true,
+        company: true,
+        city: true,
+        postcode: true,
+        contractType: true,
+        score: true,
+        rejectedAt: true,
+        application: { select: { id: true } },
+      },
+    });
+    return rows.map(({ application, rejectedAt, ...offer }) => ({
+      ...offer,
+      rejectedAt: rejectedAt as Date,
+      expiresAt: new Date((rejectedAt as Date).getTime() + REJECTED_RETENTION_DAYS * DAY_MS),
+      hasLetter: application !== null,
+    }));
+  }
+
+  /**
+   * Vide les offres rejetées depuis plus de 7 jours : lettre, description, analyse, contact et lien disparaissent.
+   * Seule l'identité de l'offre (intitulé, entreprise, empreinte) est gardée : sans elle, la collecte suivante la
+   * réimporterait comme une offre neuve. Cette trace part avec la purge normale quand l'offre n'est plus publiée.
+   * Renvoie le nombre d'offres vidées.
+   */
+  async purgeRejected(now = new Date()): Promise<number> {
+    const expired = { rejectedAt: { lt: this.rejectionLimit(now) } };
+    const [, cleared] = await this.prisma.$transaction([
+      this.prisma.application.deleteMany({ where: { status: 'TO_REVIEW', offer: expired } }),
+      this.prisma.offer.updateMany({
+        where: {
+          ...expired,
+          OR: [
+            { description: { not: null } },
+            { contactEmail: { not: null } },
+            { applyUrl: { not: null } },
+            { analyzedAt: { not: null } },
+            { score: { not: null } },
+          ],
+        },
+        data: {
+          description: null,
+          contactEmail: null,
+          applyUrl: null,
+          analysis: Prisma.DbNull,
+          analyzedAt: null,
+          score: null,
+        },
+      }),
+    ]);
+    return cleared.count;
+  }
+
+  private rejectionLimit(now: Date): Date {
+    return new Date(now.getTime() - REJECTED_RETENTION_DAYS * DAY_MS);
   }
 
   /**
@@ -184,9 +314,15 @@ export class OffersService {
 
     const existing = await this.prisma.offer.findMany({
       where: { OR: unique.map((o) => ({ source: o.source, externalId: o.externalId })) },
-      select: { source: true, externalId: true },
+      select: { source: true, externalId: true, rejectedAt: true },
     });
     const known = new Set(existing.map((o) => `${o.source}:${o.externalId}`));
+    // Offres rejetées : la collecte ne rafraîchit que leur date de dernière apparition. Sans cela, elle remplirait de
+    // nouveau la description d'une offre dont le contenu a été vidé (et la ferait revenir à l'écran).
+    const rejected = new Set(
+      existing.filter((o) => o.rejectedAt).map((o) => `${o.source}:${o.externalId}`),
+    );
+    const rejectedIds = new Set<string>();
 
     // Offres inconnues par identifiant mais connues par empreinte (sources à identifiant instable seulement).
     const unknownUnstable = unique.filter(
@@ -201,12 +337,15 @@ export class OffersService {
             dedupKey: dedupKey(o.company, o.title, o.city),
           })),
         },
-        select: { id: true, source: true, dedupKey: true },
+        select: { id: true, source: true, dedupKey: true, rejectedAt: true },
         orderBy: [{ firstSeenAt: 'asc' }, { id: 'asc' }],
       });
       for (const row of sameKey) {
         const key = `${row.source}:${row.dedupKey}`;
-        if (!idByKey.has(key)) idByKey.set(key, row.id);
+        if (!idByKey.has(key)) {
+          idByKey.set(key, row.id);
+          if (row.rejectedAt) rejectedIds.add(row.id);
+        }
       }
     }
     const now = new Date();
@@ -233,14 +372,18 @@ export class OffersService {
           lastSeenAt: now,
         };
         const sameOffer = idByKey.get(`${o.source}:${key}`);
-        if (!known.has(`${o.source}:${o.externalId}`) && sameOffer) {
+        const ownKey = `${o.source}:${o.externalId}`;
+        if (!known.has(ownKey) && sameOffer) {
           // Même annonce revenue sous un autre identifiant : on met à jour la ligne existante (identifiant conservé).
-          return this.prisma.offer.update({ where: { id: sameOffer }, data });
+          return this.prisma.offer.update({
+            where: { id: sameOffer },
+            data: rejectedIds.has(sameOffer) ? { lastSeenAt: now } : data,
+          });
         }
-        if (!known.has(`${o.source}:${o.externalId}`)) created++;
+        if (!known.has(ownKey)) created++;
         return this.prisma.offer.upsert({
           where: { source_externalId: { source: o.source, externalId: o.externalId } },
-          update: data,
+          update: rejected.has(ownKey) ? { lastSeenAt: now } : data,
           create: { source: o.source, externalId: o.externalId, ...data },
         });
       }),

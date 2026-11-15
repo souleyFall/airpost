@@ -83,7 +83,9 @@ export function OfferDetail({ offerId, onChanged, onAnalyzed }: Props) {
   const [body, setBody] = useState('');
   const [warnings, setWarnings] = useState<string[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<null | 'generate' | 'save' | 'validate' | 'reject'>(null);
+  const [busy, setBusy] = useState<null | 'generate' | 'save' | 'validate' | 'reject' | 'apply'>(
+    null,
+  );
   const [actionError, setActionError] = useState<string | null>(null);
   const [saved, setSaved] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -198,10 +200,17 @@ export function OfferDetail({ offerId, onChanged, onAnalyzed }: Props) {
       return true;
     });
 
+  /** Rejette l'offre, avec ou sans lettre : elle va dans « Rejetées » et y reste restaurable 7 jours. */
   const reject = () =>
     run('reject', async () => {
-      if (!application) return;
-      await api('POST', `/applications/${application.id}/status`, { status: 'WITHDRAWN' });
+      await api('POST', `/offers/${offerId}/reject`);
+      return true;
+    });
+
+  /** Postule sans lettre : la candidature passe au suivi, déjà « envoyée » (airpost n'envoie rien). */
+  const applyWithoutLetter = () =>
+    run('apply', async () => {
+      await api('POST', '/applications/without-letter', { offerId });
       return true;
     });
 
@@ -421,14 +430,38 @@ export function OfferDetail({ offerId, onChanged, onAnalyzed }: Props) {
               La lettre est écrite à partir de ton profil et de cette offre uniquement, puis
               vérifiée par des garde-fous. Tu la relis et la modifies avant toute validation.
             </p>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => void generate()}
-              disabled={busy !== null}
-            >
-              {busy === 'generate' ? 'Génération en cours…' : 'Générer la lettre'}
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => void generate()}
+                disabled={busy !== null}
+              >
+                {busy === 'generate' ? 'Génération en cours…' : 'Générer la lettre'}
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => void applyWithoutLetter()}
+                disabled={busy !== null}
+              >
+                {busy === 'apply' ? 'Enregistrement…' : 'Postuler sans lettre'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-quiet"
+                onClick={() => void reject()}
+                disabled={busy !== null}
+              >
+                {busy === 'reject' ? 'Rejet…' : 'Rejeter'}
+              </button>
+            </div>
+            <p className="mt-3 mb-0 text-[13px] text-muted">
+              <strong>Postuler sans lettre</strong> : à utiliser une fois ta candidature faite sur
+              le site ou par mail ; l’offre passe dans le Suivi comme « Envoyée ». Airpost n’envoie
+              rien. <strong>Rejeter</strong> : l’offre va dans « Rejetées » et reste restaurable 7
+              jours.
+            </p>
           </div>
         ) : (
           <>

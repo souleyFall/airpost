@@ -168,7 +168,9 @@ export class CollectionService {
     const cleaned = await this.offers
       .cleanup(trustedSources(profile.search.romeCodes))
       .catch(() => ({ removed: 0, updated: 0 }));
-    const purged = stale + cleaned.removed;
+    // Offres rejetées depuis plus de 7 jours : contenu vidé (un échec ne perd pas la collecte).
+    const rejected = await this.offers.purgeRejected().catch(() => 0);
+    const purged = stale + cleaned.removed + rejected;
     // Distances recalculées (le domicile peut avoir changé), puis analyse IA des offres sans note à jour.
     // Un échec de l'une ou l'autre ne perd pas la collecte.
     await this.offers.refreshDistances(position).catch(() => 0);

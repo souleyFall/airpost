@@ -5,7 +5,7 @@ export interface ShellContext {
   /** Augmente après chaque collecte : les écrans rechargent leurs données. */
   version: number;
   /** Les écrans publient ici leur compteur affiché dans la barre latérale. */
-  setCount: (key: 'review' | 'tracking', value: number | null) => void;
+  setCount: (key: 'review' | 'tracking' | 'rejected', value: number | null) => void;
 }
 
 export function useShell(): ShellContext {

@@ -34,7 +34,7 @@ function Icon({ children }: { children: ReactNode }) {
 const DemoBanner =
   import.meta.env.MODE === 'demo' ? lazy(() => import('../demo/DemoBanner')) : null;
 
-type CountKey = 'review' | 'tracking';
+type CountKey = 'review' | 'tracking' | 'rejected';
 
 /** Le bilan par source est présent dans les réponses de l'API ; facultatif ici pour rester tolérant. */
 type RunReport = BaseRunReport & { sources?: SourceReport[] };
@@ -56,6 +56,12 @@ const LINKS: { to: string; label: string; count?: CountKey; icon: ReactNode }[] 
     label: 'Suivi',
     count: 'tracking',
     icon: <path d="M3 4h10M3 8h10M3 12h6" />,
+  },
+  {
+    to: '/rejetees',
+    label: 'Rejetées',
+    count: 'rejected',
+    icon: <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.5 8.5h6l.5-8.5" />,
   },
   {
     to: '/resultats',
@@ -89,6 +95,7 @@ export function AppShell() {
   const [counts, setCounts] = useState<Record<CountKey, number | null>>({
     review: null,
     tracking: null,
+    rejected: null,
   });
   const [version, setVersion] = useState(0);
   const [lastRun, setLastRun] = useState<RunReport | null | undefined>(undefined);
