@@ -660,11 +660,33 @@ describe('écran À valider', () => {
       const user = userEvent.setup();
       renderApp();
       const pager = await screen.findByRole('navigation', { name: 'Pagination' });
+      // La barre existe avant le chargement des offres (« Suivant » est alors désactivé) : on attend les 2 pages.
+      await waitFor(() => expect(pager).toHaveTextContent('Page 1 sur 2'));
       await user.click(within(pager).getByRole('button', { name: 'Suivant' }));
       await waitFor(() => expect(pager).toHaveTextContent('Page 2 sur 2'));
       await user.selectOptions(screen.getByLabelText('Tri'), 'fresh');
       await waitFor(() => expect(pager).toHaveTextContent('Page 1 sur'));
-      expect(calls.filter((c) => c.path.includes('sort=fresh')).at(-1)?.path).toContain('offset=0');
+      // La requête part après l'affichage : on l'attend au lieu de la lire tout de suite.
+      await waitFor(() =>
+        expect(calls.filter((c) => c.path.includes('sort=fresh')).at(-1)?.path).toContain(
+          'offset=0',
+        ),
+      );
+    });
+
+    it('garde la page choisie : la recherche, inchangée, ne la remet pas à la première', async () => {
+      fakeApi({ catalogue: many(PAGE_SIZE + 5) });
+      const user = userEvent.setup();
+      renderApp();
+      const pager = await screen.findByRole('navigation', { name: 'Pagination' });
+      await waitFor(() => expect(pager).toHaveTextContent('Page 1 sur 2'));
+      await user.click(within(pager).getByRole('button', { name: 'Suivant' }));
+      await waitFor(() => expect(pager).toHaveTextContent('Page 2 sur 2'));
+
+      // Plus longtemps que l'attente de la recherche (300 ms) : avant la correction, elle ramenait à la page 1.
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      expect(pager).toHaveTextContent('Page 2 sur 2');
     });
 
     it('une seule page : pas de navigation possible', async () => {

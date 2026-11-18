@@ -233,10 +233,15 @@ export function ReviewPage() {
     })();
   }, [items, load, refreshBadge]);
 
-  // Recherche : on attend la fin de la frappe avant d'interroger l'API.
+  // Recherche : on attend la fin de la frappe avant d'interroger l'API. La page ne revient à la première que si le
+  // texte a vraiment changé : sinon, un clic sur « Suivant » dans les 300 ms qui suivent l'ouverture de l'écran
+  // était annulé par ce minuteur.
+  const appliedSearch = useRef('');
   useEffect(() => {
     const timer = setTimeout(() => {
-      setFilters((current) => (current.q === searchText ? current : { ...current, q: searchText }));
+      if (appliedSearch.current === searchText) return;
+      appliedSearch.current = searchText;
+      setFilters((current) => ({ ...current, q: searchText }));
       setPage(0);
     }, 300);
     return () => clearTimeout(timer);
