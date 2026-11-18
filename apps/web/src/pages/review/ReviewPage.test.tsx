@@ -859,7 +859,7 @@ describe('lecture : non lues, nouvelles et menu de filtre', () => {
     renderApp();
     await findList();
 
-    await user.click(rows()[1] as HTMLElement);
+    await user.click(rows()[1]);
 
     expect(rows()[1]).not.toHaveTextContent('Non lue');
     expect(readButton()).toHaveTextContent(/1 non lue/);
@@ -878,7 +878,7 @@ describe('lecture : non lues, nouvelles et menu de filtre', () => {
     renderApp();
     await findList();
 
-    await user.click(rows()[2] as HTMLElement);
+    await user.click(rows()[2]);
 
     expect(readCalls(calls)).toEqual([]);
   });
@@ -906,7 +906,7 @@ describe('lecture : non lues, nouvelles et menu de filtre', () => {
     const calls = fakeApi({ catalogue: offers() });
     renderApp();
     await findList();
-    await user.click(rows()[1] as HTMLElement);
+    await user.click(rows()[1]);
     expect(rows()[1]).not.toHaveTextContent('Non lue');
 
     await user.click(await screen.findByRole('button', { name: 'Marquer comme non lue' }));
@@ -928,7 +928,7 @@ describe('lecture : non lues, nouvelles et menu de filtre', () => {
     renderApp();
     await findList();
 
-    await user.click(rows()[1] as HTMLElement);
+    await user.click(rows()[1]);
 
     await waitFor(() => expect(readCalls(calls)).toHaveLength(1));
     await waitFor(() => expect(rows()[1]).toHaveTextContent('Non lue'));
