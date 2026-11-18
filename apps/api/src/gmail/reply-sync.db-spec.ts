@@ -68,8 +68,12 @@ describe('buildQuery', () => {
   const appliedAt = new Date('2026-11-01T00:00:00Z');
   it('cherche par domaine de l’expéditeur quand le contact est connu', () => {
     expect(buildQuery({ appliedAt, contactEmail: 'rh@exemple.fr', company: 'X' })).toBe(
-      `after:${Math.floor(appliedAt.getTime() / 1000)} -from:me from:@exemple.fr`,
+      `after:${Math.floor(appliedAt.getTime() / 1000) - 7 * 86_400} -from:me from:@exemple.fr`,
     );
+  });
+  it('remonte de 7 jours avant la date d’envoi : l’accusé arrive avant le clic « Envoyée »', () => {
+    const query = buildQuery({ appliedAt, contactEmail: null, company: 'Acme' });
+    expect(query).toBe(`after:${Math.floor(Date.UTC(2026, 9, 25) / 1000)} -from:me "Acme"`);
   });
   it('sinon cherche le nom de l’entreprise, nettoyé (guillemets, barres)', () => {
     const query = buildQuery({
