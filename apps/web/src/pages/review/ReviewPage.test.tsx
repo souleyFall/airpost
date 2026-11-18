@@ -888,6 +888,8 @@ describe('lecture : non lues, nouvelles et menu de filtre', () => {
     const calls = fakeApi({ catalogue: offers() });
     renderApp();
     await findList();
+    // La première offre est sélectionnée d'office juste après l'affichage : on l'attend avant d'appuyer sur ↓.
+    await waitFor(() => expect(rows()[0]).toHaveAttribute('aria-current', 'true'));
 
     await user.keyboard('{ArrowDown}');
 
@@ -1023,6 +1025,7 @@ describe('lecture : non lues, nouvelles et menu de filtre', () => {
     const calls = fakeApi({ catalogue: offers() });
     renderApp();
     await findList();
+    await waitFor(() => expect(rows()[0]).toHaveAttribute('aria-current', 'true'));
     await user.click(readButton());
     const items = screen.getAllByRole('menuitemradio');
     expect(items[0]).toHaveFocus();
