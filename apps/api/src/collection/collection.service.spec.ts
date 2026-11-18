@@ -68,7 +68,7 @@ function setup(
   }));
   const purgeStale = vi.fn(async () => 2);
   const purgeRejected = vi.fn(async () => 0);
-  const startRun = vi.fn(async () => undefined);
+  const recordRun = vi.fn(async () => undefined);
   const refreshDistances = vi.fn(async () => 3);
   const cleanup = vi.fn(async () => ({ removed: 0, updated: 0 }));
   const analyzePending = vi.fn(async () => ({ analyzed: 7, remaining: 2 }));
@@ -86,7 +86,7 @@ function setup(
       saveMany,
       purgeStale,
       purgeRejected,
-      startRun,
+      recordRun,
       sourcesByDedupKey,
       refreshDistances,
       cleanup,
@@ -112,7 +112,7 @@ function setup(
     saveMany,
     purgeStale,
     purgeRejected,
-    startRun,
+    recordRun,
     analyzePending,
     record,
     refreshDistances,
@@ -579,20 +579,45 @@ describe('CollectionService', () => {
     expect(report.purged).toBe(2);
   });
 
-  it('note le début de la collecte AVANT d’enregistrer les offres (badge « Nouveau »)', async () => {
-    const { service, startRun, saveMany } = setup();
+  it('note le début de la collecte quand au moins une source a répondu (badge « Nouveau »)', async () => {
+    const down = async () => {
+      throw new SourceError('LBA', 'rate_limited', 'panne');
+    };
+    // Une seule source répond : cela suffit à faire de cette collecte la nouvelle référence.
+    const { service, recordRun } = setup({ lba: down, adzuna: down, lbb: down, googleJobs: down });
 
-    await service.run('u1');
+    const report = await service.run('u1');
 
-    expect(startRun).toHaveBeenCalledTimes(1);
-    expect(startRun.mock.invocationCallOrder[0]).toBeLessThan(
-      saveMany.mock.invocationCallOrder[0] ?? 0,
-    );
+    expect(recordRun).toHaveBeenCalledTimes(1);
+    // Le début noté est celui de la collecte, pas la fin : les offres enregistrées pendant ont une date postérieure.
+    expect((recordRun.mock.calls[0] as unknown as [Date])[0].toISOString()).toBe(report.startedAt);
+  });
+
+  it('collecte entièrement en panne : le début n’est pas noté, les badges de la précédente restent', async () => {
+    const down = (source: OfferSource): Search => {
+      return async () => {
+        throw new SourceError(source, 'rate_limited', 'panne');
+      };
+    };
+    const { service, recordRun } = setup({
+      lba: down('LBA'),
+      adzuna: down('ADZUNA'),
+      lbb: down('LBB'),
+      googleJobs: down('GOOGLE_JOBS'),
+      glassdoor: down('GLASSDOOR'),
+      indeed: down('INDEED'),
+      linkedin: down('LINKEDIN'),
+    });
+
+    const report = await service.run('u1');
+
+    expect(report.sources.every((source) => source.status === 'error')).toBe(true);
+    expect(recordRun).not.toHaveBeenCalled();
   });
 
   it('une panne de l’écriture du début de collecte ne fait pas échouer la collecte', async () => {
-    const { service, startRun } = setup();
-    startRun.mockRejectedValueOnce(new Error('base indisponible'));
+    const { service, recordRun } = setup();
+    recordRun.mockRejectedValueOnce(new Error('base indisponible'));
 
     const report = await service.run('u1');
 

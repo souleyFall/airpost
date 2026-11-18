@@ -1007,12 +1007,19 @@ describe('Offres et analyse IA (e2e, base réelle)', () => {
       await seed('a', { firstSeenAt: daysAgo(1) });
       expect(titles(await get('?pending=true&read=new'))).toEqual(['Offre a']);
 
-      // Une collecte sans aucune offre nouvelle : les badges de la précédente disparaissent.
-      await app.get(OffersService).startRun();
+      // Une collecte réussie sans aucune offre nouvelle : les badges de la précédente disparaissent.
+      await app.get(OffersService).recordRun(new Date());
 
       expect((await rows('?pending=true&read=new')).total).toBe(0);
       await seed('b', { firstSeenAt: new Date(Date.now() + 1000) });
       expect(titles(await get('?pending=true&read=new'))).toEqual(['Offre b']);
+    });
+
+    it('le début noté est celui de la collecte (date donnée), pas l’instant de l’enregistrement', async () => {
+      const started = daysAgo(0.01);
+      await app.get(OffersService).recordRun(started);
+
+      expect(await app.get(OffersService).latestRunStart()).toEqual(started);
     });
 
     it('« nouvelle » et « lue » sont indépendants : une offre nouvelle peut déjà être lue', async () => {

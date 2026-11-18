@@ -47,11 +47,13 @@ export class OffersService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Note le début d'une collecte. Appelée AVANT d'enregistrer les offres : celles qui apparaissent ensuite ont une
-   * première apparition (`firstSeenAt`) postérieure à ce début, et c'est ce qui les rend « nouvelles ».
+   * Note le début d'une collecte réussie. `startedAt` est l'instant où la collecte a COMMENCÉ, donc antérieur à la
+   * première apparition (`firstSeenAt`) des offres qu'elle a enregistrées : c'est ce qui les rend « nouvelles ».
+   * À n'appeler que si au moins une source a répondu : une collecte entièrement en panne ne doit pas faire perdre
+   * leurs badges aux offres de la précédente.
    */
-  async startRun(): Promise<void> {
-    await this.prisma.collectionRun.create({ data: {} });
+  async recordRun(startedAt: Date): Promise<void> {
+    await this.prisma.collectionRun.create({ data: { startedAt } });
   }
 
   /** Début de la dernière collecte ; null tant qu'aucune n'a eu lieu (aucune offre n'est alors « nouvelle »). */

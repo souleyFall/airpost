@@ -135,10 +135,6 @@ export class CollectionService {
       throw new BadRequestException('Code postal du profil introuvable : collecte impossible');
     }
 
-    // Début de collecte noté avant d'enregistrer les offres : celles qui arrivent ensuite sont « nouvelles ».
-    // Un échec d'écriture ne perd pas la collecte (seul le badge « Nouveau » serait en retard).
-    await this.offers.startRun().catch(() => undefined);
-
     const query: SearchQuery = {
       ...position,
       radiusKm: radiusFromCommute(profile.search.maxCommuteMinutes),
@@ -165,6 +161,13 @@ export class CollectionService {
               : statusFromReason(sourceReport.reason),
         )
         .catch(() => undefined);
+    }
+
+    // Badge « Nouveau » : le début de cette collecte devient la référence seulement si au moins une source a répondu.
+    // Tout en panne (réseau coupé, clés expirées) : les offres « nouvelles » de la collecte précédente le restent.
+    // Un échec d'écriture ne perd pas la collecte (seul le badge serait en retard).
+    if (sources.some((source) => source.status === 'ok')) {
+      await this.offers.recordRun(startedAt).catch(() => undefined);
     }
 
     const stale = await this.offers.purgeStale(this.env.OFFER_RETENTION_DAYS);
