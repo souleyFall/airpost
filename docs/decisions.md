@@ -399,6 +399,14 @@ En développement, le `.env` est chargé par `process.loadEnvFile` (natif dans N
 - **Postuler sans lettre** : crée directement la candidature au statut « Envoyée » (date d'envoi = maintenant, ni objet ni texte). À utiliser une fois la candidature faite sur le site ou par mail : airpost n'envoie rien. Possible seulement sans lettre, ou avec une lettre non validée (elle est alors abandonnée) ; refusé pour une offre rejetée. Contrepartie : c'est une déclaration de l'utilisateur, airpost ne peut pas la vérifier ; la date d'envoi est celle du clic.
 - **Non fait** : annuler en un clic juste après un rejet (la restauration passe par l'écran « Rejetées »).
 
+### D47 : géocodage à trois fournisseurs, recul de 7 jours pour les réponses Gmail
+
+- **Besoin** : quand la Géoplateforme de l'IGN était en panne, les offres n'avaient plus de distance et le tri se dégradait en silence. Côté Gmail, la date d'envoi est celle du clic « Envoyée », souvent après l'envoi réel : l'accusé de réception, arrivé avant, n'était jamais retrouvé.
+- **Géocodage** : trois fournisseurs essayés dans l'ordre, IGN, puis API Géo (geo.api.gouv.fr), puis Nominatim (OpenStreetMap). On ne passe au suivant qu'en cas de panne (injoignable, erreur HTTP, réponse illisible) : « aucun résultat » est une vraie réponse. Nominatim passe en dernier : indépendant de l'État, mais limité à 1 requête par seconde et sans garantie ; le cache des communes évite d'insister. Seul un code postal ou un nom de commune est envoyé (R62).
+- **Homonymes** : API Géo et Nominatim renvoient jusqu'à 5 communes ; on garde la plus proche du point de repère (le domicile), sinon la première (classées par population / importance).
+- **Gmail** : la recherche des réponses remonte de 7 jours avant la date d'envoi enregistrée (`LOOKBACK_DAYS`). Contrepartie : un message du même expéditeur reçu juste avant l'envoi peut être pris pour une réponse, et la synchronisation fait alors avancer le statut à tort ; la candidature se corrige à la main depuis le Suivi.
+- **Non fait** : message d'erreur plus clair quand les trois fournisseurs sont en panne ; limiteur de débit propre à Nominatim.
+
 ### D48 : offres lues / non lues, badge « Nouveau » et filtre de lecture
 
 - **Besoin** : comme dans une messagerie, voir d'un coup d'œil ce qu'on n'a pas encore regardé et ce que la dernière collecte vient d'apporter.

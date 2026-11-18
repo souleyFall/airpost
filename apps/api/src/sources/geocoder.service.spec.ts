@@ -66,6 +66,102 @@ describe('GeocoderService', () => {
     expect(await geocoder.geocodePostcode('75011')).not.toBeNull();
   });
 
+  describe('bascule entre fournisseurs', () => {
+    const API_GEO = [{ centre: { type: 'Point', coordinates: [2.03, 48.78] } }];
+    const byHost = (primary: () => Response, secondary: () => Response) => {
+      const http = vi.fn<HttpFetch>(async (url) =>
+        new URL(url).hostname === 'data.geopf.fr' ? primary() : secondary(),
+      );
+      return { geocoder: new GeocoderService(http), http };
+    };
+
+    it.each([
+      ['une erreur HTTP', () => json({}, 502)],
+      ['une réponse illisible', () => new Response('<html>')],
+    ])('passe au secours quand le principal répond par %s', async (_name, broken) => {
+      const { geocoder, http } = byHost(broken, () => json(API_GEO));
+
+      expect(await geocoder.geocodePostcode('78180')).toEqual({ latitude: 48.78, longitude: 2.03 });
+
+      const hosts = http.mock.calls.map((c) => new URL(c[0]).hostname);
+      expect(hosts).toEqual(['data.geopf.fr', 'geo.api.gouv.fr']);
+      const fallback = new URL(http.mock.calls[1]?.[0] ?? '');
+      expect(fallback.searchParams.get('codePostal')).toBe('78180');
+    });
+
+    it('passe au secours quand le principal est injoignable', async () => {
+      const { geocoder } = byHost(
+        () => {
+          throw new Error('réseau coupé');
+        },
+        () => json(API_GEO),
+      );
+
+      expect(await geocoder.geocodePostcode('78180')).not.toBeNull();
+    });
+
+    it('passe à Nominatim quand les deux services de l’État sont en panne', async () => {
+      const http = vi.fn<HttpFetch>(async (url) =>
+        new URL(url).hostname === 'nominatim.openstreetmap.org'
+          ? json([{ lat: '48.7798536', lon: '2.0297584' }])
+          : json({}, 502),
+      );
+      const geocoder = new GeocoderService(http);
+
+      expect(await geocoder.geocodePostcode('78180')).toEqual({
+        latitude: 48.7798536,
+        longitude: 2.0297584,
+      });
+
+      expect(http.mock.calls.map((c) => new URL(c[0]).hostname)).toEqual([
+        'data.geopf.fr',
+        'geo.api.gouv.fr',
+        'nominatim.openstreetmap.org',
+      ]);
+      const last = http.mock.calls[2];
+      expect(new URL(last?.[0] ?? '').searchParams.get('postalcode')).toBe('78180');
+      expect(JSON.stringify(last?.[1]?.headers)).toContain('airpost-geocoder');
+    });
+
+    it('ne bascule pas sur un « aucun résultat » : c’est une vraie réponse', async () => {
+      const { geocoder, http } = byHost(
+        () => json({ features: [] }),
+        () => json(API_GEO),
+      );
+
+      expect(await geocoder.geocodePostcode('99999')).toBeNull();
+      expect(http).toHaveBeenCalledTimes(1);
+    });
+
+    it('renvoie null quand les deux fournisseurs sont en panne, sans rien mémoriser', async () => {
+      let down = true;
+      const { geocoder } = byHost(
+        () => (down ? json({}, 502) : json(FOUND)),
+        () => json({}, 503),
+      );
+
+      expect(await geocoder.geocodePostcode('78180')).toBeNull();
+      down = false;
+      expect(await geocoder.geocodePostcode('78180')).not.toBeNull();
+    });
+
+    it('au secours, choisit parmi les homonymes la commune la plus proche', async () => {
+      const homonyms = [
+        { centre: { type: 'Point', coordinates: [5.0, 45.0] } },
+        { centre: { type: 'Point', coordinates: [2.03, 48.78] } },
+      ];
+      const { geocoder, http } = byHost(
+        () => json({}, 502),
+        () => json(homonyms),
+      );
+
+      const result = await geocoder.geocodeCity('Saint-Denis', { latitude: 48.8, longitude: 2.0 });
+
+      expect(result).toEqual({ latitude: 48.78, longitude: 2.03 });
+      expect(new URL(http.mock.calls[1]?.[0] ?? '').searchParams.get('nom')).toBe('Saint-Denis');
+    });
+  });
+
   describe('geocodeCity', () => {
     it('convertit un nom de commune et favorise la commune proche en cas d’homonymes', async () => {
       const { geocoder, http } = setup(() => json(FOUND));
