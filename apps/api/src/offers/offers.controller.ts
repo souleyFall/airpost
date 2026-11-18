@@ -52,8 +52,13 @@ const listQuery = z.object({
     .default('false')
     .transform((value) => value === 'true'),
   sort: z.enum(['score', 'fresh', 'distance']).default('score'),
+  /** Filtre de lecture : non lues, lues, ou apparues depuis le début de la dernière collecte (« nouvelles »). */
+  read: z.enum(['all', 'unread', 'read', 'new']).default('all'),
 });
 type ListQuery = z.infer<typeof listQuery>;
+
+const readBody = z.strictObject({ read: z.boolean() });
+type ReadBody = z.infer<typeof readBody>;
 
 /** Les offres affichées à l'écran : une page au plus. */
 const analyzeBody = z.object({ ids: z.array(z.uuid()).min(1).max(100) });
@@ -87,7 +92,21 @@ export class OffersController {
   /** Offres filtrées, triées et paginées, sans la description (volumineuse). Les offres rejetées n'y sont jamais. */
   @Get()
   async list(@Query(new ZodValidationPipe(listQuery)) query: ListQuery) {
-    const and: Prisma.OfferWhereInput[] = [{ rejectedAt: null }];
+    // Conditions de base (hors filtres de l'utilisateur) : elles servent aussi à compter les offres non lues.
+    const base: Prisma.OfferWhereInput[] = [{ rejectedAt: null }];
+    if (query.pending) {
+      base.push({ OR: [{ application: null }, { application: { status: 'TO_REVIEW' } }] });
+      // Écartées par l'IA : hors du fil, sauf si tu as déjà commencé une candidature dessus.
+      base.push({ OR: [{ excluded: false }, { application: { isNot: null } }] });
+    }
+    const runStart = await this.offers.latestRunStart();
+    const and: Prisma.OfferWhereInput[] = [...base];
+    if (query.read === 'unread') and.push({ viewedAt: null });
+    if (query.read === 'read') and.push({ viewedAt: { not: null } });
+    if (query.read === 'new') {
+      // Aucune collecte connue : aucune offre n'est « nouvelle ».
+      and.push(runStart ? { firstSeenAt: { gte: runStart } } : { id: { in: [] } });
+    }
     if (query.minScore > 0) and.push({ score: { gte: query.minScore } });
     if (query.maxDistanceKm !== undefined) {
       // Une offre non localisée n'est pas écartée : on ne sait pas qu'elle est trop loin.
@@ -96,11 +115,6 @@ export class OffersController {
     if (query.source.length > 0) and.push({ source: { in: query.source } });
     if (query.contract.length > 0) and.push({ contractType: { in: query.contract } });
     if (query.channel) and.push({ channel: query.channel });
-    if (query.pending) {
-      and.push({ OR: [{ application: null }, { application: { status: 'TO_REVIEW' } }] });
-      // Écartées par l'IA : hors du fil, sauf si tu as déjà commencé une candidature dessus.
-      and.push({ OR: [{ excluded: false }, { application: { isNot: null } }] });
-    }
     if (query.q) {
       // % et _ sont des jokers du LIKE de PostgreSQL : saisis par l'utilisateur, ils doivent être pris au pied de la lettre.
       const contains = { contains: escapeLike(query.q), mode: 'insensitive' as const };
@@ -116,8 +130,10 @@ export class OffersController {
     const where: Prisma.OfferWhereInput = and.length > 0 ? { AND: and } : {};
 
     // Une seule transaction : le total et la page décrivent le même état de la base.
-    const [total, items] = await this.prisma.$transaction([
+    const [total, unread, items] = await this.prisma.$transaction([
       this.prisma.offer.count({ where }),
+      // Pastille « non lues » : indépendante des filtres, comme le compteur d'une messagerie.
+      this.prisma.offer.count({ where: { AND: [...base, { viewedAt: null }] } }),
       this.prisma.offer.findMany({
         where,
         // id en dernier départage les ex æquo : sans lui, des pages successives peuvent répéter ou manquer des offres.
@@ -138,13 +154,24 @@ export class OffersController {
           applyUrl: true,
           publishedAt: true,
           firstSeenAt: true,
+          viewedAt: true,
           score: true,
           // Permet à l'interface de savoir quelles offres ont déjà une lettre, et à quel stade.
           application: { select: { id: true, status: true } },
         },
       }),
     ]);
-    return { total, limit: query.limit, offset: query.offset, items };
+    return {
+      total,
+      unread,
+      limit: query.limit,
+      offset: query.offset,
+      // « Nouvelle » : apparue depuis le début de la dernière collecte (le badge saute à la collecte suivante).
+      items: items.map((item) => ({
+        ...item,
+        isNew: runStart !== null && item.firstSeenAt >= runStart,
+      })),
+    };
   }
 
   /**
@@ -183,6 +210,17 @@ export class OffersController {
   async reject(@Param('id', new ParseUUIDPipe()) id: string) {
     await this.offers.reject(id);
     return { id, rejected: true };
+  }
+
+  /** Marque une offre lue (ouverture) ou non lue (« à revoir »). Idempotent : répéter l'appel ne change rien. */
+  @Post(':id/read')
+  @HttpCode(200)
+  async markRead(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body(new ZodValidationPipe(readBody)) body: ReadBody,
+  ) {
+    await this.offers.setRead(id, body.read);
+    return { id, read: body.read };
   }
 
   /** Remet une offre rejetée dans « À valider » (409 si les 7 jours sont passés). */

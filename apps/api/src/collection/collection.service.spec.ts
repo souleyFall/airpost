@@ -68,6 +68,7 @@ function setup(
   }));
   const purgeStale = vi.fn(async () => 2);
   const purgeRejected = vi.fn(async () => 0);
+  const startRun = vi.fn(async () => undefined);
   const refreshDistances = vi.fn(async () => 3);
   const cleanup = vi.fn(async () => ({ removed: 0, updated: 0 }));
   const analyzePending = vi.fn(async () => ({ analyzed: 7, remaining: 2 }));
@@ -85,6 +86,7 @@ function setup(
       saveMany,
       purgeStale,
       purgeRejected,
+      startRun,
       sourcesByDedupKey,
       refreshDistances,
       cleanup,
@@ -110,6 +112,7 @@ function setup(
     saveMany,
     purgeStale,
     purgeRejected,
+    startRun,
     analyzePending,
     record,
     refreshDistances,
@@ -570,6 +573,26 @@ describe('CollectionService', () => {
   it('une panne du vidage des rejetées ne fait pas échouer la collecte', async () => {
     const { service, purgeRejected } = setup();
     purgeRejected.mockRejectedValueOnce(new Error('base indisponible'));
+
+    const report = await service.run('u1');
+
+    expect(report.purged).toBe(2);
+  });
+
+  it('note le début de la collecte AVANT d’enregistrer les offres (badge « Nouveau »)', async () => {
+    const { service, startRun, saveMany } = setup();
+
+    await service.run('u1');
+
+    expect(startRun).toHaveBeenCalledTimes(1);
+    expect(startRun.mock.invocationCallOrder[0]).toBeLessThan(
+      saveMany.mock.invocationCallOrder[0] ?? 0,
+    );
+  });
+
+  it('une panne de l’écriture du début de collecte ne fait pas échouer la collecte', async () => {
+    const { service, startRun } = setup();
+    startRun.mockRejectedValueOnce(new Error('base indisponible'));
 
     const report = await service.run('u1');
 

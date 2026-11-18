@@ -46,6 +46,36 @@ export interface RejectedOffer {
 export class OffersService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Note le début d'une collecte. Appelée AVANT d'enregistrer les offres : celles qui apparaissent ensuite ont une
+   * première apparition (`firstSeenAt`) postérieure à ce début, et c'est ce qui les rend « nouvelles ».
+   */
+  async startRun(): Promise<void> {
+    await this.prisma.collectionRun.create({ data: {} });
+  }
+
+  /** Début de la dernière collecte ; null tant qu'aucune n'a eu lieu (aucune offre n'est alors « nouvelle »). */
+  async latestRunStart(): Promise<Date | null> {
+    const run = await this.prisma.collectionRun.findFirst({
+      orderBy: { startedAt: 'desc' },
+      select: { startedAt: true },
+    });
+    return run?.startedAt ?? null;
+  }
+
+  /** Marque une offre lue ou non lue. Une offre déjà lue garde sa date de première ouverture. */
+  async setRead(id: string, read: boolean, now = new Date()): Promise<void> {
+    const offer = await this.prisma.offer.findUnique({ where: { id }, select: { viewedAt: true } });
+    if (!offer) {
+      throw new NotFoundException('Offre introuvable');
+    }
+    if (read && offer.viewedAt === null) {
+      await this.prisma.offer.update({ where: { id }, data: { viewedAt: now } });
+    } else if (!read && offer.viewedAt !== null) {
+      await this.prisma.offer.update({ where: { id }, data: { viewedAt: null } });
+    }
+  }
+
   /** Sources qui possèdent déjà une offre portant chacune de ces empreintes (clé → sources). */
   async sourcesByDedupKey(keys: string[]): Promise<Map<string, Set<OfferSource>>> {
     const result = new Map<string, Set<OfferSource>>();

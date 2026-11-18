@@ -92,6 +92,8 @@ export interface DemoOffer {
   excluded: boolean;
   /** Rejetée par l'utilisateur (restaurable 7 jours) ; absent = pas rejetée. */
   rejectedAt?: string | null;
+  /** Première ouverture ; absent ou null = non lue. */
+  viewedAt?: string | null;
   /** Analyse révélée quand l'utilisateur lance (ou déclenche) l'analyse : l'IA est simulée. */
   analysisAfter?: { score: number; analysis: Analysis };
 }

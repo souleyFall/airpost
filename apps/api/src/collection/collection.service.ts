@@ -135,6 +135,10 @@ export class CollectionService {
       throw new BadRequestException('Code postal du profil introuvable : collecte impossible');
     }
 
+    // Début de collecte noté avant d'enregistrer les offres : celles qui arrivent ensuite sont « nouvelles ».
+    // Un échec d'écriture ne perd pas la collecte (seul le badge « Nouveau » serait en retard).
+    await this.offers.startRun().catch(() => undefined);
+
     const query: SearchQuery = {
       ...position,
       radiusKm: radiusFromCommute(profile.search.maxCommuteMinutes),

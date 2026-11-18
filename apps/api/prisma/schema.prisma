@@ -162,12 +162,16 @@ model Offer {
   /// Rejetée par l'utilisateur : masquée de « À valider », restaurable pendant 7 jours. Passé ce délai, son contenu est vidé
   /// (description, analyse, contact, lettre) ; seule l'identité reste, pour que la collecte ne la réimporte pas.
   rejectedAt   DateTime?
+  /// Première ouverture par l'utilisateur ; vide = non lue (mise en surbrillance dans la liste). Redevient vide si
+  /// l'utilisateur la remet « non lue ».
+  viewedAt     DateTime?
   /// Empreinte du profil et du prompt au moment de l'analyse : si elle change, l'analyse est refaite.
   profileHash  String?
 
   application Application?
 
   @@unique([source, externalId])
+  @@index([viewedAt])
   @@index([dedupKey])
   @@index([score])
   @@index([source])
@@ -176,6 +180,15 @@ model Offer {
   @@index([rejectedAt])
   /// Sert à la purge des offres qui ne sont plus publiées (durée de conservation).
   @@index([lastSeenAt])
+}
+
+/// Une ligne par collecte, créée à son début. Sert au badge « Nouveau » : une offre est nouvelle si elle est apparue
+/// depuis le début de la dernière collecte. Aucune donnée personnelle ; en mémoire, le bilan serait perdu au redémarrage.
+model CollectionRun {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  startedAt DateTime @default(now())
+
+  @@index([startedAt])
 }
 
 model Application {

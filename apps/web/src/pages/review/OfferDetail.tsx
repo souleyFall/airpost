@@ -27,6 +27,8 @@ interface Props {
   onChanged: (done: boolean) => void;
   /** Appelé quand l'IA vient de noter l'offre : la liste met son badge à jour sans se recharger. */
   onAnalyzed?: (offerId: string, score: number | null, excluded: boolean) => void;
+  /** Remet l'offre « non lue » dans la liste (comme dans une messagerie) ; le bouton n'existe que si c'est fourni. */
+  onMarkUnread?: () => void;
 }
 
 function analysisErrorText(error: unknown): string {
@@ -67,7 +69,7 @@ function errorText(error: unknown): string {
   return 'Action impossible pour le moment.';
 }
 
-export function OfferDetail({ offerId, onChanged, onAnalyzed }: Props) {
+export function OfferDetail({ offerId, onChanged, onAnalyzed, onMarkUnread }: Props) {
   const [offer, setOffer] = useState<OfferDetailData | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
@@ -279,23 +281,34 @@ export function OfferDetail({ offerId, onChanged, onAnalyzed }: Props) {
   return (
     <section aria-label="Détail de l’offre" className="flex min-h-full flex-col">
       <div className="flex flex-1 flex-col gap-4 px-8 py-6">
-        <header>
-          <h2 className="m-0 text-[22px] leading-tight font-semibold text-balance">
-            {offer.title}
-          </h2>
-          <p className="mt-1.5 mb-0 text-muted">
-            {meta.join(' · ')} · {ageLabel(offer.publishedAt ?? offer.firstSeenAt)} ·{' '}
-            {SOURCE_LABEL[offer.source]}
-            {offer.via ? `, via ${offer.via}` : ''}
-            {offer.applyUrl ? (
-              <>
-                {' · '}
-                <a href={offer.applyUrl} target="_blank" rel="noopener noreferrer">
-                  Voir l’offre
-                </a>
-              </>
-            ) : null}
-          </p>
+        <header className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h2 className="m-0 text-[22px] leading-tight font-semibold text-balance">
+              {offer.title}
+            </h2>
+            <p className="mt-1.5 mb-0 text-muted">
+              {meta.join(' · ')} · {ageLabel(offer.publishedAt ?? offer.firstSeenAt)} ·{' '}
+              {SOURCE_LABEL[offer.source]}
+              {offer.via ? `, via ${offer.via}` : ''}
+              {offer.applyUrl ? (
+                <>
+                  {' · '}
+                  <a href={offer.applyUrl} target="_blank" rel="noopener noreferrer">
+                    Voir l’offre
+                  </a>
+                </>
+              ) : null}
+            </p>
+          </div>
+          {onMarkUnread ? (
+            <button
+              type="button"
+              className="btn btn-quiet !h-8 shrink-0 !text-[13px]"
+              onClick={onMarkUnread}
+            >
+              Marquer comme non lue
+            </button>
+          ) : null}
         </header>
 
         <section aria-label="Brief de l’offre" className="rounded-md border border-line bg-surface">

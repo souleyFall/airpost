@@ -11,6 +11,7 @@ import { useShell } from '../../components/shellContext';
 import { AddOfferPanel } from './AddOfferPanel';
 import { CONTRACT_LABEL, distanceLabel, place, scoreTone, shortAge } from '../../lib/format';
 import { OfferDetail } from './OfferDetail';
+import { ReadFilterMenu, type ReadFilter } from './ReadFilterMenu';
 
 export const PAGE_SIZE = 20;
 
@@ -24,6 +25,8 @@ export interface Filters {
   minScore: number;
   maxDistanceKm: number | null;
   sort: Sort;
+  /** Lecture : son propre menu, toujours visible à côté de « Filtres » ; il n'entre pas dans leur compte. */
+  read: ReadFilter;
 }
 
 export const NO_FILTERS: Filters = {
@@ -34,9 +37,10 @@ export const NO_FILTERS: Filters = {
   minScore: 0,
   maxDistanceKm: null,
   sort: 'score',
+  read: 'all',
 };
 
-/** Nombre de filtres actifs (le tri et la recherche ne comptent pas : ils sont toujours visibles). */
+/** Nombre de filtres actifs (le tri, la recherche et la lecture ne comptent pas : ils sont toujours visibles). */
 export function activeFilterCount(filters: Filters): number {
   return (
     (filters.sources.length > 0 ? 1 : 0) +
@@ -55,6 +59,7 @@ export function buildQuery(filters: Filters, page: number): string {
     offset: String(page * PAGE_SIZE),
     sort: filters.sort,
   });
+  if (filters.read !== 'all') params.set('read', filters.read);
   if (filters.q.trim()) params.set('q', filters.q.trim());
   if (filters.sources.length > 0) params.set('source', filters.sources.join(','));
   if (filters.contracts.length > 0) params.set('contract', filters.contracts.join(','));
@@ -132,6 +137,8 @@ export function ReviewPage() {
   const { version, setCount } = useShell();
   const [items, setItems] = useState<OfferSummary[] | null>(null);
   const [total, setTotal] = useState(0);
+  // Offres à traiter jamais ouvertes, quels que soient les filtres (pastille du menu de lecture).
+  const [unread, setUnread] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [page, setPage] = useState(0);
@@ -159,6 +166,7 @@ export function ReviewPage() {
       if (id !== requestId.current) return;
       setItems(list.items);
       setTotal(list.total);
+      setUnread(list.unread);
       setError(null);
     } catch {
       if (id !== requestId.current) return;
@@ -245,6 +253,33 @@ export function ReviewPage() {
     setPage(0);
   }
 
+  // Lue ou non lue : l'écran change tout de suite, puis l'API confirme ; si elle échoue, on revient en arrière.
+  const changeRead = useCallback(
+    (id: string, read: boolean) => {
+      const offer = items?.find((o) => o.id === id);
+      if (!offer || (offer.viewedAt !== null) === read) return;
+      const apply = (viewedAt: string | null) => {
+        setItems((current) =>
+          current ? current.map((o) => (o.id === id ? { ...o, viewedAt } : o)) : current,
+        );
+        setUnread((count) => Math.max(0, count + (viewedAt === null ? 1 : -1)));
+      };
+      apply(read ? new Date().toISOString() : null);
+      api('POST', `/offers/${id}/read`, { read }).catch(() => apply(offer.viewedAt));
+    },
+    [items],
+  );
+
+  // Ouvrir une offre (clic ou flèches) la marque lue. La première offre, sélectionnée d'office quand la page
+  // s'affiche, n'est PAS marquée lue : tu ne l'as pas encore regardée.
+  const select = useCallback(
+    (id: string) => {
+      setSelectedId(id);
+      changeRead(id, true);
+    },
+    [changeRead],
+  );
+
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   // Une page devenue vide (offres validées) : retour à la dernière page existante.
   useEffect(() => {
@@ -286,14 +321,14 @@ export function ReviewPage() {
       const list = items ?? [];
       const index = list.findIndex((o) => o.id === selectedId);
       const next = list[index + (event.key === 'ArrowDown' ? 1 : -1)];
-      if (next) setSelectedId(next.id);
+      if (next) select(next.id);
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [items, selectedId]);
+  }, [items, selectedId, select]);
 
   const activeCount = activeFilterCount(filters);
-  const hasCriteria = activeCount > 0 || filters.q !== '';
+  const hasCriteria = activeCount > 0 || filters.q !== '' || filters.read !== 'all';
   const from = total === 0 ? 0 : page * PAGE_SIZE + 1;
   const to = Math.min(total, (page + 1) * PAGE_SIZE);
 
@@ -338,14 +373,21 @@ export function ReviewPage() {
           />
 
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <button
-              type="button"
-              aria-expanded={filtersOpen}
-              onClick={() => setFiltersOpen((open) => !open)}
-              className="btn btn-quiet !h-8 !text-[13px]"
-            >
-              Filtres{activeCount > 0 ? ` (${activeCount})` : ''}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                aria-expanded={filtersOpen}
+                onClick={() => setFiltersOpen((open) => !open)}
+                className="btn btn-quiet !h-8 !text-[13px]"
+              >
+                Filtres{activeCount > 0 ? ` (${activeCount})` : ''}
+              </button>
+              <ReadFilterMenu
+                value={filters.read}
+                unread={unread}
+                onChange={(read) => changeFilters({ read })}
+              />
+            </div>
             <label className="flex items-center gap-1.5 text-[13px] text-muted">
               Tri
               <select
@@ -487,13 +529,21 @@ export function ReviewPage() {
                     type="button"
                     aria-current={offer.id === selectedId}
                     onClick={() => {
-                      setSelectedId(offer.id);
+                      select(offer.id);
                       setAdding(false);
                       setAddedId(null);
                       setAddNotice(null);
                     }}
-                    className={`grid w-full cursor-pointer grid-cols-[44px_minmax(0,1fr)_auto] items-start gap-3 border-0 border-b border-line px-4 py-3 text-left font-[inherit] text-ink ${
-                      offer.id === selectedId ? 'bg-selected' : 'bg-transparent hover:bg-hover'
+                    // Non lue : fond plus clair, barre bleue à gauche, titre en gras (comme une messagerie).
+                    // La barre est toujours là (transparente si lue) pour que le texte ne bouge pas d'une ligne à l'autre.
+                    className={`grid w-full cursor-pointer grid-cols-[44px_minmax(0,1fr)_auto] items-start gap-3 border-0 border-b border-l-[3px] border-b-line px-4 py-3 text-left font-[inherit] text-ink ${
+                      offer.viewedAt === null ? 'border-l-accent' : 'border-l-transparent'
+                    } ${
+                      offer.id === selectedId
+                        ? 'bg-selected'
+                        : offer.viewedAt === null
+                          ? 'bg-surface hover:bg-hover'
+                          : 'bg-transparent hover:bg-hover'
                     }`}
                   >
                     <span
@@ -505,7 +555,19 @@ export function ReviewPage() {
                       {offer.score ?? '–'}
                     </span>
                     <span className="flex min-w-0 flex-col gap-0.5">
-                      <span className="leading-snug font-semibold">{offer.title}</span>
+                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span
+                          className={`leading-snug ${offer.viewedAt === null ? 'font-semibold' : 'font-normal'}`}
+                        >
+                          {offer.title}
+                        </span>
+                        {offer.isNew ? (
+                          <span className="rounded-sm bg-accent px-1.5 text-[11px] leading-5 font-semibold text-paper">
+                            Nouveau
+                          </span>
+                        ) : null}
+                        {offer.viewedAt === null ? <span className="sr-only">Non lue</span> : null}
+                      </span>
                       <span className="truncate text-[13px] text-muted">
                         {[
                           offer.company,
@@ -599,6 +661,7 @@ export function ReviewPage() {
               void load();
               void refreshBadge();
             }}
+            onMarkUnread={() => changeRead((addedId ?? selectedId) as string, false)}
           />
         ) : (
           <p className="m-8 text-muted">Sélectionne une offre pour la consulter.</p>
