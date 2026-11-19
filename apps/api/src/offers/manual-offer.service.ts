@@ -127,6 +127,8 @@ export class ManualOfferService {
         channel: contactEmail ? 'EMAIL' : 'SITE',
         contractType: detectContractType(title, description, 'MANUAL'),
         lastSeenAt: new Date(),
+        // Saisie par l'utilisateur : elle n'a pas à apparaître comme non lue.
+        viewedAt: new Date(),
       },
       select: { id: true },
     });

@@ -163,6 +163,13 @@ export class CollectionService {
         .catch(() => undefined);
     }
 
+    // Badge « Nouveau » : le début de cette collecte devient la référence seulement si au moins une source a répondu.
+    // Tout en panne (réseau coupé, clés expirées) : les offres « nouvelles » de la collecte précédente le restent.
+    // Un échec d'écriture ne perd pas la collecte (seul le badge serait en retard).
+    if (sources.some((source) => source.status === 'ok')) {
+      await this.offers.recordRun(startedAt).catch(() => undefined);
+    }
+
     const stale = await this.offers.purgeStale(this.env.OFFER_RETENTION_DAYS);
     // Remise à niveau des offres déjà en base avec les règles actuelles (hors métier supprimées, contrat corrigé).
     const cleaned = await this.offers

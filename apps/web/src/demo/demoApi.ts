@@ -46,17 +46,24 @@ interface State {
   profile: typeof DEMO_PROFILE;
   collected: boolean;
   counter: number;
+  /** Début de la dernière collecte : les offres apparues depuis sont « nouvelles » (badge). */
+  lastRunStart: string;
 }
 
 let state: State = freshState();
 
 function freshState(): State {
   return {
-    offers: pendingOffers(),
+    // Les offres un peu anciennes sont déjà lues ; les plus récentes ne le sont pas (comme après une vraie collecte).
+    offers: pendingOffers().map((offer) => ({
+      ...offer,
+      viewedAt: new Date(offer.firstSeenAt).getTime() < Date.now() - 3 * DAY ? daysAgo(1) : null,
+    })),
     applications: makeApplications(),
     profile: structuredClone(DEMO_PROFILE),
     collected: false,
     counter: 0,
+    lastRunStart: new Date(Date.now() - DAY / 2).toISOString(),
   };
 }
 
@@ -117,6 +124,8 @@ function offerSummary(offer: DemoOffer) {
     applyUrl: offer.applyUrl,
     publishedAt: offer.publishedAt,
     firstSeenAt: offer.firstSeenAt,
+    viewedAt: offer.viewedAt ?? null,
+    isNew: offer.firstSeenAt >= state.lastRunStart,
     score: offer.score,
     application: application ? { id: application.id, status: application.status } : null,
   };
@@ -308,14 +317,28 @@ function listOffers(params: URLSearchParams) {
   const channel = params.get('channel');
   const pending = params.get('pending') === 'true';
   const sort = params.get('sort') ?? 'score';
+  const read = params.get('read') ?? 'all';
+  if (!['all', 'unread', 'read', 'new'].includes(read)) {
+    throw new ApiError(400, 'Filtre de lecture inconnu');
+  }
 
-  let items = state.offers.filter((o) => {
+  // Mêmes conditions de base que le vrai serveur : elles servent aussi à compter les offres non lues.
+  const inBase = (o: DemoOffer) => {
     if (o.rejectedAt) return false;
     const application = applicationOf(o.id);
     if (pending) {
       if (application && application.status !== 'TO_REVIEW') return false;
       if (o.excluded && !application) return false;
     }
+    return true;
+  };
+  const unread = state.offers.filter((o) => inBase(o) && !o.viewedAt).length;
+
+  let items = state.offers.filter((o) => {
+    if (!inBase(o)) return false;
+    if (read === 'unread' && o.viewedAt) return false;
+    if (read === 'read' && !o.viewedAt) return false;
+    if (read === 'new' && o.firstSeenAt < state.lastRunStart) return false;
     if (sources.length > 0 && !sources.includes(o.source)) return false;
     if (contracts.length > 0 && !contracts.includes(o.contractType)) return false;
     if (channel && o.channel !== channel) return false;
@@ -341,6 +364,7 @@ function listOffers(params: URLSearchParams) {
   });
   return {
     total: items.length,
+    unread,
     limit,
     offset,
     items: items.slice(offset, offset + limit).map(offerSummary),
@@ -464,6 +488,14 @@ export async function demoApi<T>(method: string, path: string, body?: unknown): 
     }
     offer.rejectedAt ??= new Date().toISOString();
     return { id: offer.id, rejected: true } as T;
+  }
+  if ((hit = m(/^\/offers\/([^/]+)\/read$/)) && method === 'POST') {
+    const offer = find(state.offers, hit[1], 'Offre');
+    if (typeof b.read !== 'boolean') throw new ApiError(400, 'Corps invalide');
+    // Déjà lue : on garde la date de première ouverture, comme le vrai serveur.
+    if (b.read) offer.viewedAt ??= new Date().toISOString();
+    else offer.viewedAt = null;
+    return { id: offer.id, read: b.read } as T;
   }
   if ((hit = m(/^\/offers\/([^/]+)\/restore$/)) && method === 'POST') {
     const offer = find(state.offers, hit[1], 'Offre');
@@ -716,6 +748,8 @@ export async function demoApi<T>(method: string, path: string, body?: unknown): 
   if (route === '/collection/last') return FULL_REPORT(state.collected ? 3 : 41) as T;
   if (route === '/collection/run' && method === 'POST') {
     await pause(1_600);
+    // Début de collecte noté avant les arrivées : les badges « Nouveau » de la collecte précédente disparaissent.
+    state.lastRunStart = new Date().toISOString();
     let created = 0;
     if (!state.collected) {
       state.collected = true;

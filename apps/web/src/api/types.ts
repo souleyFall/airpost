@@ -57,12 +57,16 @@ export interface OfferSummary {
   applyUrl: string | null;
   publishedAt: string | null;
   firstSeenAt: string;
+  /** Première ouverture ; null = non lue (mise en surbrillance dans la liste). */
+  viewedAt: string | null;
+  /** Apparue depuis le début de la dernière collecte : le badge « Nouveau » saute à la collecte suivante. */
+  isNew: boolean;
   /** Taux de compatibilité calculé par l'IA ; null tant que l'offre n'est pas analysée. */
   score: number | null;
   application: ApplicationRef | null;
 }
 
-export interface OfferDetail extends OfferSummary {
+export interface OfferDetail extends Omit<OfferSummary, 'viewedAt' | 'isNew'> {
   description: string | null;
   contactEmail: string | null;
   analysis: Analysis | null;
@@ -73,6 +77,8 @@ export interface OfferDetail extends OfferSummary {
 
 export interface OfferList {
   total: number;
+  /** Offres à traiter jamais ouvertes, quels que soient les filtres (pastille du menu de lecture). */
+  unread: number;
   limit: number;
   offset: number;
   items: OfferSummary[];

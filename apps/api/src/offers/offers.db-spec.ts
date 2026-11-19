@@ -642,7 +642,13 @@ describe('Offres et analyse IA (e2e, base réelle)', () => {
     });
 
     it('renvoie une liste vide sans erreur', async () => {
-      expect((await get('')).body).toEqual({ total: 0, limit: 20, offset: 0, items: [] });
+      expect((await get('')).body).toEqual({
+        total: 0,
+        unread: 0,
+        limit: 20,
+        offset: 0,
+        items: [],
+      });
     });
   });
 
@@ -898,6 +904,156 @@ describe('Offres et analyse IA (e2e, base réelle)', () => {
       expect(model.requests).toHaveLength(1);
       expect(JSON.stringify(model.requests[0])).toContain('Offre b');
       expect(JSON.stringify(model.requests[0])).not.toContain('Offre a');
+    });
+  });
+
+  describe('offres lues, non lues et nouvelles', () => {
+    const daysAgo = (days: number) => new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const write = (path: string) => http.post(path).set('Cookie', cookie).set('X-CSRF-Token', csrf);
+    type Row = { title: string; viewedAt: string | null; isNew: boolean };
+    const rows = async (query: string) =>
+      (await get(query)).body as { total: number; unread: number; items: Row[] };
+
+    beforeEach(async () => {
+      await prisma.collectionRun.deleteMany();
+    });
+
+    it('une offre jamais ouverte est non lue ; l’ouvrir la marque lue sans changer le reste', async () => {
+      const a = await seed('a');
+      await seed('b');
+      expect((await rows('?pending=true')).unread).toBe(2);
+
+      await write(`/offers/${a.id}/read`).send({ read: true }).expect(200);
+
+      const list = await rows('?pending=true');
+      expect(list.unread).toBe(1);
+      expect(list.total).toBe(2);
+      expect(list.items.find((i) => i.title === 'Offre a')?.viewedAt).not.toBeNull();
+      expect(list.items.find((i) => i.title === 'Offre b')?.viewedAt).toBeNull();
+    });
+
+    it('marquer lue deux fois garde la date de première ouverture', async () => {
+      const a = await seed('a');
+      await write(`/offers/${a.id}/read`).send({ read: true }).expect(200);
+      const first = (await prisma.offer.findUniqueOrThrow({ where: { id: a.id } })).viewedAt;
+
+      await write(`/offers/${a.id}/read`).send({ read: true }).expect(200);
+
+      expect((await prisma.offer.findUniqueOrThrow({ where: { id: a.id } })).viewedAt).toEqual(
+        first,
+      );
+    });
+
+    it('« marquer comme non lue » remet l’offre en surbrillance', async () => {
+      const a = await seed('a', { viewedAt: new Date() });
+      expect((await rows('?pending=true')).unread).toBe(0);
+
+      const res = await write(`/offers/${a.id}/read`).send({ read: false }).expect(200);
+
+      expect(res.body).toEqual({ id: a.id, read: false });
+      expect((await rows('?pending=true')).unread).toBe(1);
+    });
+
+    it('le filtre sépare non lues et lues', async () => {
+      await seed('a', { viewedAt: new Date() });
+      await seed('b');
+      await seed('c', { viewedAt: new Date() });
+
+      expect(titles(await get('?pending=true&read=unread'))).toEqual(['Offre b']);
+      expect(titles(await get('?pending=true&read=read')).sort()).toEqual(['Offre a', 'Offre c']);
+      expect(titles(await get('?pending=true&read=all')).sort()).toEqual([
+        'Offre a',
+        'Offre b',
+        'Offre c',
+      ]);
+    });
+
+    it('le compteur de non lues ignore les filtres de l’utilisateur, les rejetées et les écartées', async () => {
+      await seed('a', { source: 'LBA' });
+      await seed('b', { source: 'ADZUNA' });
+      await seed('rejetee', { rejectedAt: new Date() });
+      await seed('ecartee', { excluded: true });
+
+      // Filtré sur une source : la liste n'a qu'une offre, mais la pastille compte toutes les non lues à traiter.
+      const list = await rows('?pending=true&source=ADZUNA');
+
+      expect(list.total).toBe(1);
+      expect(list.unread).toBe(2);
+    });
+
+    it('sans collecte connue, aucune offre n’est « nouvelle »', async () => {
+      await seed('a');
+
+      const list = await rows('?pending=true');
+
+      expect(list.items[0]?.isNew).toBe(false);
+      expect((await rows('?pending=true&read=new')).total).toBe(0);
+    });
+
+    it('« nouvelle » = apparue depuis le début de la dernière collecte', async () => {
+      await seed('ancienne', { firstSeenAt: daysAgo(3) });
+      await prisma.collectionRun.create({ data: { startedAt: daysAgo(1) } });
+      await seed('recente', { firstSeenAt: new Date() });
+
+      const list = await rows('?pending=true');
+
+      expect(list.items.find((i) => i.title === 'Offre recente')?.isNew).toBe(true);
+      expect(list.items.find((i) => i.title === 'Offre ancienne')?.isNew).toBe(false);
+      expect(titles(await get('?pending=true&read=new'))).toEqual(['Offre recente']);
+    });
+
+    it('le badge « Nouveau » reste jusqu’à la collecte suivante, puis passe aux nouvelles offres', async () => {
+      await prisma.collectionRun.create({ data: { startedAt: daysAgo(2) } });
+      await seed('a', { firstSeenAt: daysAgo(1) });
+      expect(titles(await get('?pending=true&read=new'))).toEqual(['Offre a']);
+
+      // Une collecte réussie sans aucune offre nouvelle : les badges de la précédente disparaissent.
+      await app.get(OffersService).recordRun(new Date());
+
+      expect((await rows('?pending=true&read=new')).total).toBe(0);
+      await seed('b', { firstSeenAt: new Date(Date.now() + 1000) });
+      expect(titles(await get('?pending=true&read=new'))).toEqual(['Offre b']);
+    });
+
+    it('le début noté est celui de la collecte (date donnée), pas l’instant de l’enregistrement', async () => {
+      const started = daysAgo(0.01);
+      await app.get(OffersService).recordRun(started);
+
+      expect(await app.get(OffersService).latestRunStart()).toEqual(started);
+    });
+
+    it('« nouvelle » et « lue » sont indépendants : une offre nouvelle peut déjà être lue', async () => {
+      await prisma.collectionRun.create({ data: { startedAt: daysAgo(1) } });
+      await seed('a', { firstSeenAt: new Date(), viewedAt: new Date() });
+
+      const list = await rows('?pending=true');
+
+      expect(list.items[0]).toMatchObject({ isNew: true });
+      expect(list.items[0]?.viewedAt).not.toBeNull();
+      expect(titles(await get('?pending=true&read=new&minScore=0'))).toEqual(['Offre a']);
+      expect((await rows('?pending=true&read=unread')).total).toBe(0);
+    });
+
+    it('refuse un filtre de lecture inconnu, une offre inconnue et un corps invalide', async () => {
+      const a = await seed('a');
+      await http.get('/offers?read=peut-etre').set('Cookie', cookie).expect(400);
+      await write('/offers/019cde90-0000-7000-8000-000000000000/read')
+        .send({ read: true })
+        .expect(404);
+      await write(`/offers/${a.id}/read`).send({ read: 'oui' }).expect(400);
+      await write(`/offers/${a.id}/read`).send({ read: true, autre: 1 }).expect(400);
+      await write('/offers/pas-un-uuid/read').send({ read: true }).expect(400);
+    });
+
+    it('exige une session et le jeton anti-CSRF pour marquer une offre lue', async () => {
+      const a = await seed('a');
+
+      await http.post(`/offers/${a.id}/read`).send({ read: true }).expect(401);
+      await http
+        .post(`/offers/${a.id}/read`)
+        .set('Cookie', cookie)
+        .send({ read: true })
+        .expect(403);
     });
   });
 });

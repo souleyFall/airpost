@@ -128,6 +128,51 @@ describe('application en mode démo', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('met en surbrillance les offres non lues, affiche « Nouveau » et filtre par lecture, sans réseau', async () => {
+    const { fetchSpy, user } = await startDemo();
+    const title = 'Alternance Développeur Full Stack TypeScript';
+    const region = await screen.findByRole('region', { name: 'Offres à valider' });
+    const rowOf = (text: string) => within(region).getByText(text).closest('button') as HTMLElement;
+    await within(region).findByText(title);
+
+    expect(rowOf(title)).toHaveTextContent('Nouveau');
+    expect(rowOf(title)).toHaveTextContent('Non lue');
+
+    await user.click(within(region).getByRole('button', { name: /^Lecture/ }));
+    await user.click(screen.getByRole('menuitemradio', { name: /Non lues/ }));
+    await waitFor(() => {
+      const rows = within(within(region).getByRole('list')).getAllByRole('button');
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of rows) expect(row).toHaveTextContent('Non lue');
+    });
+
+    await user.click(within(region).getByRole('button', { name: /^Non lues/ }));
+    await user.click(screen.getByRole('menuitemradio', { name: /Nouvelles/ }));
+    await waitFor(() => {
+      const rows = within(within(region).getByRole('list')).getAllByRole('button');
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of rows) expect(row).toHaveTextContent('Nouveau');
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('à la collecte suivante, le badge « Nouveau » passe des anciennes offres aux nouvelles', async () => {
+    const { fetchSpy, user } = await startDemo();
+    const title = 'Alternance Développeur Full Stack TypeScript';
+    const arrival = 'Alternance Développeuse Full Stack React et Node';
+    const region = await screen.findByRole('region', { name: 'Offres à valider' });
+    const rowOf = (text: string) => within(region).getByText(text).closest('button') as HTMLElement;
+    await within(region).findByText(title);
+    expect(rowOf(title)).toHaveTextContent('Nouveau');
+
+    await user.click(screen.getByRole('button', { name: 'Lancer la collecte' }));
+
+    await within(region).findByText(arrival);
+    expect(rowOf(arrival)).toHaveTextContent('Nouveau');
+    expect(rowOf(title)).not.toHaveTextContent('Nouveau');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('la collecte fait arriver de nouvelles offres et affiche leur nombre', async () => {
     const { fetchSpy, user } = await startDemo();
     await screen.findByText('Alternance Développeur Full Stack TypeScript');

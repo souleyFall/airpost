@@ -176,6 +176,8 @@ describe('Offres ajoutées à la main (e2e, base réelle, faux modèle)', () => 
       const offer = await prisma.offer.findUniqueOrThrow({
         where: { id: (res.body as { id: string }).id },
       });
+      // Saisie par l'utilisateur : créée déjà lue, elle n'apparaît pas en surbrillance.
+      expect(offer.viewedAt).not.toBeNull();
       expect(offer).toMatchObject({
         source: 'MANUAL',
         title: 'Alternance - Développeur Full Stack (H/F)',

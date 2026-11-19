@@ -47,6 +47,9 @@ const offer = (
   applyUrl: 'https://exemple.test/offre',
   publishedAt: now,
   firstSeenAt: now,
+  // Lue par défaut : les tests qui regardent la lecture le précisent (viewedAt: null, isNew: true).
+  viewedAt: now as string | null,
+  isNew: false,
   score,
   application,
   ...extra,
@@ -73,6 +76,8 @@ interface Options {
   unscored?: boolean;
   /** Offres que l'IA écarte quand on les analyse. */
   disqualify?: string[];
+  /** Le marquage lu / non lu échoue (panne de l'API). */
+  readFails?: boolean;
 }
 
 /** Fausse API avec un petit état : la lettre n'existe qu'après génération ; la liste honore limit/offset/source. */
@@ -86,6 +91,8 @@ function fakeApi(options: Options = {}) {
   const hidden = new Set<string>();
   // Offres rejetées, ou passées au suivi sans lettre : elles quittent la liste « À valider ».
   const gone = new Set<string>();
+  // Lecture modifiée par l'utilisateur pendant le test (id → date d'ouverture, ou null = remise « non lue »).
+  const readState = new Map<string, string | null>();
   const json = (data: unknown, code = 200) => new Response(JSON.stringify(data), { status: code });
   const appRef = () => (hasLetter ? { id: 'a1', status } : null);
   const catalogue = () =>
@@ -117,20 +124,34 @@ function fakeApi(options: Options = {}) {
       if (path === '/collection/last') return json({}, 404);
       if (path.startsWith('/offers?')) {
         const params = new URL(path, 'http://x').searchParams;
-        const visible = catalogue()
+        const toReview = catalogue()
           .filter((o) => !hidden.has(o.id) && !gone.has(o.id))
           .filter(
             (o) => o.application?.status !== 'WITHDRAWN' && o.application?.status !== 'VALIDATED',
           )
+          .map((o) => ({ ...o, viewedAt: readState.has(o.id) ? readState.get(o.id) : o.viewedAt }));
+        const read = params.get('read') ?? 'all';
+        const visible = toReview
           .filter(
             (o) => !params.get('source') || params.get('source')?.split(',').includes(o.source),
           )
           .filter((o) => !params.get('channel') || o.channel === params.get('channel'))
-          .filter((o) => !params.get('q') || o.title.toLowerCase().includes(params.get('q') ?? ''));
+          .filter((o) => !params.get('q') || o.title.toLowerCase().includes(params.get('q') ?? ''))
+          .filter((o) =>
+            read === 'unread'
+              ? o.viewedAt === null
+              : read === 'read'
+                ? o.viewedAt !== null
+                : read === 'new'
+                  ? o.isNew
+                  : true,
+          );
         const limit = Number(params.get('limit'));
         const offset = Number(params.get('offset'));
         return json({
           total: visible.length,
+          // Comme le vrai serveur : toutes les non lues à traiter, quels que soient les filtres.
+          unread: toReview.filter((o) => o.viewedAt === null).length,
           limit,
           offset,
           items: visible
@@ -157,6 +178,12 @@ function fakeApi(options: Options = {}) {
         if (options.analyzeStatus) return json({ message: 'Quota' }, options.analyzeStatus);
         analyzed = true;
         return json(detail(path.split('/')[2] ?? 'o1'));
+      }
+      if (/^\/offers\/[\w-]+\/read$/.test(path) && method === 'POST') {
+        if (options.readFails) return json({ message: 'Panne' }, 500);
+        const read = (body as { read: boolean }).read;
+        readState.set(path.split('/')[2] ?? '', read ? now : null);
+        return json({ read });
       }
       if (path === '/offers/rejected') return json({ total: 0, items: [] });
       if (/^\/offers\/[\w-]+\/reject$/.test(path) && method === 'POST') {
@@ -235,10 +262,12 @@ describe('requête de la liste', () => {
         minScore: 55,
         maxDistanceKm: 30,
         sort: 'distance',
+        read: 'unread',
       },
       0,
     );
     const params = new URL(query, 'http://x').searchParams;
+    expect(params.get('read')).toBe('unread');
     expect(params.get('q')).toBe('react');
     expect(params.get('source')).toBe('LBA,ADZUNA');
     expect(params.get('contract')).toBe('STAGE,CDI');
@@ -247,12 +276,21 @@ describe('requête de la liste', () => {
     expect(params.get('maxDistanceKm')).toBe('30');
     expect(params.get('sort')).toBe('distance');
     expect(new URL(buildQuery(NO_FILTERS, 0), 'http://x').searchParams.has('source')).toBe(false);
+    // « Toutes » n'ajoute rien : la requête reste celle d'avant.
+    expect(new URL(buildQuery(NO_FILTERS, 0), 'http://x').searchParams.has('read')).toBe(false);
   });
 
-  it('compte les filtres actifs (hors recherche et tri)', () => {
+  it('compte les filtres actifs (hors recherche, tri et lecture, qui ont leur propre place)', () => {
     expect(activeFilterCount(NO_FILTERS)).toBe(0);
     expect(
-      activeFilterCount({ ...NO_FILTERS, sources: ['LBA'], minScore: 55, q: 'x', sort: 'fresh' }),
+      activeFilterCount({
+        ...NO_FILTERS,
+        sources: ['LBA'],
+        minScore: 55,
+        q: 'x',
+        sort: 'fresh',
+        read: 'new',
+      }),
     ).toBe(2);
   });
 });
@@ -623,11 +661,33 @@ describe('écran À valider', () => {
       const user = userEvent.setup();
       renderApp();
       const pager = await screen.findByRole('navigation', { name: 'Pagination' });
+      // La barre existe avant le chargement des offres (« Suivant » est alors désactivé) : on attend les 2 pages.
+      await waitFor(() => expect(pager).toHaveTextContent('Page 1 sur 2'));
       await user.click(within(pager).getByRole('button', { name: 'Suivant' }));
       await waitFor(() => expect(pager).toHaveTextContent('Page 2 sur 2'));
       await user.selectOptions(screen.getByLabelText('Tri'), 'fresh');
       await waitFor(() => expect(pager).toHaveTextContent('Page 1 sur'));
-      expect(calls.filter((c) => c.path.includes('sort=fresh')).at(-1)?.path).toContain('offset=0');
+      // La requête part après l'affichage : on l'attend au lieu de la lire tout de suite.
+      await waitFor(() =>
+        expect(calls.filter((c) => c.path.includes('sort=fresh')).at(-1)?.path).toContain(
+          'offset=0',
+        ),
+      );
+    });
+
+    it('garde la page choisie : la recherche, inchangée, ne la remet pas à la première', async () => {
+      fakeApi({ catalogue: many(PAGE_SIZE + 5) });
+      const user = userEvent.setup();
+      renderApp();
+      const pager = await screen.findByRole('navigation', { name: 'Pagination' });
+      await waitFor(() => expect(pager).toHaveTextContent('Page 1 sur 2'));
+      await user.click(within(pager).getByRole('button', { name: 'Suivant' }));
+      await waitFor(() => expect(pager).toHaveTextContent('Page 2 sur 2'));
+
+      // Plus longtemps que l'attente de la recherche (300 ms) : avant la correction, elle ramenait à la page 1.
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      expect(pager).toHaveTextContent('Page 2 sur 2');
     });
 
     it('une seule page : pas de navigation possible', async () => {
@@ -763,5 +823,240 @@ describe('écran À valider', () => {
         screen.queryByRole('button', { name: 'Postuler sans lettre' }),
       ).not.toBeInTheDocument();
     });
+  });
+});
+
+describe('lecture : non lues, nouvelles et menu de filtre', () => {
+  // o1 : non lue et nouvelle ; o2 : non lue ; o3 : déjà lue.
+  const offers = () => [
+    offer('o1', 'Alternance full stack', 91, null, { viewedAt: null, isNew: true }),
+    offer('o2', 'Dev React', 80, null, { viewedAt: null, isNew: false }),
+    offer('o3', 'Ancienne offre', 60, null, { viewedAt: now, isNew: false }),
+  ];
+  const rows = () => within(getList()).getAllByRole('button');
+  const readButton = () =>
+    within(screen.getByRole('region', { name: 'Offres à valider' })).getByRole('button', {
+      name: /^(Lecture|Non lues|Lues|Nouvelles)/,
+    });
+  const readCalls = (calls: Call[]) => calls.filter((c) => c.path.endsWith('/read'));
+
+  it('met en surbrillance les offres non lues et affiche « Nouveau » sur celles de la dernière collecte', async () => {
+    fakeApi({ catalogue: offers() });
+    renderApp();
+    await findList();
+
+    const [first, second, third] = rows();
+    expect(first).toHaveTextContent('Non lue');
+    expect(first).toHaveTextContent('Nouveau');
+    expect(second).toHaveTextContent('Non lue');
+    expect(second).not.toHaveTextContent('Nouveau');
+    expect(third).not.toHaveTextContent('Non lue');
+    expect(third).not.toHaveTextContent('Nouveau');
+  });
+
+  it('une offre nouvelle peut déjà être lue : le badge reste, la surbrillance disparaît', async () => {
+    fakeApi({
+      catalogue: [offer('o1', 'Alternance full stack', 91, null, { viewedAt: now, isNew: true })],
+    });
+    renderApp();
+    await findList();
+
+    expect(rows()[0]).toHaveTextContent('Nouveau');
+    expect(rows()[0]).not.toHaveTextContent('Non lue');
+  });
+
+  it('la première offre, sélectionnée d’office à l’affichage, n’est pas marquée lue', async () => {
+    const calls = fakeApi({ catalogue: offers() });
+    renderApp();
+    await findList();
+    await screen.findByText(/Compatibilité 91 \/ 100/, {}, SLOW);
+
+    expect(readCalls(calls)).toEqual([]);
+    expect(rows()[0]).toHaveTextContent('Non lue');
+    expect(readButton()).toHaveTextContent(/2 non lues/);
+  });
+
+  it('ouvrir une offre la marque lue tout de suite et fait baisser la pastille', async () => {
+    const user = userEvent.setup();
+    const calls = fakeApi({ catalogue: offers() });
+    renderApp();
+    await findList();
+
+    await user.click(rows()[1]);
+
+    expect(rows()[1]).not.toHaveTextContent('Non lue');
+    expect(readButton()).toHaveTextContent(/1 non lue/);
+    await waitFor(() =>
+      expect(calls).toContainEqual({
+        method: 'POST',
+        path: '/offers/o2/read',
+        body: { read: true },
+      }),
+    );
+  });
+
+  it('rouvrir une offre déjà lue ne rappelle pas l’API', async () => {
+    const user = userEvent.setup();
+    const calls = fakeApi({ catalogue: offers() });
+    renderApp();
+    await findList();
+
+    await user.click(rows()[2]);
+
+    expect(readCalls(calls)).toEqual([]);
+  });
+
+  it('les flèches du clavier marquent lue l’offre atteinte', async () => {
+    const user = userEvent.setup();
+    const calls = fakeApi({ catalogue: offers() });
+    renderApp();
+    await findList();
+    // La première offre est sélectionnée d'office juste après l'affichage : on l'attend avant d'appuyer sur ↓.
+    await waitFor(() => expect(rows()[0]).toHaveAttribute('aria-current', 'true'));
+
+    await user.keyboard('{ArrowDown}');
+
+    expect(rows()[1]).toHaveAttribute('aria-current', 'true');
+    await waitFor(() =>
+      expect(calls).toContainEqual({
+        method: 'POST',
+        path: '/offers/o2/read',
+        body: { read: true },
+      }),
+    );
+  });
+
+  it('« Marquer comme non lue » remet l’offre en surbrillance', async () => {
+    const user = userEvent.setup();
+    const calls = fakeApi({ catalogue: offers() });
+    renderApp();
+    await findList();
+    await user.click(rows()[1]);
+    expect(rows()[1]).not.toHaveTextContent('Non lue');
+
+    await user.click(await screen.findByRole('button', { name: 'Marquer comme non lue' }));
+
+    expect(rows()[1]).toHaveTextContent('Non lue');
+    expect(readButton()).toHaveTextContent(/2 non lues/);
+    await waitFor(() =>
+      expect(calls).toContainEqual({
+        method: 'POST',
+        path: '/offers/o2/read',
+        body: { read: false },
+      }),
+    );
+  });
+
+  it('si l’API échoue, l’offre redevient non lue (rien n’est affiché de faux)', async () => {
+    const user = userEvent.setup();
+    const calls = fakeApi({ catalogue: offers(), readFails: true });
+    renderApp();
+    await findList();
+
+    await user.click(rows()[1]);
+
+    await waitFor(() => expect(readCalls(calls)).toHaveLength(1));
+    await waitFor(() => expect(rows()[1]).toHaveTextContent('Non lue'));
+    expect(readButton()).toHaveTextContent(/2 non lues/);
+  });
+
+  it('le menu de lecture s’ouvre en surimpression : il ne fait pas partie de la mise en page de la liste', async () => {
+    const user = userEvent.setup();
+    fakeApi({ catalogue: offers() });
+    renderApp();
+    await findList();
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+
+    await user.click(readButton());
+
+    const menu = screen.getByRole('menu', { name: 'Filtrer par lecture' });
+    // Positionné de façon absolue : la liste des offres ne bouge pas.
+    expect(menu).toHaveClass('absolute');
+    expect(
+      within(menu)
+        .getAllByRole('menuitemradio')
+        .map((item) => item.textContent?.replace(/[✓\d]/g, '').trim()),
+    ).toEqual(['Toutes', 'Non lues', 'Lues', 'Nouvelles']);
+    expect(within(menu).getByRole('menuitemradio', { name: /Toutes/ })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+  });
+
+  it('choisir « Non lues » filtre la liste et referme le menu', async () => {
+    const user = userEvent.setup();
+    const calls = fakeApi({ catalogue: offers() });
+    renderApp();
+    await findList();
+
+    await user.click(readButton());
+    await user.click(screen.getByRole('menuitemradio', { name: /Non lues/ }));
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    await waitFor(() => expect(calls.some((c) => c.path.includes('read=unread'))).toBe(true));
+    await waitFor(() => expect(rows()).toHaveLength(2));
+    expect(readButton()).toHaveTextContent('Non lues');
+  });
+
+  it('« Lues » et « Nouvelles » interrogent l’API avec le bon filtre', async () => {
+    const user = userEvent.setup();
+    const calls = fakeApi({ catalogue: offers() });
+    renderApp();
+    await findList();
+
+    await user.click(readButton());
+    await user.click(screen.getByRole('menuitemradio', { name: /^Lues/ }));
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    expect(rows()[0]).toHaveTextContent('Ancienne offre');
+
+    await user.click(readButton());
+    await user.click(screen.getByRole('menuitemradio', { name: /Nouvelles/ }));
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    expect(rows()[0]).toHaveTextContent('Alternance full stack');
+    expect(calls.some((c) => c.path.includes('read=read'))).toBe(true);
+    expect(calls.some((c) => c.path.includes('read=new'))).toBe(true);
+  });
+
+  it('Échap referme le menu et rend le focus au bouton', async () => {
+    const user = userEvent.setup();
+    fakeApi({ catalogue: offers() });
+    renderApp();
+    await findList();
+    await user.click(readButton());
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(readButton()).toHaveFocus();
+  });
+
+  it('un clic ailleurs referme le menu', async () => {
+    const user = userEvent.setup();
+    fakeApi({ catalogue: offers() });
+    renderApp();
+    await findList();
+    await user.click(readButton());
+
+    await user.click(screen.getByRole('heading', { name: 'À valider' }));
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('les flèches déplacent le choix dans le menu sans changer l’offre sélectionnée', async () => {
+    const user = userEvent.setup();
+    const calls = fakeApi({ catalogue: offers() });
+    renderApp();
+    await findList();
+    await waitFor(() => expect(rows()[0]).toHaveAttribute('aria-current', 'true'));
+    await user.click(readButton());
+    const items = screen.getAllByRole('menuitemradio');
+    expect(items[0]).toHaveFocus();
+
+    await user.keyboard('{ArrowDown}');
+
+    expect(items[1]).toHaveFocus();
+    expect(rows()[0]).toHaveAttribute('aria-current', 'true');
+    expect(readCalls(calls)).toEqual([]);
   });
 });
